@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
     {
          // ユーザー作成
         $adminUser = User::factory()->create([
+            'account' => 'admin',
             'name' => '管理者',
             'email' => 'admin@example.com',
             'password' => bcrypt('password'),
@@ -29,6 +30,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         User::factory()->create([
+            'account' => 'test',
             'name' => 'テスト',
             'email' => 'test@example.com',
             'password' => bcrypt('password'),

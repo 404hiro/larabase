@@ -13,8 +13,11 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
+            // 'account' カラムの追加
+            $table->string('account')->unique();
             $table->string('name');
             $table->string('email')->unique();
+            $table->string('avatar_path', 2048)->nullable();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->rememberToken();
