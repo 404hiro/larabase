@@ -32,7 +32,7 @@ return [
     'date_format'            => ':attributeの形式が\':format\'と一致しません。',
     'decimal'                => ':attributeは、小数点以下が:decimalである必要があります。',
     'declined'               => ':attributeを拒否する必要があります。',
-    'declined_if'            => ':otherが:valueの場合、:attributeを拒否する必要があります。',
+    'declained_if'            => ':otherが:valueの場合、:attributeを拒否する必要があります。',
     'different'              => ':attributeと:otherには、異なるものを指定してください。',
     'digits'                 => ':attributeは、:digits桁にしてください。',
     'digits_between'         => ':attributeは、:min桁から:max桁にしてください。',
@@ -155,4 +155,39 @@ return [
     'uppercase'              => ':attributeは、大文字で入力してください。',
     'url'                    => ':attributeは、有効なURL形式で指定してください。',
     'uuid'                   => ':attributeは、有効なUUIDである必要があります。',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Custom Validation Language Lines
+    |--------------------------------------------------------------------------
+    |
+    | Here you may specify custom validation messages for attributes using the
+    | convention "attribute.rule" to name the lines. This makes it quick to
+    | specify a specific custom language line for a given attribute rule.
+    |
+    */
+
+    'custom' => [
+        'account' => [
+            'regex' => ':attributeは、半角英数字とアンダースコア(_)のみ使用できます。',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Custom Validation Attributes
+    |--------------------------------------------------------------------------
+    |
+    | The following language lines are used to swap our attribute placeholder
+    | with something more reader friendly such as "E-Mail Address" instead
+    | of "email". This simply helps us make our message more expressive.
+    |
+    */
+
+    'attributes' => [
+        'name' => '名前',
+        'account' => 'アカウント名',
+        'email' => 'メールアドレス',
+        'password' => 'パスワード',
+    ],
 ];

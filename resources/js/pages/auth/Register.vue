@@ -13,10 +13,10 @@ import { LoaderCircle } from 'lucide-vue-next';
 
 <template>
     <AuthBase
-        title="Create an account"
-        description="Enter your details below to create your account"
+        title="アカウントを作成"
+        description="アカウントを作成するために情報を入力してください"
     >
-        <Head title="Register" />
+        <Head title="会員登録" />
 
         <Form
             v-bind="store.form()"
@@ -26,7 +26,7 @@ import { LoaderCircle } from 'lucide-vue-next';
         >
             <div class="grid gap-6">
                 <div class="grid gap-2">
-                    <Label for="name">Name</Label>
+                    <Label for="name">名前</Label>
                     <Input
                         id="name"
                         type="text"
@@ -35,49 +35,63 @@ import { LoaderCircle } from 'lucide-vue-next';
                         :tabindex="1"
                         autocomplete="name"
                         name="name"
-                        placeholder="Full name"
+                        placeholder="氏名"
                     />
                     <InputError :message="errors.name" />
                 </div>
 
                 <div class="grid gap-2">
-                    <Label for="email">Email address</Label>
+                    <Label for="account">アカウント名</Label>
+                    <Input
+                        id="account"
+                        type="text"
+                        required
+                        :tabindex="2"
+                        autocomplete="username"
+                        name="account"
+                        placeholder="例: your_account"
+                    />
+                    <InputError :message="errors.account" />
+                </div>
+
+                <div class="grid gap-2">
+                    <Label for="email">メールアドレス</Label>
                     <Input
                         id="email"
                         type="email"
                         required
-                        :tabindex="2"
+                        :tabindex="3"
                         autocomplete="email"
                         name="email"
-                        placeholder="email@example.com"
+                        placeholder="例: email@example.com"
                     />
                     <InputError :message="errors.email" />
                 </div>
 
                 <div class="grid gap-2">
-                    <Label for="password">Password</Label>
+                    <Label for="password">パスワード</Label>
                     <Input
                         id="password"
                         type="password"
                         required
-                        :tabindex="3"
+                        :tabindex="4"
                         autocomplete="new-password"
                         name="password"
-                        placeholder="Password"
+                        placeholder="パスワード"
                     />
                     <InputError :message="errors.password" />
                 </div>
 
                 <div class="grid gap-2">
-                    <Label for="password_confirmation">Confirm password</Label>
+                    <Label for="password_confirmation">パスワード（確認）</Label>
                     <Input
                         id="password_confirmation"
                         type="password"
                         required
-                        :tabindex="4"
+                        :tabindex="5"
                         autocomplete="new-password"
                         name="password_confirmation"
-                        placeholder="Confirm password"
+                        placeholder="パスワードを再入力"
                     />
                     <InputError :message="errors.password_confirmation" />
                 </div>
@@ -85,7 +99,7 @@ import { LoaderCircle } from 'lucide-vue-next';
                 <Button
                     type="submit"
                     class="mt-2 w-full"
-                    tabindex="5"
+                    tabindex="6"
                     :disabled="processing"
                     data-test="register-user-button"
                 >
@@ -93,17 +107,17 @@ import { LoaderCircle } from 'lucide-vue-next';
                         v-if="processing"
                         class="h-4 w-4 animate-spin"
                     />
-                    Create account
+                    アカウント作成
                 </Button>
             </div>
 
             <div class="text-center text-sm text-muted-foreground">
-                Already have an account?
+                すでにアカウントをお持ちですか？
                 <TextLink
                     :href="login()"
                     class="underline underline-offset-4"
-                    :tabindex="6"
-                    >Log in</TextLink
+                    :tabindex="7"
+                    >ログイン</TextLink
                 >
             </div>
         </Form>
