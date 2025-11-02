@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AppLayout from '@/layouts/AppLayout.vue';
+import AdminLayout from '@/layouts/AdminLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
@@ -16,7 +16,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 <template>
     <Head title="管理画面" />
 
-    <AppLayout :breadcrumbs="breadcrumbs">
+    <AdminLayout :breadcrumbs="breadcrumbs">
         <div
             class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
         >
@@ -43,5 +43,5 @@ const breadcrumbs: BreadcrumbItem[] = [
                 <PlaceholderPattern />
             </div>
         </div>
-    </AppLayout>
+    </AdminLayout>
 </template>
