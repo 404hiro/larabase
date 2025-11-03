@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
-import { edit } from '@/routes/profile';
+import { edit, update } from '@/routes/profile';
 import { send } from '@/routes/verification';
-import { Form, Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
 
 import DeleteUser from '@/components/DeleteUser.vue';
 import HeadingSmall from '@/components/HeadingSmall.vue';
 import InputError from '@/components/InputError.vue';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { getInitials } from '@/composables/useInitials';
 import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { type BreadcrumbItem } from '@/types';
@@ -29,7 +31,47 @@ const breadcrumbItems: BreadcrumbItem[] = [
 ];
 
 const page = usePage();
-const user = page.props.auth.user;
+const user = computed(() => page.props.auth.user);
+
+const form = useForm({
+    name: user.value.name,
+    account: user.value.account,
+    email: user.value.email,
+    avatar: null as File | null,
+});
+
+const avatarPreview = ref<string | null>(null);
+const avatarInput = ref<InstanceType<typeof Input> | null>(null);
+
+function selectNewAvatar() {
+    (avatarInput.value?.$el as HTMLInputElement)?.click();
+}
+
+function updateAvatarPreview() {
+    const avatar = (avatarInput.value?.$el as HTMLInputElement)?.files?.[0];
+
+    if (!avatar) {
+        return;
+    }
+
+    form.avatar = avatar;
+
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+        avatarPreview.value = e.target?.result as string;
+    };
+
+    reader.readAsDataURL(avatar);
+}
+
+function submit() {
+    form.post(update().url, {
+        onSuccess: () => {
+            avatarPreview.value = null;
+        },
+    });
+}
 </script>
 
 <template>
@@ -40,26 +82,53 @@ const user = page.props.auth.user;
             <div class="flex flex-col space-y-6">
                 <HeadingSmall
                     title="プロフィール情報"
-                    description="名前とメールアドレスを更新します"
+                    description="名前、アカウント名、メールアドレス、アバターを更新します"
                 />
 
-                <Form
-                    v-bind="ProfileController.update.form()"
-                    class="space-y-6"
-                    v-slot="{ errors, processing, recentlySuccessful }"
-                >
+                <form @submit.prevent="submit" class="space-y-6">
+                    <div class="grid gap-2">
+                        <Label for="avatar">アバター</Label>
+                        <div class="flex items-center gap-4">
+                            <Avatar class="h-20 w-20">
+                                <AvatarImage
+                                    :src="avatarPreview ?? user.avatar_url"
+                                />
+                                <AvatarFallback>
+                                    {{ getInitials(user.name) }}
+                                </AvatarFallback>
+                            </Avatar>
+                            <Input
+                                id="avatar"
+                                type="file"
+                                class="hidden"
+                                ref="avatarInput"
+                                @change="updateAvatarPreview"
+                                name="avatar"
+                            />
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="selectNewAvatar"
+                                >新しいアバターを選択</Button
+                            >
+                        </div>
+                        <InputError
+                            class="mt-2"
+                            :message="form.errors.avatar"
+                        />
+                    </div>
+
                     <div class="grid gap-2">
                         <Label for="name">名前</Label>
                         <Input
                             id="name"
                             class="mt-1 block w-full"
-                            name="name"
-                            :default-value="user.name"
+                            v-model="form.name"
                             required
                             autocomplete="name"
                             placeholder="氏名"
                         />
-                        <InputError class="mt-2" :message="errors.name" />
+                        <InputError class="mt-2" :message="form.errors.name" />
                     </div>
 
                     <div class="grid gap-2">
@@ -67,13 +136,15 @@ const user = page.props.auth.user;
                         <Input
                             id="account"
                             class="mt-1 block w-full"
-                            name="account"
-                            :default-value="user.account"
+                            v-model="form.account"
                             required
                             autocomplete="username"
                             placeholder="例: your_account"
                         />
-                        <InputError class="mt-2" :message="errors.account" />
+                        <InputError
+                            class="mt-2"
+                            :message="form.errors.account"
+                        />
                     </div>
 
                     <div class="grid gap-2">
@@ -82,13 +153,12 @@ const user = page.props.auth.user;
                             id="email"
                             type="email"
                             class="mt-1 block w-full"
-                            name="email"
-                            :default-value="user.email"
+                            v-model="form.email"
                             required
                             autocomplete="username"
                             placeholder="メールアドレス"
                         />
-                        <InputError class="mt-2" :message="errors.email" />
+                        <InputError class="mt-2" :message="form.errors.email" />
                     </div>
 
                     <div v-if="mustVerifyEmail && !user.email_verified_at">
@@ -113,7 +183,7 @@ const user = page.props.auth.user;
 
                     <div class="flex items-center gap-4">
                         <Button
-                            :disabled="processing"
+                            :disabled="form.processing"
                             data-test="update-profile-button"
                             >保存</Button
                         >
@@ -125,14 +195,14 @@ const user = page.props.auth.user;
                             leave-to-class="opacity-0"
                         >
                             <p
-                                v-show="recentlySuccessful"
+                                v-show="form.recentlySuccessful"
                                 class="text-sm text-neutral-600"
                             >
                                 保存しました。
                             </p>
                         </Transition>
                     </div>
-                </Form>
+                </form>
             </div>
 
             <DeleteUser />

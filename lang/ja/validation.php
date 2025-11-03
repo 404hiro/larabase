@@ -189,5 +189,8 @@ return [
         'account' => 'アカウント名',
         'email' => 'メールアドレス',
         'password' => 'パスワード',
+        'avatar' => 'アバター',
+        'current_password' => '現在のパスワード',
+        'code' => '認証コード',
     ],
 ];

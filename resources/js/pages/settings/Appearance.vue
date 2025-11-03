@@ -11,7 +11,8 @@ import { edit } from '@/routes/appearance';
 
 const breadcrumbItems: BreadcrumbItem[] = [
     {
-        title: 'Appearance settings',
+        // 💡 ブレッドクラムのタイトルを日本語に
+        title: '外観設定',
         href: edit().url,
     },
 ];
@@ -19,13 +20,12 @@ const breadcrumbItems: BreadcrumbItem[] = [
 
 <template>
     <AppLayout :breadcrumbs="breadcrumbItems">
-        <Head title="Appearance settings" />
-
+        <Head title="外観設定" />
         <SettingsLayout>
             <div class="space-y-6">
                 <HeadingSmall
-                    title="Appearance settings"
-                    description="Update your account's appearance settings"
+                    title="外観設定"
+                    description="あなたのアカウントの外観設定を更新します"
                 />
                 <AppearanceTabs />
             </div>

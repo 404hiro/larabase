@@ -83,7 +83,9 @@ import { LoaderCircle } from 'lucide-vue-next';
                 </div>
 
                 <div class="grid gap-2">
-                    <Label for="password_confirmation">パスワード（確認）</Label>
+                    <Label for="password_confirmation"
+                        >パスワード（確認）</Label
+                    >
                     <Input
                         id="password_confirmation"
                         type="password"

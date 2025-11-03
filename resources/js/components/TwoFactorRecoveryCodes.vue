@@ -42,11 +42,10 @@ onMounted(async () => {
     <Card class="w-full">
         <CardHeader>
             <CardTitle class="flex gap-3">
-                <LockKeyhole class="size-4" />2FA Recovery Codes
+                <LockKeyhole class="size-4" />二要素認証リカバリーコード
             </CardTitle>
             <CardDescription>
-                Recovery codes let you regain access if you lose your 2FA
-                device. Store them in a secure password manager.
+                リカバリーコードは、二要素認証デバイスを紛失した場合にアクセスを回復するためのものです。安全なパスワードマネージャーに保管してください。
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -58,8 +57,7 @@ onMounted(async () => {
                         :is="isRecoveryCodesVisible ? EyeOff : Eye"
                         class="size-4"
                     />
-                    {{ isRecoveryCodesVisible ? 'Hide' : 'View' }} Recovery
-                    Codes
+                    {{ isRecoveryCodesVisible ? '非表示' : '表示' }} リカバリーコード
                 </Button>
 
                 <Form
@@ -75,7 +73,7 @@ onMounted(async () => {
                         type="submit"
                         :disabled="processing"
                     >
-                        <RefreshCw /> Regenerate Codes
+                        <RefreshCw /> コードを再生成
                     </Button>
                 </Form>
             </div>
@@ -111,10 +109,7 @@ onMounted(async () => {
                         </div>
                     </div>
                     <p class="text-xs text-muted-foreground select-none">
-                        Each recovery code can be used once to access your
-                        account and will be removed after use. If you need more,
-                        click
-                        <span class="font-bold">Regenerate Codes</span> above.
+                        各リカバリーコードはアカウントへのアクセスに一度だけ使用でき、使用後は削除されます。さらに必要な場合は、上記の「コードを再生成」をクリックしてください。
                     </p>
                 </div>
             </div>

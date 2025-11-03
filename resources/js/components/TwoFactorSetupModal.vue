@@ -46,26 +46,26 @@ const modalConfig = computed<{
 }>(() => {
     if (props.twoFactorEnabled) {
         return {
-            title: 'Two-Factor Authentication Enabled',
+            title: '二要素認証が有効になりました',
             description:
-                'Two-factor authentication is now enabled. Scan the QR code or enter the setup key in your authenticator app.',
-            buttonText: 'Close',
+                '二要素認証が有効になりました。QRコードをスキャンするか、認証アプリにセットアップキーを入力してください。',
+            buttonText: '閉じる',
         };
     }
 
     if (showVerificationStep.value) {
         return {
-            title: 'Verify Authentication Code',
-            description: 'Enter the 6-digit code from your authenticator app',
-            buttonText: 'Continue',
+            title: '認証コードを確認',
+            description: '認証アプリから6桁のコードを入力してください',
+            buttonText: '続行',
         };
     }
 
     return {
-        title: 'Enable Two-Factor Authentication',
+        title: '二要素認証を有効にする',
         description:
-            'To finish enabling two-factor authentication, scan the QR code or enter the setup key in your authenticator app',
-        buttonText: 'Continue',
+            '二要素認証を有効にするには、QRコードをスキャンするか、認証アプリにセットアップキーを入力してください',
+        buttonText: '続行',
     };
 });
 
@@ -190,7 +190,7 @@ watch(
                                 class="absolute inset-0 top-1/2 h-px w-full bg-border"
                             />
                             <span class="relative bg-card px-2 py-1"
-                                >or, enter the code manually</span
+                                >または、コードを手動で入力</span
                             >
                         </div>
 
@@ -278,7 +278,7 @@ watch(
                                     @click="showVerificationStep = false"
                                     :disabled="processing"
                                 >
-                                    Back
+                                    戻る
                                 </Button>
                                 <Button
                                     type="submit"
@@ -287,7 +287,7 @@ watch(
                                         processing || codeValue.length < 6
                                     "
                                 >
-                                    Confirm
+                                    確認
                                 </Button>
                             </div>
                         </div>
