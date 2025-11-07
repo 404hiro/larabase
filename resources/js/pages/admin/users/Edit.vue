@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MultiSelect } from '@/components/ui/select';
-import { ArrowLeft, Save } from 'lucide-vue-next';
+import { ArrowLeft, Save, Upload, X } from 'lucide-vue-next';
+import { ref } from 'vue';
 
 interface Role {
     id: number;
@@ -21,6 +22,7 @@ interface User {
     name: string;
     account: string;
     email: string;
+    avatar_url: string | null;
     email_verified_at: string | null;
     roles: Role[];
 }
@@ -61,11 +63,39 @@ const form = useForm({
     name: props.user.name,
     account: props.user.account,
     email: props.user.email,
+    avatar: null as File | null,
     roles: (props.user.roles && Array.isArray(props.user.roles)) 
         ? props.user.roles.map(role => role.name) 
         : [],
     email_verified: !!props.user.email_verified_at,
 });
+
+const avatarPreview = ref<string | null>(props.user.avatar_url);
+const fileInput = ref<HTMLInputElement | null>(null);
+
+const handleAvatarChange = (event: Event) => {
+    const target = event.target as HTMLInputElement;
+    const file = target.files?.[0];
+    
+    if (file) {
+        form.avatar = file;
+        
+        // プレビュー用のURLを作成
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            avatarPreview.value = e.target?.result as string;
+        };
+        reader.readAsDataURL(file);
+    }
+};
+
+const removeAvatar = () => {
+    form.avatar = null;
+    avatarPreview.value = props.user.avatar_url;
+    if (fileInput.value) {
+        fileInput.value.value = '';
+    }
+};
 
 console.log('Form initialized with roles:', form.roles);
 
@@ -102,6 +132,61 @@ const submit = () => {
                 </CardHeader>
                 <CardContent>
                     <form @submit.prevent="submit" class="space-y-6">
+                        <!-- アバター画像 -->
+                        <div class="space-y-2">
+                            <Label>アバター画像</Label>
+                            <div class="flex items-center gap-4">
+                                <!-- プレビュー -->
+                                <div class="relative h-24 w-24 overflow-hidden rounded-full border-2 border-border bg-muted">
+                                    <img
+                                        v-if="avatarPreview"
+                                        :src="avatarPreview"
+                                        alt="Avatar preview"
+                                        class="h-full w-full object-cover"
+                                    />
+                                    <div v-else class="flex h-full w-full items-center justify-center text-muted-foreground">
+                                        <Upload class="h-8 w-8" />
+                                    </div>
+                                </div>
+                                
+                                <!-- アップロードボタン -->
+                                <div class="flex flex-col gap-2">
+                                    <input
+                                        ref="fileInput"
+                                        type="file"
+                                        accept="image/*"
+                                        class="hidden"
+                                        @change="handleAvatarChange"
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        @click="fileInput?.click()"
+                                    >
+                                        <Upload class="mr-2 h-4 w-4" />
+                                        画像を選択
+                                    </Button>
+                                    <Button
+                                        v-if="form.avatar"
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        @click="removeAvatar"
+                                    >
+                                        <X class="mr-2 h-4 w-4" />
+                                        削除
+                                    </Button>
+                                    <p class="text-xs text-muted-foreground">
+                                        JPG, PNG, GIF (最大2MB)
+                                    </p>
+                                </div>
+                            </div>
+                            <p v-if="form.errors.avatar" class="text-sm text-red-500">
+                                {{ form.errors.avatar }}
+                            </p>
+                        </div>
+
                         <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                             <div class="space-y-2">
                                 <Label for="name">名前 *</Label>

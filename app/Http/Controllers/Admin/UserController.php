@@ -103,6 +103,7 @@ class UserController extends Controller
                 'name' => $user->name,
                 'account' => $user->account,
                 'email' => $user->email,
+                'avatar_url' => $user->avatar_url,
                 'email_verified_at' => $user->email_verified_at,
                 'created_at' => $user->created_at,
                 'updated_at' => $user->updated_at,
@@ -128,15 +129,29 @@ class UserController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'account' => ['required', 'string', 'max:255', Rule::unique('users')->ignore($user->id)],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+            'avatar' => ['nullable', 'image', 'max:2048'], // 2MB max
             'roles' => ['nullable', 'array'],
             'roles.*' => ['string', 'exists:roles,name'],
             'email_verified' => ['boolean'],
         ]);
 
+        // アバター画像の処理
+        if ($request->hasFile('avatar')) {
+            // 古い画像を削除
+            if ($user->avatar) {
+                \Storage::disk('public')->delete($user->avatar);
+            }
+            
+            // 新しい画像を保存
+            $avatarPath = $request->file('avatar')->store('avatars', 'public');
+            $validated['avatar'] = $avatarPath;
+        }
+
         $user->update([
             'name' => $validated['name'],
             'account' => $validated['account'],
             'email' => $validated['email'],
+            'avatar' => $validated['avatar'] ?? $user->avatar,
             'email_verified_at' => $validated['email_verified'] ?? false ? now() : null,
         ]);
 
