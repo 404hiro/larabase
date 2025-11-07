@@ -14,14 +14,19 @@ import {
 import { dashboard } from '@/routes/admin';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid } from 'lucide-vue-next';
+import { BookOpen, Folder, LayoutGrid, Users } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
 const mainNavItems: NavItem[] = [
     {
-        title: 'Dashboard',
-        href: dashboard(),
+        title: 'ダッシュボード',
+        href: dashboard().url,
         icon: LayoutGrid,
+    },
+    {
+        title: 'ユーザ管理',
+        href: '/admin/users',
+        icon: Users,
     },
 ];
 

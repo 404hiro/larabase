@@ -22,10 +22,8 @@ class DatabaseSeeder extends Seeder
             'name' => '管理者',
             'email' => 'admin@example.com',
             'password' => bcrypt('password'),
-            // 2段階認証関連のカラムを null または空に設定
             'two_factor_secret' => null, 
             'two_factor_recovery_codes' => null, 
-            // two_factor_confirmed_at がある場合はこちらも設定
             'two_factor_confirmed_at' => null,
         ]);
 
@@ -34,10 +32,8 @@ class DatabaseSeeder extends Seeder
             'name' => 'テスト',
             'email' => 'test@example.com',
             'password' => bcrypt('password'),
-            // 2段階認証関連のカラムを null または空に設定
             'two_factor_secret' => null, 
             'two_factor_recovery_codes' => null, 
-            // two_factor_confirmed_at がある場合はこちらも設定
             'two_factor_confirmed_at' => null,
             ]);
 
@@ -49,6 +45,6 @@ class DatabaseSeeder extends Seeder
         $adminUser->assignRole($adminRole);
 
         // その他のユーザーを10人作成
-        User::factory(10)->create();
+        User::factory(100)->create();
     }
 }
