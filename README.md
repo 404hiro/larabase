@@ -2,10 +2,10 @@
 
 Webサービスを素早く立ち上げるための、Laravel + Vue.js (Inertia.js) + shadcn/vue によるベーステンプレートです。必要最低限のユーザ機能と管理画面を備えており、これをベースに独自のサービスを拡張開発できます。
 
-![Laravel](https://img.shields.io/badge/Laravel-11-FF2D20?style=flat&logo=laravel)
-![Vue.js](https://img.shields.io/badge/Vue.js-3-4FC08D?style=flat&logo=vue.js)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat&logo=typescript)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38B2AC?style=flat&logo=tailwind-css)
+![Laravel](https://img.shields.io/badge/Laravel-12-FF2D20?style=flat&logo=laravel)
+![Vue.js](https://img.shields.io/badge/Vue.js-3.5-4FC08D?style=flat&logo=vue.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.2-3178C6?style=flat&logo=typescript)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.1-38B2AC?style=flat&logo=tailwind-css)
 
 ## 📋 目次
 
@@ -36,17 +36,18 @@ Webサービスを素早く立ち上げるための、Laravel + Vue.js (Inertia.
 ## 🛠 技術スタック
 
 ### バックエンド
-- **Laravel 11**: PHPフレームワーク
+- **Laravel 12**: PHPフレームワーク
+- **PHP 8.2+**: プログラミング言語
 - **PostgreSQL 17**: データベース
-- **Laravel Fortify**: 認証システム
-- **Laravel-permission (Spatie)**: 権限管理
+- **Laravel Fortify 1.30**: 認証システム
+- **Laravel-permission 6.21 (Spatie)**: 権限管理
 
 ### フロントエンド
-- **Vue 3**: プログレッシブJavaScriptフレームワーク
-- **TypeScript 5**: 型安全な開発
-- **Inertia.js**: モダンなモノリシックアプローチ
+- **Vue 3.5**: プログレッシブJavaScriptフレームワーク
+- **TypeScript 5.2**: 型安全な開発
+- **Inertia.js 2.1**: モダンなモノリシックアプローチ
 - **shadcn/vue**: UIコンポーネントライブラリ
-- **Tailwind CSS 4**: ユーティリティファーストCSS
+- **Tailwind CSS 4.1**: ユーティリティファーストCSS
 - **Vite 7**: 高速ビルドツール
 
 ### 開発ツール
@@ -62,7 +63,7 @@ Webサービスを素早く立ち上げるための、Laravel + Vue.js (Inertia.
 
 または
 
-- **PHP**: 8.4 以上
+- **PHP**: 8.2 以上
 - **Composer**: 2.x 以上
 - **PostgreSQL**: 17 以上
 - **Node.js**: 18.x 以上
