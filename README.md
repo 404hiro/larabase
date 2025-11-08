@@ -452,8 +452,9 @@ npm run dev
 
 ## 👥 作成者
 
-LaraBase Development Team
-
+エイハブが作ってます。  
+Xフォローしてね↓  
+https://x.com/d404hiro
 ---
 
 **注意**: このREADMEは開発環境用です。本番環境にデプロイする際は、適切なセキュリティ設定を行ってください。
