@@ -100,8 +100,22 @@ const removeAvatar = () => {
 console.log('Form initialized with roles:', form.roles);
 
 const submit = () => {
-    console.log('Submitting roles:', form.roles);
-    form.put(`/admin/users/${props.user.id}`, {
+    console.log('Submitting form data:', {
+        name: form.name,
+        account: form.account,
+        email: form.email,
+        avatar: form.avatar,
+        roles: form.roles,
+        email_verified: form.email_verified
+    });
+    
+    // 常にPOSTメソッドを使用し、_methodでPUTをエミュレート
+    // これによりファイルアップロードの有無に関わらず一貫した処理が可能
+    form.transform((data) => ({
+        ...data,
+        _method: 'PUT',
+    })).post(`/admin/users/${props.user.id}`, {
+        preserveScroll: true,
         onSuccess: () => {
             console.log('Update successful');
         },
