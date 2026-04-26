@@ -22,9 +22,6 @@ class DatabaseSeeder extends Seeder
             'name' => '管理者',
             'email' => 'admin@example.com',
             'password' => bcrypt('password'),
-            'two_factor_secret' => null, 
-            'two_factor_recovery_codes' => null, 
-            'two_factor_confirmed_at' => null,
         ]);
 
         User::factory()->create([
@@ -32,9 +29,6 @@ class DatabaseSeeder extends Seeder
             'name' => 'テスト',
             'email' => 'test@example.com',
             'password' => bcrypt('password'),
-            'two_factor_secret' => null, 
-            'two_factor_recovery_codes' => null, 
-            'two_factor_confirmed_at' => null,
             ]);
 
 
