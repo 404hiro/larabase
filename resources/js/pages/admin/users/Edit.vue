@@ -1,13 +1,13 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { MultiSelect } from '@/components/ui/select';
 import AdminLayout from '@/layouts/AdminLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { MultiSelect } from '@/components/ui/select';
 import { ArrowLeft, Save, Upload, X } from 'lucide-vue-next';
 import { ref } from 'vue';
 
@@ -20,7 +20,6 @@ interface Role {
 interface User {
     id: number;
     name: string;
-    account: string;
     email: string;
     avatar_url: string | null;
     email_verified_at: string | null;
@@ -61,12 +60,12 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 const form = useForm({
     name: props.user.name,
-    account: props.user.account,
     email: props.user.email,
     avatar: null as File | null,
-    roles: (props.user.roles && Array.isArray(props.user.roles)) 
-        ? props.user.roles.map(role => role.name) 
-        : [],
+    roles:
+        props.user.roles && Array.isArray(props.user.roles)
+            ? props.user.roles.map((role) => role.name)
+            : [],
     email_verified: !!props.user.email_verified_at,
 });
 
@@ -76,10 +75,10 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const handleAvatarChange = (event: Event) => {
     const target = event.target as HTMLInputElement;
     const file = target.files?.[0];
-    
+
     if (file) {
         form.avatar = file;
-        
+
         // プレビュー用のURLを作成
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -102,13 +101,12 @@ console.log('Form initialized with roles:', form.roles);
 const submit = () => {
     console.log('Submitting form data:', {
         name: form.name,
-        account: form.account,
         email: form.email,
         avatar: form.avatar,
         roles: form.roles,
-        email_verified: form.email_verified
+        email_verified: form.email_verified,
     });
-    
+
     // 常にPOSTメソッドを使用し、_methodでPUTをエミュレート
     // これによりファイルアップロードの有無に関わらず一貫した処理が可能
     form.transform((data) => ({
@@ -121,7 +119,7 @@ const submit = () => {
         },
         onError: (errors) => {
             console.log('Update errors:', errors);
-        }
+        },
     });
 };
 </script>
@@ -130,7 +128,9 @@ const submit = () => {
     <Head :title="`ユーザ編集 - ${user.name}`" />
 
     <AdminLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+        <div
+            class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
+        >
             <div class="flex items-center justify-between">
                 <Button variant="ghost" as-child>
                     <Link :href="`/admin/users/${user.id}`">
@@ -151,18 +151,23 @@ const submit = () => {
                             <Label>アバター画像</Label>
                             <div class="flex items-center gap-4">
                                 <!-- プレビュー -->
-                                <div class="relative h-24 w-24 overflow-hidden rounded-full border-2 border-border bg-muted">
+                                <div
+                                    class="relative h-24 w-24 overflow-hidden rounded-full border-2 border-border bg-muted"
+                                >
                                     <img
                                         v-if="avatarPreview"
                                         :src="avatarPreview"
                                         alt="Avatar preview"
                                         class="h-full w-full object-cover"
                                     />
-                                    <div v-else class="flex h-full w-full items-center justify-center text-muted-foreground">
+                                    <div
+                                        v-else
+                                        class="flex h-full w-full items-center justify-center text-muted-foreground"
+                                    >
                                         <Upload class="h-8 w-8" />
                                     </div>
                                 </div>
-                                
+
                                 <!-- アップロードボタン -->
                                 <div class="flex flex-col gap-2">
                                     <input
@@ -196,7 +201,10 @@ const submit = () => {
                                     </p>
                                 </div>
                             </div>
-                            <p v-if="form.errors.avatar" class="text-sm text-red-500">
+                            <p
+                                v-if="form.errors.avatar"
+                                class="text-sm text-red-500"
+                            >
                                 {{ form.errors.avatar }}
                             </p>
                         </div>
@@ -209,24 +217,15 @@ const submit = () => {
                                     v-model="form.name"
                                     type="text"
                                     required
-                                    :class="{ 'border-red-500': form.errors.name }"
+                                    :class="{
+                                        'border-red-500': form.errors.name,
+                                    }"
                                 />
-                                <p v-if="form.errors.name" class="text-sm text-red-500">
+                                <p
+                                    v-if="form.errors.name"
+                                    class="text-sm text-red-500"
+                                >
                                     {{ form.errors.name }}
-                                </p>
-                            </div>
-
-                            <div class="space-y-2">
-                                <Label for="account">アカウント *</Label>
-                                <Input
-                                    id="account"
-                                    v-model="form.account"
-                                    type="text"
-                                    required
-                                    :class="{ 'border-red-500': form.errors.account }"
-                                />
-                                <p v-if="form.errors.account" class="text-sm text-red-500">
-                                    {{ form.errors.account }}
                                 </p>
                             </div>
 
@@ -237,9 +236,14 @@ const submit = () => {
                                     v-model="form.email"
                                     type="email"
                                     required
-                                    :class="{ 'border-red-500': form.errors.email }"
+                                    :class="{
+                                        'border-red-500': form.errors.email,
+                                    }"
                                 />
-                                <p v-if="form.errors.email" class="text-sm text-red-500">
+                                <p
+                                    v-if="form.errors.email"
+                                    class="text-sm text-red-500"
+                                >
                                     {{ form.errors.email }}
                                 </p>
                             </div>
@@ -250,7 +254,9 @@ const submit = () => {
                                     id="roles"
                                     v-model="form.roles"
                                     :size="Math.min(roles.length, 6)"
-                                    :class="{ 'border-red-500': form.errors.roles }"
+                                    :class="{
+                                        'border-red-500': form.errors.roles,
+                                    }"
                                 >
                                     <option
                                         v-for="role in roles"
@@ -263,7 +269,10 @@ const submit = () => {
                                 <p class="text-xs text-muted-foreground">
                                     Ctrl/Cmd + クリックで複数選択できます
                                 </p>
-                                <p v-if="form.errors.roles" class="text-sm text-red-500">
+                                <p
+                                    v-if="form.errors.roles"
+                                    class="text-sm text-red-500"
+                                >
                                     {{ form.errors.roles }}
                                 </p>
                             </div>
@@ -279,7 +288,9 @@ const submit = () => {
 
                         <div class="flex justify-end gap-4">
                             <Button type="button" variant="outline" as-child>
-                                <Link :href="`/admin/users/${user.id}`">キャンセル</Link>
+                                <Link :href="`/admin/users/${user.id}`"
+                                    >キャンセル</Link
+                                >
                             </Button>
                             <Button type="submit" :disabled="form.processing">
                                 <Save class="mr-2 h-4 w-4" />

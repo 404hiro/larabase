@@ -35,7 +35,6 @@ const user = computed(() => page.props.auth.user);
 
 const form = useForm({
     name: user.value.name,
-    account: user.value.account,
     email: user.value.email,
     avatar: null as File | null,
 });
@@ -82,7 +81,7 @@ function submit() {
             <div class="flex flex-col space-y-6">
                 <HeadingSmall
                     title="プロフィール情報"
-                    description="名前、アカウント名、メールアドレス、アバターを更新します"
+                    description="名前、メールアドレス、アバターを更新します"
                 />
 
                 <form @submit.prevent="submit" class="space-y-6">
@@ -132,22 +131,6 @@ function submit() {
                     </div>
 
                     <div class="grid gap-2">
-                        <Label for="account">アカウント名</Label>
-                        <Input
-                            id="account"
-                            class="mt-1 block w-full"
-                            v-model="form.account"
-                            required
-                            autocomplete="username"
-                            placeholder="例: your_account"
-                        />
-                        <InputError
-                            class="mt-2"
-                            :message="form.errors.account"
-                        />
-                    </div>
-
-                    <div class="grid gap-2">
                         <Label for="email">メールアドレス</Label>
                         <Input
                             id="email"
@@ -155,7 +138,7 @@ function submit() {
                             class="mt-1 block w-full"
                             v-model="form.email"
                             required
-                            autocomplete="username"
+                            autocomplete="email"
                             placeholder="メールアドレス"
                         />
                         <InputError class="mt-2" :message="form.errors.email" />

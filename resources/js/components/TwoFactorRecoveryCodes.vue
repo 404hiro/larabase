@@ -57,7 +57,10 @@ onMounted(async () => {
                         :is="isRecoveryCodesVisible ? EyeOff : Eye"
                         class="size-4"
                     />
-                    {{ isRecoveryCodesVisible ? '非表示' : '表示' }} リカバリーコード
+                    {{
+                        isRecoveryCodesVisible ? '非表示' : '表示'
+                    }}
+                    リカバリーコード
                 </Button>
 
                 <Form

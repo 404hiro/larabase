@@ -11,17 +11,25 @@ export function urlIsActive(
     currentUrl: string,
 ) {
     const url = toUrl(urlToCheck);
-    
+
     // 完全一致の場合
     if (url === currentUrl) {
         return true;
     }
-    
+
     // 特定のパスの場合は部分一致も許可
     if (url === '/admin/users' && currentUrl.startsWith('/admin/users')) {
         return true;
     }
-    
+
+    if (url === '/settings/' && currentUrl.startsWith('/settings')) {
+        return true;
+    }
+
+    if (url === '/links' && currentUrl.startsWith('/@')) {
+        return true;
+    }
+
     return false;
 }
 

@@ -4,11 +4,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -21,7 +21,7 @@ class UserController extends Controller
             $search = $request->get('search');
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%");
             });
         }
 
@@ -36,9 +36,9 @@ class UserController extends Controller
         }
 
         $users = $query->with('roles')
-                      ->orderBy('id', 'asc')
-                      ->paginate(15)
-                      ->withQueryString();
+            ->orderBy('id', 'asc')
+            ->paginate(15)
+            ->withQueryString();
 
         return Inertia::render('admin/users/Index', [
             'users' => $users,
@@ -49,7 +49,7 @@ class UserController extends Controller
     public function show(User $user): Response
     {
         $user->load('roles', 'permissions');
-        
+
         return Inertia::render('admin/users/Show', [
             'user' => $user,
         ]);
@@ -58,7 +58,7 @@ class UserController extends Controller
     public function create(): Response
     {
         $roles = \Spatie\Permission\Models\Role::all();
-        
+
         return Inertia::render('admin/users/Create', [
             'roles' => $roles,
         ]);
@@ -68,7 +68,6 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'account' => ['required', 'string', 'max:255', 'unique:users'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'string', 'min:8'],
             'roles' => ['nullable', 'array'],
@@ -78,30 +77,29 @@ class UserController extends Controller
 
         $user = User::create([
             'name' => $validated['name'],
-            'account' => $validated['account'],
             'email' => $validated['email'],
             'password' => bcrypt($validated['password']),
             'email_verified_at' => $validated['email_verified'] ?? false ? now() : null,
         ]);
 
         // ロールの設定 - Laravel-permissionの正しい方法
-        if (isset($validated['roles']) && !empty($validated['roles'])) {
+        if (isset($validated['roles']) && ! empty($validated['roles'])) {
             $user->assignRole($validated['roles']);
         }
 
         return redirect()->route('admin.users.index')
-                        ->with('success', 'ユーザが正常に作成されました。');
+            ->with('success', 'ユーザが正常に作成されました。');
     }
 
     public function edit(User $user): Response
     {
         $user->load('roles', 'permissions');
         $roles = \Spatie\Permission\Models\Role::all();
+
         return Inertia::render('admin/users/Edit', [
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
-                'account' => $user->account,
                 'email' => $user->email,
                 'avatar_url' => $user->avatar_url,
                 'email_verified_at' => $user->email_verified_at,
@@ -127,7 +125,6 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'account' => ['required', 'string', 'max:255', Rule::unique('users')->ignore($user->id)],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
             'avatar' => ['nullable', 'image', 'max:2048'], // 2MB max
             'roles' => ['nullable', 'array'],
@@ -141,7 +138,7 @@ class UserController extends Controller
             if ($user->avatar) {
                 \Storage::disk('public')->delete($user->avatar);
             }
-            
+
             // 新しい画像を保存
             $avatarPath = $request->file('avatar')->store('avatars', 'public');
             $validated['avatar'] = $avatarPath;
@@ -149,7 +146,6 @@ class UserController extends Controller
 
         $user->update([
             'name' => $validated['name'],
-            'account' => $validated['account'],
             'email' => $validated['email'],
             'avatar' => $validated['avatar'] ?? $user->avatar,
             'email_verified_at' => $validated['email_verified'] ?? false ? now() : null,
@@ -165,8 +161,9 @@ class UserController extends Controller
 
         // 更新後のロールを確認
         $user->refresh();
+
         return redirect()->route('admin.users.show', $user)
-                        ->with('success', 'ユーザ情報が更新されました。');
+            ->with('success', 'ユーザ情報が更新されました。');
     }
 
     public function destroy(User $user): RedirectResponse
@@ -174,6 +171,6 @@ class UserController extends Controller
         $user->delete();
 
         return redirect()->route('admin.users.index')
-                        ->with('success', 'ユーザが削除されました。');
+            ->with('success', 'ユーザが削除されました。');
     }
 }

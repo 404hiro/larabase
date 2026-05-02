@@ -5,9 +5,7 @@ namespace Database\Seeders;
 use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Role; 
-use Spatie\Permission\Models\Permission; 
-use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 
 class DatabaseSeeder extends Seeder
 {
@@ -16,21 +14,18 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-         // ユーザー作成
+        // ユーザー作成
         $adminUser = User::factory()->create([
-            'account' => 'admin',
             'name' => '管理者',
             'email' => 'admin@example.com',
             'password' => bcrypt('password'),
         ]);
 
         User::factory()->create([
-            'account' => 'test',
             'name' => 'テスト',
             'email' => 'test@example.com',
             'password' => bcrypt('password'),
-            ]);
-
+        ]);
 
         // ロール作成
         $adminRole = Role::create(['name' => 'admin']);

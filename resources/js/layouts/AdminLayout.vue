@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppSidebarAdmin from '@/components/AppSidebarAdmin.vue';
 import AppLayout from '@/layouts/app/AppSidebarLayout.vue';
 import type { BreadcrumbItemType } from '@/types';
 
@@ -13,6 +14,9 @@ withDefaults(defineProps<Props>(), {
 
 <template>
     <AppLayout :breadcrumbs="breadcrumbs">
+        <template #sidebar>
+            <AppSidebarAdmin />
+        </template>
         <slot />
     </AppLayout>
 </template>

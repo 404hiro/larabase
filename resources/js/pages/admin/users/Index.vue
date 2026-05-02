@@ -1,11 +1,8 @@
 <script setup lang="ts">
-import AdminLayout from '@/layouts/AdminLayout.vue';
-import { type BreadcrumbItem } from '@/types';
-import { Head, Link, router } from '@inertiajs/vue3';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import {
     Table,
@@ -15,7 +12,10 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Plus, Search, Eye, Edit, Trash2 } from 'lucide-vue-next';
+import AdminLayout from '@/layouts/AdminLayout.vue';
+import { type BreadcrumbItem } from '@/types';
+import { Head, Link, router } from '@inertiajs/vue3';
+import { Edit, Eye, Plus, Search, Trash2 } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 
 interface Role {
@@ -75,13 +75,17 @@ let timeout: number;
 watch([search, status], () => {
     clearTimeout(timeout);
     timeout = setTimeout(() => {
-        router.get('/admin/users', {
-            search: search.value || undefined,
-            status: status.value || undefined,
-        }, {
-            preserveState: true,
-            replace: true,
-        });
+        router.get(
+            '/admin/users',
+            {
+                search: search.value || undefined,
+                status: status.value || undefined,
+            },
+            {
+                preserveState: true,
+                replace: true,
+            },
+        );
     }, 300);
 });
 
@@ -100,7 +104,9 @@ const deleteUser = (user: User) => {
     <Head title="ユーザ管理" />
 
     <AdminLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+        <div
+            class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
+        >
             <Card>
                 <CardHeader>
                     <div class="flex items-center justify-between">
@@ -117,11 +123,13 @@ const deleteUser = (user: User) => {
                     <!-- フィルター -->
                     <div class="mb-6 flex gap-4">
                         <div class="relative flex-1">
-                            <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <Search
+                                class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                            />
                             <Input
                                 v-model="search"
                                 placeholder="名前またはメールアドレスで検索..."
-                                class="pl-10  h-10"
+                                class="h-10 pl-10"
                             />
                         </div>
                         <Select v-model="status" class="w-48">
@@ -142,13 +150,22 @@ const deleteUser = (user: User) => {
                                     <TableHead>権限</TableHead>
                                     <TableHead>ステータス</TableHead>
                                     <TableHead>登録日</TableHead>
-                                    <TableHead class="text-right">操作</TableHead>
+                                    <TableHead class="text-right"
+                                        >操作</TableHead
+                                    >
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                <TableRow v-for="user in users.data" :key="user.id">
-                                    <TableCell class="font-mono text-sm">{{ user.id }}</TableCell>
-                                    <TableCell class="font-medium">{{ user.name }}</TableCell>
+                                <TableRow
+                                    v-for="user in users.data"
+                                    :key="user.id"
+                                >
+                                    <TableCell class="font-mono text-sm">{{
+                                        user.id
+                                    }}</TableCell>
+                                    <TableCell class="font-medium">{{
+                                        user.name
+                                    }}</TableCell>
                                     <TableCell>{{ user.email }}</TableCell>
                                     <TableCell>
                                         <div class="flex flex-wrap gap-1">
@@ -158,30 +175,59 @@ const deleteUser = (user: User) => {
                                                 variant="outline"
                                                 class="text-xs"
                                             >
-                                                {{ role.display_name || role.name }}
+                                                {{
+                                                    role.display_name ||
+                                                    role.name
+                                                }}
                                             </Badge>
-                                            <Badge v-if="!user.roles.length" variant="secondary" class="text-xs">
+                                            <Badge
+                                                v-if="!user.roles.length"
+                                                variant="secondary"
+                                                class="text-xs"
+                                            >
                                                 権限なし
                                             </Badge>
                                         </div>
                                     </TableCell>
                                     <TableCell>
                                         <Badge
-                                            :variant="user.email_verified_at ? 'default' : 'secondary'"
+                                            :variant="
+                                                user.email_verified_at
+                                                    ? 'default'
+                                                    : 'secondary'
+                                            "
                                         >
-                                            {{ user.email_verified_at ? 'アクティブ' : '未認証' }}
+                                            {{
+                                                user.email_verified_at
+                                                    ? 'アクティブ'
+                                                    : '未認証'
+                                            }}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell>{{ formatDate(user.created_at) }}</TableCell>
+                                    <TableCell>{{
+                                        formatDate(user.created_at)
+                                    }}</TableCell>
                                     <TableCell class="text-right">
                                         <div class="flex justify-end gap-2">
-                                            <Button variant="ghost" size="sm" as-child>
-                                                <Link :href="`/admin/users/${user.id}`">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                as-child
+                                            >
+                                                <Link
+                                                    :href="`/admin/users/${user.id}`"
+                                                >
                                                     <Eye class="h-4 w-4" />
                                                 </Link>
                                             </Button>
-                                            <Button variant="ghost" size="sm" as-child>
-                                                <Link :href="`/admin/users/${user.id}/edit`">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                as-child
+                                            >
+                                                <Link
+                                                    :href="`/admin/users/${user.id}/edit`"
+                                                >
                                                     <Edit class="h-4 w-4" />
                                                 </Link>
                                             </Button>
@@ -202,7 +248,15 @@ const deleteUser = (user: User) => {
                     <!-- ページネーション -->
                     <div class="mt-4 flex items-center justify-between">
                         <div class="text-sm text-muted-foreground">
-                            {{ users.total }}件中 {{ (users.current_page - 1) * users.per_page + 1 }}〜{{ Math.min(users.current_page * users.per_page, users.total) }}件を表示
+                            {{ users.total }}件中
+                            {{
+                                (users.current_page - 1) * users.per_page + 1
+                            }}〜{{
+                                Math.min(
+                                    users.current_page * users.per_page,
+                                    users.total,
+                                )
+                            }}件を表示
                         </div>
                         <div class="flex gap-2">
                             <Button

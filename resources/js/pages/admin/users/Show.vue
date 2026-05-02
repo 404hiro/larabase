@@ -1,11 +1,11 @@
 <script setup lang="ts">
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AdminLayout from '@/layouts/AdminLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Edit, Trash2, ArrowLeft } from 'lucide-vue-next';
+import { ArrowLeft, Edit, Trash2 } from 'lucide-vue-next';
 
 interface Role {
     id: number;
@@ -60,7 +60,7 @@ const deleteUser = () => {
         router.delete(`/admin/users/${props.user.id}`, {
             onSuccess: () => {
                 router.visit('/admin/users');
-            }
+            },
         });
     }
 };
@@ -70,7 +70,9 @@ const deleteUser = () => {
     <Head :title="`ユーザ詳細 - ${user.name}`" />
 
     <AdminLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+        <div
+            class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
+        >
             <div class="flex items-center justify-between">
                 <Button variant="ghost" as-child>
                     <Link href="/admin/users">
@@ -99,41 +101,75 @@ const deleteUser = () => {
                 <CardContent class="space-y-6">
                     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                         <div>
-                            <label class="text-sm font-medium text-muted-foreground">ID</label>
-                            <p class="mt-1 font-mono text-lg font-semibold">{{ user.id }}</p>
+                            <label
+                                class="text-sm font-medium text-muted-foreground"
+                                >ID</label
+                            >
+                            <p class="mt-1 font-mono text-lg font-semibold">
+                                {{ user.id }}
+                            </p>
                         </div>
-                        
+
                         <div>
-                            <label class="text-sm font-medium text-muted-foreground">名前</label>
-                            <p class="mt-1 text-lg font-semibold">{{ user.name }}</p>
+                            <label
+                                class="text-sm font-medium text-muted-foreground"
+                                >名前</label
+                            >
+                            <p class="mt-1 text-lg font-semibold">
+                                {{ user.name }}
+                            </p>
                         </div>
-                        
+
                         <div class="md:col-span-2">
-                            <label class="text-sm font-medium text-muted-foreground">メールアドレス</label>
+                            <label
+                                class="text-sm font-medium text-muted-foreground"
+                                >メールアドレス</label
+                            >
                             <p class="mt-1 text-lg">{{ user.email }}</p>
                         </div>
-                        
+
                         <div>
-                            <label class="text-sm font-medium text-muted-foreground">ステータス</label>
+                            <label
+                                class="text-sm font-medium text-muted-foreground"
+                                >ステータス</label
+                            >
                             <div class="mt-1">
                                 <Badge
-                                    :variant="user.email_verified_at ? 'default' : 'secondary'"
+                                    :variant="
+                                        user.email_verified_at
+                                            ? 'default'
+                                            : 'secondary'
+                                    "
                                     class="text-sm"
                                 >
-                                    {{ user.email_verified_at ? 'アクティブ' : '未認証' }}
+                                    {{
+                                        user.email_verified_at
+                                            ? 'アクティブ'
+                                            : '未認証'
+                                    }}
                                 </Badge>
                             </div>
                         </div>
-                        
+
                         <div>
-                            <label class="text-sm font-medium text-muted-foreground">メール認証日時</label>
+                            <label
+                                class="text-sm font-medium text-muted-foreground"
+                                >メール認証日時</label
+                            >
                             <p class="mt-1">
-                                {{ user.email_verified_at ? formatDateTime(user.email_verified_at) : '未認証' }}
+                                {{
+                                    user.email_verified_at
+                                        ? formatDateTime(user.email_verified_at)
+                                        : '未認証'
+                                }}
                             </p>
                         </div>
-                        
+
                         <div class="md:col-span-2">
-                            <label class="text-sm font-medium text-muted-foreground">権限（ロール）</label>
+                            <label
+                                class="text-sm font-medium text-muted-foreground"
+                                >権限（ロール）</label
+                            >
                             <div class="mt-2 flex flex-wrap gap-2">
                                 <Badge
                                     v-for="role in user.roles"
@@ -143,14 +179,24 @@ const deleteUser = () => {
                                 >
                                     {{ role.display_name || role.name }}
                                 </Badge>
-                                <Badge v-if="!user.roles.length" variant="secondary" class="text-sm">
+                                <Badge
+                                    v-if="!user.roles.length"
+                                    variant="secondary"
+                                    class="text-sm"
+                                >
                                     権限なし
                                 </Badge>
                             </div>
                         </div>
-                        
-                        <div class="md:col-span-2" v-if="user.permissions && user.permissions.length">
-                            <label class="text-sm font-medium text-muted-foreground">直接権限</label>
+
+                        <div
+                            class="md:col-span-2"
+                            v-if="user.permissions && user.permissions.length"
+                        >
+                            <label
+                                class="text-sm font-medium text-muted-foreground"
+                                >直接権限</label
+                            >
                             <div class="mt-2 flex flex-wrap gap-2">
                                 <Badge
                                     v-for="permission in user.permissions"
@@ -158,19 +204,32 @@ const deleteUser = () => {
                                     variant="secondary"
                                     class="text-sm"
                                 >
-                                    {{ permission.display_name || permission.name }}
+                                    {{
+                                        permission.display_name ||
+                                        permission.name
+                                    }}
                                 </Badge>
                             </div>
                         </div>
-                        
+
                         <div>
-                            <label class="text-sm font-medium text-muted-foreground">登録日時</label>
-                            <p class="mt-1">{{ formatDateTime(user.created_at) }}</p>
+                            <label
+                                class="text-sm font-medium text-muted-foreground"
+                                >登録日時</label
+                            >
+                            <p class="mt-1">
+                                {{ formatDateTime(user.created_at) }}
+                            </p>
                         </div>
-                        
+
                         <div>
-                            <label class="text-sm font-medium text-muted-foreground">最終更新日時</label>
-                            <p class="mt-1">{{ formatDateTime(user.updated_at) }}</p>
+                            <label
+                                class="text-sm font-medium text-muted-foreground"
+                                >最終更新日時</label
+                            >
+                            <p class="mt-1">
+                                {{ formatDateTime(user.updated_at) }}
+                            </p>
                         </div>
                     </div>
                 </CardContent>

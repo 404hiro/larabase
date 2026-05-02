@@ -1,0 +1,14 @@
+{
+    "agents": [
+        "codex",
+        "gemini"
+    ],
+    "editors": [
+        "codex",
+        "gemini"
+    ],
+    "guidelines": [
+        "laravel/fortify"
+    ],
+    "sail": true
+}

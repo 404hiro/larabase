@@ -9,6 +9,15 @@ test('login screen can be rendered', function () {
     $response->assertStatus(200);
 });
 
+test('login screen remembers users without showing the remember option', function () {
+    $loginPage = file_get_contents(resource_path('js/pages/auth/Login.vue'));
+
+    expect($loginPage)
+        ->not->toContain('ログイン情報を記憶する')
+        ->toContain('name="remember"')
+        ->toContain('value="1"');
+});
+
 test('users can authenticate using the login screen', function () {
     $user = User::factory()->create();
 
@@ -19,6 +28,19 @@ test('users can authenticate using the login screen', function () {
 
     $this->assertAuthenticated();
     $response->assertRedirect(route('dashboard', absolute: false));
+});
+
+test('users can authenticate and be remembered', function () {
+    $user = User::factory()->create();
+
+    $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+        'remember' => '1',
+    ]);
+
+    $this->assertAuthenticated();
+    expect($user->refresh()->remember_token)->not->toBeNull();
 });
 
 test('users can not authenticate with invalid password', function () {
@@ -38,7 +60,7 @@ test('users can logout', function () {
     $response = $this->actingAs($user)->post(route('logout'));
 
     $this->assertGuest();
-    $response->assertRedirect(route('home'));
+    $response->assertRedirect(route('dashboard'));
 });
 
 test('users are rate limited', function () {

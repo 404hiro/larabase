@@ -1,9 +1,12 @@
 @import 'tailwindcss';
 
+@import 'preline/variants.css';
+
 @import 'tw-animate-css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
+@source '../../node_modules/preline/dist/*.js';
 
 @custom-variant dark (&:is(.dark *));
 

@@ -14,3 +14,11 @@ test('authenticated users can visit the dashboard', function () {
     $response = $this->get(route('dashboard'));
     $response->assertStatus(200);
 });
+
+test('dashboard page links to the links management page', function () {
+    $dashboardPage = file_get_contents(resource_path('js/pages/Dashboard.vue'));
+
+    expect($dashboardPage)
+        ->toContain('href="/links"')
+        ->toContain('リンクを管理');
+});

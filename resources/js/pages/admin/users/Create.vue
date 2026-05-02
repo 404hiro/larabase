@@ -1,13 +1,13 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { MultiSelect } from '@/components/ui/select';
 import AdminLayout from '@/layouts/AdminLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { MultiSelect } from '@/components/ui/select';
 import { ArrowLeft, Save } from 'lucide-vue-next';
 
 interface Role {
@@ -39,14 +39,11 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 const form = useForm({
     name: '',
-    account: '',
     email: '',
     password: '',
     roles: [] as string[],
     email_verified: false,
 });
-
-
 
 const submit = () => {
     form.post('/admin/users');
@@ -57,7 +54,9 @@ const submit = () => {
     <Head title="新規ユーザ作成" />
 
     <AdminLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+        <div
+            class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
+        >
             <div class="flex items-center justify-between">
                 <Button variant="ghost" as-child>
                     <Link href="/admin/users">
@@ -81,24 +80,15 @@ const submit = () => {
                                     v-model="form.name"
                                     type="text"
                                     required
-                                    :class="{ 'border-red-500': form.errors.name }"
+                                    :class="{
+                                        'border-red-500': form.errors.name,
+                                    }"
                                 />
-                                <p v-if="form.errors.name" class="text-sm text-red-500">
+                                <p
+                                    v-if="form.errors.name"
+                                    class="text-sm text-red-500"
+                                >
                                     {{ form.errors.name }}
-                                </p>
-                            </div>
-
-                            <div class="space-y-2">
-                                <Label for="account">アカウント *</Label>
-                                <Input
-                                    id="account"
-                                    v-model="form.account"
-                                    type="text"
-                                    required
-                                    :class="{ 'border-red-500': form.errors.account }"
-                                />
-                                <p v-if="form.errors.account" class="text-sm text-red-500">
-                                    {{ form.errors.account }}
                                 </p>
                             </div>
 
@@ -109,9 +99,14 @@ const submit = () => {
                                     v-model="form.email"
                                     type="email"
                                     required
-                                    :class="{ 'border-red-500': form.errors.email }"
+                                    :class="{
+                                        'border-red-500': form.errors.email,
+                                    }"
                                 />
-                                <p v-if="form.errors.email" class="text-sm text-red-500">
+                                <p
+                                    v-if="form.errors.email"
+                                    class="text-sm text-red-500"
+                                >
                                     {{ form.errors.email }}
                                 </p>
                             </div>
@@ -123,9 +118,14 @@ const submit = () => {
                                     v-model="form.password"
                                     type="password"
                                     required
-                                    :class="{ 'border-red-500': form.errors.password }"
+                                    :class="{
+                                        'border-red-500': form.errors.password,
+                                    }"
                                 />
-                                <p v-if="form.errors.password" class="text-sm text-red-500">
+                                <p
+                                    v-if="form.errors.password"
+                                    class="text-sm text-red-500"
+                                >
                                     {{ form.errors.password }}
                                 </p>
                             </div>
@@ -136,7 +136,9 @@ const submit = () => {
                                     id="roles"
                                     v-model="form.roles"
                                     :size="Math.min(props.roles.length, 6)"
-                                    :class="{ 'border-red-500': form.errors.roles }"
+                                    :class="{
+                                        'border-red-500': form.errors.roles,
+                                    }"
                                 >
                                     <option
                                         v-for="role in props.roles"
@@ -149,7 +151,10 @@ const submit = () => {
                                 <p class="text-xs text-muted-foreground">
                                     Ctrl/Cmd + クリックで複数選択できます
                                 </p>
-                                <p v-if="form.errors.roles" class="text-sm text-red-500">
+                                <p
+                                    v-if="form.errors.roles"
+                                    class="text-sm text-red-500"
+                                >
                                     {{ form.errors.roles }}
                                 </p>
                             </div>
@@ -160,7 +165,9 @@ const submit = () => {
                                 id="email_verified"
                                 v-model:checked="form.email_verified"
                             />
-                            <Label for="email_verified">メール認証済みとして作成</Label>
+                            <Label for="email_verified"
+                                >メール認証済みとして作成</Label
+                            >
                         </div>
 
                         <div class="flex justify-end gap-4">
@@ -169,7 +176,11 @@ const submit = () => {
                             </Button>
                             <Button type="submit" :disabled="form.processing">
                                 <Save class="mr-2 h-4 w-4" />
-                                {{ form.processing ? '作成中...' : 'ユーザを作成' }}
+                                {{
+                                    form.processing
+                                        ? '作成中...'
+                                        : 'ユーザを作成'
+                                }}
                             </Button>
                         </div>
                     </form>
