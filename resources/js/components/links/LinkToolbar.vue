@@ -17,6 +17,9 @@ const props = defineProps<{
     isEditing: boolean;
     previewMode: 'desktop' | 'mobile';
     supportUrl: string;
+    mobileWidgetOperationActive?: boolean;
+    mobileSizeOptions?: any[];
+    activeMobileWidget?: any | null;
 }>();
 
 const emit = defineEmits<{
@@ -26,6 +29,8 @@ const emit = defineEmits<{
     addMedia: [file: File];
     addSection: [];
     addText: [];
+    resizeMobileWidget: [size: { w: number; h: number }];
+    completeMobileWidgetOperation: [];
 }>();
 
 const mediaInput = ref<HTMLInputElement | null>(null);
@@ -43,6 +48,34 @@ const handleMediaChange = (event: Event) => {
     }
 
     input.value = '';
+};
+
+const isActiveMobileSize = (size: { w: number; h: number }) => {
+    const widget = props.activeMobileWidget;
+
+    return (
+        widget &&
+        Number(widget.w_mobile) === size.w &&
+        Number(widget.h_mobile) === size.h
+    );
+};
+
+const mobileSizeIconClass = (option: any) => {
+    const isActive = isActiveMobileSize(option.size);
+
+    return [
+        'block border-2 transition-colors',
+        option.key === 'small'
+            ? 'size-3.5 rounded-[4px]'
+            : option.key === 'wide'
+              ? 'h-3 w-5 rounded-[5px]'
+              : option.key === 'tall'
+                ? 'h-5 w-3 rounded-[5px]'
+                : option.key === 'large'
+                  ? 'size-[18px] rounded-[4px]'
+                  : 'size-4 rounded-[4px]',
+        isActive ? 'border-gray-950' : 'border-white/70',
+    ];
 };
 </script>
 
@@ -158,16 +191,23 @@ const handleMediaChange = (event: Event) => {
 
         <!-- Mobile Toolbar -->
         <div
+            v-if="!mobileWidgetOperationActive"
             class="hidden h-11 items-center rounded-2xl border border-gray-200 bg-white px-2 text-slate-500 shadow-[0_12px_30px_rgb(15,23,42,0.14)] max-[1024px]:flex min-[1025px]:hidden"
         >
             <button
                 @click="emit('toggleEdit')"
-                class="flex size-8 items-center justify-center rounded-xl transition-colors hover:bg-slate-100 hover:text-slate-800"
+                class="flex h-8 items-center justify-center rounded-xl transition-colors"
+                :class="
+                    isEditing
+                        ? 'min-w-16 gap-1.5 bg-emerald-500 px-3 text-sm font-bold text-white shadow-sm hover:bg-emerald-600'
+                        : 'w-8 hover:bg-slate-100 hover:text-slate-800'
+                "
                 :aria-label="isEditing ? '保存' : '編集'"
                 :title="isEditing ? '保存' : '編集'"
             >
                 <Save v-if="isEditing" class="size-5" stroke-width="2.2" />
                 <Pencil v-else class="size-5" stroke-width="2.2" />
+                <span v-if="isEditing">保存</span>
             </button>
 
             <template v-if="isEditing">
@@ -229,6 +269,43 @@ const handleMediaChange = (event: Event) => {
                     <Heart class="size-5" stroke-width="2.2" />
                 </InertiaLink>
             </template>
+        </div>
+
+        <div
+            v-else
+            class="hidden h-11 items-center gap-1.5 rounded-2xl border border-gray-700 bg-[#292929] p-1.5 text-white shadow-[0_12px_30px_rgb(15,23,42,0.22)] max-[1024px]:flex min-[1025px]:hidden"
+            @click.stop
+        >
+            <button
+                v-for="option in mobileSizeOptions"
+                :key="option.key"
+                type="button"
+                :aria-label="option.label"
+                :title="option.label"
+                class="flex size-8 items-center justify-center rounded-lg transition-colors"
+                :class="
+                    isActiveMobileSize(option.size)
+                        ? 'bg-white text-gray-950 shadow-sm'
+                        : 'text-white/70 hover:bg-white/10 hover:text-white'
+                "
+                @click.stop="emit('resizeMobileWidget', option.size)"
+            >
+                <span
+                    v-if="activeMobileWidget?.type !== 'section'"
+                    :class="mobileSizeIconClass(option)"
+                ></span>
+                <component v-else :is="option.icon" class="size-3.5" />
+            </button>
+
+            <div class="mx-1 h-7 w-px bg-white/20"></div>
+
+            <button
+                type="button"
+                class="flex h-8 min-w-12 items-center justify-center whitespace-nowrap rounded-lg bg-white px-4 text-xs font-bold text-black transition-transform active:scale-95"
+                @click.stop="emit('completeMobileWidgetOperation')"
+            >
+                完了
+            </button>
         </div>
 
         <input

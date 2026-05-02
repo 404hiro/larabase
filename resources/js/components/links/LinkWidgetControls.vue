@@ -190,11 +190,12 @@ onUnmounted(() => emit('lockOpen', false));
     >
         <!-- Delete Button -->
         <button
+            type="button"
             @click.prevent.stop="emit('delete')"
-            @pointerdown.prevent.stop
-            @mousedown.prevent.stop
-            @touchstart.prevent.stop
-            class="pointer-events-auto absolute -top-2.5 -left-2.5 flex size-8 cursor-pointer items-center justify-center rounded-xl bg-black/90 text-white shadow-lg backdrop-blur-md transition-all duration-200 hover:scale-110 hover:bg-black active:scale-95"
+            @pointerdown.stop
+            @mousedown.stop
+            @touchstart.stop
+            class="pointer-events-auto absolute -top-2.5 -left-2.5 flex size-8 cursor-pointer items-center justify-center rounded-xl bg-red-600 text-white shadow-lg backdrop-blur-md transition-all duration-200 hover:scale-110 hover:bg-red-700 active:scale-95"
         >
             <Trash2 class="size-4" />
         </button>
@@ -225,7 +226,7 @@ onUnmounted(() => emit('lockOpen', false));
                 inputmode="text"
                 maxlength="7"
                 aria-label="カラーコード"
-                class="h-8 w-20 rounded-lg border border-white/15 bg-white px-2 text-xs font-bold text-gray-800 shadow-sm outline-none focus:ring-2 focus:ring-white/50"
+                class="h-10 w-20 rounded-lg border border-white/15 bg-white px-2 text-xs font-bold text-gray-800 shadow-sm outline-none focus:ring-2 focus:ring-white/50"
                 placeholder="#000"
                 @input="updateCustomColor"
                 @click.stop

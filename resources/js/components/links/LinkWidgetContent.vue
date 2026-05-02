@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import { ArrowRight, Link as LinkIcon, Image, Play } from 'lucide-vue-next';
+import {
+    ArrowRight,
+    Link as LinkIcon,
+    Image,
+    Play,
+    Trash2,
+} from 'lucide-vue-next';
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps<{
@@ -913,11 +919,8 @@ onUnmounted(() => {
                         <Image class="size-8" />
                     </span>
                     <button v-if="image" @click.stop="emit('remove-image')"
-                        class="absolute top-2 right-2 flex size-8 cursor-pointer items-center justify-center rounded-xl bg-black/90 text-white opacity-0 transition-opacity duration-150 hover:bg-black group-hover:opacity-100">
-                        <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
+                        class="absolute top-2 right-2 flex size-8 cursor-pointer items-center justify-center rounded-xl bg-red-600 text-white opacity-0 transition-opacity duration-150 hover:bg-red-700 group-hover:opacity-100">
+                        <Trash2 class="size-4" />
                     </button>
                 </button>
                 <div v-else-if="image" class="flex-1 overflow-hidden rounded-2xl">
@@ -983,11 +986,8 @@ onUnmounted(() => {
                         <Image class="size-8" />
                     </span>
                     <button v-if="image" @click.stop="emit('remove-image')"
-                        class="absolute top-2 right-2 flex size-8 cursor-pointer items-center justify-center rounded-xl bg-black/90 text-white opacity-0 transition-opacity duration-150 hover:bg-black group-hover:opacity-100">
-                        <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
+                        class="absolute top-2 right-2 flex size-8 cursor-pointer items-center justify-center rounded-xl bg-red-600 text-white opacity-0 transition-opacity duration-150 hover:bg-red-700 group-hover:opacity-100">
+                        <Trash2 class="size-4" />
                     </button>
                 </button>
                 <div v-else-if="image" class="flex-1 overflow-hidden rounded-2xl">
@@ -1096,11 +1096,8 @@ onUnmounted(() => {
                         <Image class="size-8" />
                     </span>
                     <button v-if="image" @click.stop="emit('remove-image')"
-                        class="absolute top-2 right-2 flex size-8 cursor-pointer items-center justify-center rounded-xl bg-black/90 text-white opacity-0 transition-opacity duration-150 hover:bg-black group-hover:opacity-100">
-                        <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
+                        class="absolute top-2 right-2 flex size-8 cursor-pointer items-center justify-center rounded-xl bg-red-600 text-white opacity-0 transition-opacity duration-150 hover:bg-red-700 group-hover:opacity-100">
+                        <Trash2 class="size-4" />
                     </button>
                 </button>
                 <div v-else-if="image" class="w-full shrink-0 overflow-hidden rounded-2xl"

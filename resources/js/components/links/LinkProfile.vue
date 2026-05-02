@@ -184,7 +184,7 @@ const removeAvatar = () => {
 
                     <LinkWidgetControls
                         v-if="isEditing && avatarUrl"
-                        class="opacity-0 transition-opacity duration-150 [&_*]:pointer-events-none group-hover:opacity-100 group-hover:[&_*]:pointer-events-auto"
+                        class="opacity-0 transition-opacity duration-150 [&_*]:pointer-events-none group-hover:opacity-100 group-hover:[&_*]:pointer-events-auto max-[1024px]:opacity-100 max-[1024px]:[&_*]:pointer-events-auto"
                         :widget="{}"
                         :mode="previewMode"
                         :size-options="[]"

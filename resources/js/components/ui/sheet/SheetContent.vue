@@ -15,6 +15,10 @@ import SheetOverlay from './SheetOverlay.vue'
 
 interface SheetContentProps extends DialogContentProps {
   class?: HTMLAttributes['class']
+  closeClass?: HTMLAttributes['class']
+  closeLabel?: string
+  overlayClass?: HTMLAttributes['class']
+  showClose?: boolean
   side?: 'top' | 'right' | 'bottom' | 'left'
 }
 
@@ -23,18 +27,19 @@ defineOptions({
 })
 
 const props = withDefaults(defineProps<SheetContentProps>(), {
+  showClose: true,
   side: 'right',
 })
 const emits = defineEmits<DialogContentEmits>()
 
-const delegatedProps = reactiveOmit(props, 'class', 'side')
+const delegatedProps = reactiveOmit(props, 'class', 'closeClass', 'closeLabel', 'overlayClass', 'showClose', 'side')
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits)
 </script>
 
 <template>
   <DialogPortal>
-    <SheetOverlay />
+    <SheetOverlay :class="overlayClass" />
     <DialogContent
       data-slot="sheet-content"
       :class="cn(
@@ -53,10 +58,14 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
       <slot />
 
       <DialogClose
-        class="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
+        v-if="showClose"
+        :class="cn(
+          'ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-4 right-4 z-30 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none',
+          props.closeClass)"
       >
-        <X class="size-4" />
-        <span class="sr-only">Close</span>
+        <span v-if="closeLabel">{{ closeLabel }}</span>
+        <X v-else class="size-4" />
+        <span class="sr-only">{{ closeLabel ?? 'Close' }}</span>
       </DialogClose>
     </DialogContent>
   </DialogPortal>

@@ -89,7 +89,7 @@ watch(() => page.props.flash, (newFlash) => {
 </script>
 
 <template>
-    <div class="pointer-events-none fixed bottom-0 right-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:flex-col md:max-w-[420px]">
+    <div class="pointer-events-none fixed right-0 bottom-0 z-[9999] flex max-h-screen w-full flex-col-reverse p-4 sm:flex-col md:max-w-[420px]">
         <TransitionGroup
             name="toast"
             tag="div"

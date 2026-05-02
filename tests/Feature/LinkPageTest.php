@@ -474,6 +474,295 @@ test('grid resize handles are hidden because resizing is controlled by the widge
         ->toContain('resizeWidget(');
 });
 
+test('mobile widget editing uses tap operation controls and a bottom resize toolbar', function () {
+    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $toolbar = file_get_contents(resource_path('js/components/links/LinkToolbar.vue'));
+
+    expect($linkPage)
+        ->toContain("window.matchMedia('(max-width: 1024px)')")
+        ->toContain('activateMobileWidget')
+        ->toContain('completeMobileWidgetOperation')
+        ->toContain('activeMobileLayoutItem')
+        ->toContain('activeMobileSizeOptions')
+        ->toContain("activeMobileLayoutItem.widget.type !== 'section'")
+        ->toContain("'.mobile-widget-move-handle'")
+        ->toContain(':drag-allow-from=')
+        ->toContain(':drag-ignore-from=')
+        ->toContain('mobile-widget-ignore-drag, a, input, textarea, [contenteditable=true]')
+        ->not->toContain('mobile-widget-ignore-drag, a, button')
+        ->toContain("activeWidgetId === item.i\n                                    ? 'cursor-default'")
+        ->toContain('Math.max(columns - width, 0)')
+        ->toContain('pushCollidingItems')
+        ->not->toContain('item.y = maxY')
+        ->toContain('isEditing && !isSmallViewport')
+        ->toContain('mobile-widget-move-handle')
+        ->toContain('ウィジェットを移動')
+        ->toContain('ウィジェットを編集')
+        ->toContain('ウィジェットを削除')
+        ->toContain('bg-red-600')
+        ->toContain('<Trash2 class="size-4" />')
+        ->toContain('rounded-2xl border-2 border-black')
+        ->toContain('flex size-10 translate-x-1/2')
+        ->toContain('touch-none cursor-grab')
+        ->toContain('<Move class="size-5" />')
+        ->toContain('<Pencil class="size-4" />')
+        ->toContain('@resize-mobile-widget="resizeActiveMobileWidget"')
+        ->toContain('@complete-mobile-widget-operation="completeMobileWidgetOperation"');
+
+    expect($toolbar)
+        ->toContain('mobileWidgetOperationActive?: boolean')
+        ->toContain('mobileSizeOptions?: any[]')
+        ->toContain('activeMobileWidget?: any | null')
+        ->toContain('resizeMobileWidget')
+        ->toContain('completeMobileWidgetOperation')
+        ->toContain('v-if="!mobileWidgetOperationActive"')
+        ->toContain("'min-w-16 gap-1.5 bg-emerald-500 px-3 text-sm font-bold text-white")
+        ->toContain('<span v-if="isEditing">保存</span>')
+        ->toContain('hidden h-11 items-center gap-1.5 rounded-2xl')
+        ->toContain('class="flex size-8 items-center justify-center rounded-lg transition-colors"')
+        ->toContain('class="flex h-8 min-w-12 items-center justify-center whitespace-nowrap rounded-lg bg-white px-4 text-xs font-bold text-black transition-transform active:scale-95"')
+        ->toContain('v-for="option in mobileSizeOptions"')
+        ->toContain("emit('resizeMobileWidget', option.size)")
+        ->toContain("emit('completeMobileWidgetOperation')")
+        ->toContain('@click.stop')
+        ->toContain('完了');
+
+    expect(substr_count($linkPage, ':drag-allow-from='))
+        ->toBe(1);
+});
+
+test('toasts render above sheets and modals', function () {
+    $toaster = file_get_contents(resource_path('js/components/ui/toast/Toaster.vue'));
+
+    expect($toaster)
+        ->toContain('z-[9999]')
+        ->not->toContain('z-[100]');
+});
+
+test('editing warns before leaving with unsaved changes', function () {
+    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+
+    expect($linkPage)
+        ->toContain('hasUnsavedChanges')
+        ->toContain('isSavingChanges')
+        ->toContain('shouldConfirmUnsavedChanges')
+        ->toContain('handleBeforeUnload')
+        ->toContain("window.addEventListener('beforeunload', handleBeforeUnload)")
+        ->toContain("window.removeEventListener('beforeunload', handleBeforeUnload)")
+        ->toContain("router.on('before'")
+        ->toContain('未保存の変更があります。ページを離れますか？')
+        ->toContain('event.preventDefault()')
+        ->toContain('event.returnValue')
+        ->toContain('hasUnsavedChanges.value = false')
+        ->toContain('markDirty()');
+});
+
+test('mobile toolbar link add uses a bottom sheet instead of the modal', function () {
+    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+
+    expect($linkPage)
+        ->toContain('openAddLinkFromToolbar')
+        ->toContain('@add-link="openAddLinkFromToolbar"')
+        ->toContain('showMobileAddLinkSheet')
+        ->toContain('mobileAddLinkUrl')
+        ->toContain('mobileAddLinkSensitive')
+        ->toContain('submitMobileAddLink')
+        ->toContain("if (isSmallViewport.value)")
+        ->toContain('showAddLinkModal.value = true')
+        ->toContain(':open="showMobileAddLinkSheet"')
+        ->toContain('setMobileAddLinkSheetOpen')
+        ->toContain('リンクを追加')
+        ->toContain(':show-close="false"')
+        ->toContain('class="sr-only"')
+        ->toContain('aria-label="キャンセル"')
+        ->toContain('@click="closeMobileAddLinkSheet"')
+        ->toContain('@click="submitMobileAddLink"')
+        ->toContain('@input="mobileAddLinkError = \'\'"')
+        ->toContain('有効なURLを入力してください')
+        ->toContain("addLinkWidget(normalizedUrl, mobileAddLinkSensitive.value)")
+        ->toContain('role="switch"');
+});
+
+test('mobile link widget edit button opens a bottom sheet editor', function () {
+    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+
+    expect($linkPage)
+        ->toContain("widget.type === 'link'")
+        ->toContain('openMobileLinkEditor(widget)')
+        ->toContain('mobileLinkEditorWidget')
+        ->toContain('setMobileLinkEditorOpen')
+        ->toContain('<Sheet')
+        ->toContain('side="bottom"')
+        ->toContain('close-label="完了"')
+        ->toContain('overlay-class="z-[9999]"')
+        ->toContain('overflow-hidden rounded-t-3xl')
+        ->toContain('p-0 gap-0')
+        ->toContain('max-h-[calc(92vh-64px)]')
+        ->toContain('overflow-y-auto')
+        ->toContain('close-class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white')
+        ->toContain('リンクを編集')
+        ->toContain('updateMobileLinkTitle')
+        ->toContain('chooseMobileLinkImage')
+        ->toContain('updateMobileLinkImage')
+        ->toContain('removeMobileLinkImage')
+        ->toContain('updateMobileLinkSensitive')
+        ->toContain('センシティブ')
+        ->toContain('h-48 w-full')
+        ->toContain('@click="chooseMobileLinkImage"')
+        ->toContain('absolute top-3 right-3')
+        ->toContain('@click.stop="removeMobileLinkImage"')
+        ->toContain('aria-label="画像を削除"')
+        ->toContain('bg-red-600 text-white')
+        ->toContain('<Trash2 class="size-4" />')
+        ->toContain('role="switch"');
+});
+
+test('mobile image widget edit button opens a bottom sheet editor', function () {
+    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $sheetContent = file_get_contents(resource_path('js/components/ui/sheet/SheetContent.vue'));
+
+    expect($linkPage)
+        ->toContain("widget.type === 'image'")
+        ->toContain('openMobileImageEditor(widget)')
+        ->toContain('mobileImageEditorWidget')
+        ->toContain('setMobileImageEditorOpen')
+        ->toContain('メディアを編集')
+        ->toContain('mobileImageEditorPreviewStyle')
+        ->toContain('mobileImageEditorCropStyle')
+        ->toContain("height: '250px'")
+        ->toContain("width: '250px'")
+        ->toContain('メディア')
+        ->not->toContain('画像を編集')
+        ->not->toContain('Change')
+        ->not->toContain('opacity-45')
+        ->toContain('chooseMobileImage')
+        ->toContain('updateMobileImage')
+        ->toContain('updateMobileImageCaption')
+        ->toContain('updateMobileImageLink')
+        ->toContain('updateMobileImageSensitive')
+        ->toContain('isMobileImageCropping')
+        ->toContain('startMobileImageCrop')
+        ->toContain('dragMobileImageCrop')
+        ->toContain('stopMobileImageCrop')
+        ->toContain('event.preventDefault()')
+        ->toContain('event.stopPropagation()')
+        ->toContain('touch-none')
+        ->toContain('bg-black text-white')
+        ->toContain('bg-white text-black')
+        ->toContain('クロップを調整')
+        ->toContain('キャプション')
+        ->toContain('リンク')
+        ->toContain(':disabled="!mobileImageEditorWidget.content"')
+        ->not->toContain('removeMobileImage');
+
+    expect($sheetContent)
+        ->toContain('overlayClass')
+        ->toContain('absolute top-4 right-4 z-30')
+        ->toContain('<SheetOverlay :class="overlayClass" />');
+});
+
+test('mobile profile avatar delete control is always visible and delete controls are red', function () {
+    $profile = file_get_contents(resource_path('js/components/links/LinkProfile.vue'));
+    $controls = file_get_contents(resource_path('js/components/links/LinkWidgetControls.vue'));
+    $content = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
+
+    expect($profile)
+        ->toContain("previewMode === 'mobile'")
+        ->toContain('max-[1024px]:opacity-100')
+        ->toContain('max-[1024px]:[&_*]:pointer-events-auto')
+        ->toContain("group-hover:opacity-100");
+
+    expect($controls)
+        ->toContain('type="button"')
+        ->toContain('@pointerdown.stop')
+        ->not->toContain('@pointerdown.prevent.stop')
+        ->toContain('bg-red-600')
+        ->toContain('hover:bg-red-700')
+        ->toContain('<Trash2 class="size-4" />')
+        ->toContain('class="h-10 w-20');
+
+    expect($content)
+        ->toContain('bg-red-600 text-white')
+        ->toContain('hover:bg-red-700');
+});
+
+test('mobile text and section widgets open bottom sheet editors', function () {
+    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $sheetHeader = file_get_contents(resource_path('js/components/ui/sheet/SheetHeader.vue'));
+
+    expect($sheetHeader)
+        ->toContain('sticky top-0 z-10');
+
+    expect($linkPage)
+        ->toContain("widget.type === 'text'")
+        ->toContain('if (isSmallViewport.value)')
+        ->toContain('activeWidgetId.value = widget.id')
+        ->toContain('commitMobileAddedWidget')
+        ->toContain("openMobileTextEditor(newWidget, 'add')")
+        ->toContain('openMobileTextEditor(widget)')
+        ->toContain('mobileTextEditorMode')
+        ->toContain('completeMobileTextEditor')
+        ->toContain('mobileTextEditorWidget')
+        ->toContain('setMobileTextEditorOpen')
+        ->toContain('updateMobileTextContent')
+        ->toContain('mobileTextEditorInput')
+        ->toContain('syncMobileTextEditor')
+        ->toContain('isMobileTextEditorFocused')
+        ->toContain('mobileTextEditorInputClasses')
+        ->toContain('updateMobileTextBackgroundColorInput')
+        ->toContain('updateMobileTextLink')
+        ->toContain('updateMobileTextSensitive')
+        ->toContain('mobileTextEditorPreviewStyle')
+        ->toContain('mobileTextEditorBoxClasses')
+        ->toContain('normalizedMobileTextBackgroundColor')
+        ->toContain('mobileTextColorSwatches')
+        ->toContain("height: '250px'")
+        ->toContain("width: '250px'")
+        ->toContain('contenteditable="true"')
+        ->toContain('role="textbox"')
+        ->toContain('data-placeholder="テキストを入力"')
+        ->toContain('mobile-text-editor')
+        ->toContain('mobile-text-editor.is-empty::before')
+        ->toContain('content: attr(data-placeholder)')
+        ->not->toContain('v-text="')
+        ->toContain('テキストを編集')
+        ->toContain('テキストを追加')
+        ->toContain('@click="closeMobileTextEditor"')
+        ->toContain(':show-close="mobileTextEditorMode !== \'add\'"')
+        ->toContain(':close-label="mobileTextEditorMode === \'add\' ? undefined : \'完了\'"')
+        ->toContain('テキストを入力')
+        ->toContain('スタイル')
+        ->toContain('flex gap-2 overflow-x-auto')
+        ->toContain('flex size-10 shrink-0')
+        ->toContain('items-center text-center')
+        ->toContain('justify-center')
+        ->toContain('背景色')
+        ->toContain('class="h-10 w-[90px] shrink-0')
+        ->toContain('aria-label="カラーコード"')
+        ->toContain('URL')
+        ->toContain(':disabled="!mobileTextEditorWidget.content"')
+        ->toContain('updateTextWidgetAlign')
+        ->toContain('updateTextWidgetVerticalAlign')
+        ->toContain('updateTextWidgetBackgroundColor')
+        ->toContain('AlignVerticalJustifyCenter')
+        ->toContain("widget.type === 'section'")
+        ->toContain("openMobileSectionEditor(newWidget, 'add')")
+        ->toContain('openMobileSectionEditor(widget)')
+        ->toContain('mobileSectionEditorMode')
+        ->toContain('mobileSectionEditorError')
+        ->toContain('completeMobileSectionEditor')
+        ->toContain('mobileSectionEditorWidget')
+        ->toContain('setMobileSectionEditorOpen')
+        ->toContain('updateMobileSectionTitle')
+        ->toContain('セクションを編集')
+        ->toContain('セクションを追加')
+        ->toContain('@click="closeMobileSectionEditor"')
+        ->toContain('セクションを入力してください')
+        ->toContain(':show-close="mobileSectionEditorMode !== \'add\'"')
+        ->toContain(':close-label="mobileSectionEditorMode === \'add\' ? undefined : \'完了\'"')
+        ->toContain('セクションを入力');
+});
+
 test('authenticated users can upload media widget images', function () {
     Storage::fake('public');
 
