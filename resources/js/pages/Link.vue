@@ -51,6 +51,11 @@ const props = defineProps<{
     };
 }>();
 
+const MAX_WIDGETS = 50;
+const MAX_URL_LENGTH = 2000;
+const MAX_LINK_TITLE_LENGTH = 100;
+const MAX_TEXT_WIDGET_LENGTH = 4500;
+
 const page = usePage();
 const isOwner = computed(() => {
     return (
@@ -492,6 +497,9 @@ const toggleEdit = () => {
                                 isEditing.value = false;
                                 activeWidgetId.value = null;
                             },
+                            onError: () => {
+                                showSaveValidationErrorToast();
+                            },
                             onFinish: () => {
                                 isSavingChanges.value = false;
                             },
@@ -499,6 +507,7 @@ const toggleEdit = () => {
                     );
                 },
                 onError: () => {
+                    showSaveValidationErrorToast();
                     isSavingChanges.value = false;
                 },
             },
@@ -524,11 +533,7 @@ const profileAvatarUrl = computed(() => {
     return props.link.avatar_url ?? null;
 });
 const showPrivateNotice = computed(() => {
-    return (
-        Boolean(isOwner.value) &&
-        !props.link.is_published &&
-        localWidgets.value.length > 0
-    );
+    return Boolean(isOwner.value) && !props.link.is_published;
 });
 
 const updateAvatar = (file: File | null) => {
@@ -571,11 +576,19 @@ const publishLink = () => {
 };
 
 const updateWidgetTitle = (widget: any, value: string) => {
+    const maxLength =
+        widget.type === 'link'
+            ? MAX_LINK_TITLE_LENGTH
+            : widget.type === 'text'
+              ? MAX_TEXT_WIDGET_LENGTH
+              : MAX_TEXT_WIDGET_LENGTH;
+    const limitedValue = trimToLength(value, maxLength);
+
     if (widget.type === 'section') {
-        widget.content = value;
+        widget.content = limitedValue;
     } else {
         if (!widget.settings) widget.settings = {};
-        widget.settings.title = value;
+        widget.settings.title = limitedValue;
     }
     markDirty();
 };
@@ -660,6 +673,10 @@ const updateWidgetSensitive = (widget: any, isSensitive: boolean) => {
 };
 
 const addSectionWidget = () => {
+    if (!canAddWidget()) {
+        return;
+    }
+
     const desktopPosition = findNextGridPosition(localWidgets.value, 4, 4, 1, {
         x: 'x',
         y: 'y',
@@ -788,7 +805,11 @@ const submitMobileAddLink = () => {
 
     const normalizedUrl = normalizeLinkUrl(mobileAddLinkUrl.value);
 
-    if (!normalizedUrl || !isValidLinkUrl(normalizedUrl)) {
+    if (
+        !normalizedUrl ||
+        normalizedUrl.length > MAX_URL_LENGTH ||
+        !isValidLinkUrl(normalizedUrl)
+    ) {
         mobileAddLinkError.value = '有効なURLを入力してください';
 
         return;
@@ -837,6 +858,76 @@ const hasUnsavedChanges = ref(false);
 const isSavingChanges = ref(false);
 const removeInertiaBeforeListener = ref<(() => void) | null>(null);
 
+const showErrorToast = (description: string) => {
+    window.dispatchEvent(
+        new CustomEvent('app-toast', {
+            detail: {
+                variant: 'error',
+                title: 'エラー',
+                description,
+            },
+        }),
+    );
+};
+
+const showSaveValidationErrorToast = () => {
+    showErrorToast('入力エラーにより保存に失敗しました');
+};
+
+const canAddWidget = () => {
+    if (localWidgets.value.length < MAX_WIDGETS) {
+        return true;
+    }
+
+    showErrorToast('ウィジェットは50個まで追加できます');
+
+    return false;
+};
+
+const trimToLength = (value: string, maxLength: number) => {
+    return value.slice(0, maxLength);
+};
+
+const limitPlainTextBeforeInput = (event: Event, maxLength: number) => {
+    const inputEvent = event as InputEvent;
+
+    if (
+        inputEvent.inputType.startsWith('delete') ||
+        inputEvent.inputType === 'historyUndo' ||
+        inputEvent.inputType === 'historyRedo'
+    ) {
+        return;
+    }
+
+    const target = event.target as HTMLElement;
+    const selection = window.getSelection();
+    const selectedLength = selection?.toString().length ?? 0;
+    const currentLength = target.innerText.length;
+    const incomingLength = inputEvent.data?.length ?? 0;
+
+    if (currentLength - selectedLength + incomingLength > maxLength) {
+        event.preventDefault();
+    }
+};
+
+const pastePlainTextWithLimit = (event: ClipboardEvent, maxLength: number) => {
+    event.preventDefault();
+
+    const target = event.target as HTMLElement;
+    const selection = window.getSelection();
+    const selectedLength = selection?.toString().length ?? 0;
+    const currentLength = target.innerText.length;
+    const remainingLength = Math.max(
+        0,
+        maxLength - currentLength + selectedLength,
+    );
+    const pastedText = (
+        event.clipboardData?.getData('text/plain') ?? ''
+    ).slice(0, remainingLength);
+
+    document.execCommand('insertText', false, pastedText);
+};
+
 const shouldConfirmUnsavedChanges = () => {
     return isEditing.value && hasUnsavedChanges.value && !isSavingChanges.value;
 };
@@ -863,6 +954,10 @@ const ensureWidgetSettings = (widget: any) => {
 };
 
 const commitMobileAddedWidget = (widget: any) => {
+    if (!canAddWidget()) {
+        return false;
+    }
+
     if (
         !localWidgets.value.some(
             (localWidget) => String(localWidget.id) === String(widget.id),
@@ -875,6 +970,8 @@ const commitMobileAddedWidget = (widget: any) => {
     markDirty();
     activeWidgetId.value = widget.id;
     nextTick(scrollToWidgetBottom);
+
+    return true;
 };
 
 const closeMobileLinkEditor = () => {
@@ -900,7 +997,7 @@ const updateMobileLinkTitle = (event: Event) => {
     ensureWidgetSettings(mobileLinkEditorWidget.value);
     mobileLinkEditorWidget.value.settings.title = (
         event.target as HTMLInputElement
-    ).value;
+    ).value.slice(0, MAX_LINK_TITLE_LENGTH);
     markDirty();
 };
 
@@ -1026,7 +1123,7 @@ const updateMobileImageLink = (event: Event) => {
 
     mobileImageEditorWidget.value.content = (
         event.target as HTMLInputElement
-    ).value.trim();
+    ).value.trim().slice(0, MAX_URL_LENGTH);
 
     if (
         !mobileImageEditorWidget.value.content &&
@@ -1131,7 +1228,9 @@ const openMobileTextEditor = (widget: any, mode: 'add' | 'edit' = 'edit') => {
 
 const completeMobileTextEditor = () => {
     if (mobileTextEditorMode.value === 'add' && mobileTextEditorWidget.value) {
-        commitMobileAddedWidget(mobileTextEditorWidget.value);
+        if (!commitMobileAddedWidget(mobileTextEditorWidget.value)) {
+            return;
+        }
     }
 
     closeMobileTextEditor();
@@ -1199,7 +1298,7 @@ const updateMobileTextLink = (event: Event) => {
 
     mobileTextEditorWidget.value.content = (
         event.target as HTMLInputElement
-    ).value.trim();
+    ).value.trim().slice(0, MAX_URL_LENGTH);
 
     if (
         !mobileTextEditorWidget.value.content &&
@@ -1352,7 +1451,9 @@ const completeMobileSectionEditor = () => {
         mobileSectionEditorMode.value === 'add' &&
         mobileSectionEditorWidget.value
     ) {
-        commitMobileAddedWidget(mobileSectionEditorWidget.value);
+        if (!commitMobileAddedWidget(mobileSectionEditorWidget.value)) {
+            return;
+        }
     }
 
     closeMobileSectionEditor();
@@ -1371,6 +1472,10 @@ const updateMobileSectionTitle = (event: Event) => {
 };
 
 const addMediaWidget = async (file: File) => {
+    if (!canAddWidget()) {
+        return;
+    }
+
     const isImageFile =
         file.type.startsWith('image/') ||
         /\.(apng|gif|png|jpe?g|webp|avif|svg)$/i.test(file.name);
@@ -1437,6 +1542,10 @@ const addMediaWidget = async (file: File) => {
 };
 
 const addTextWidget = () => {
+    if (!canAddWidget()) {
+        return;
+    }
+
     const desktopPosition = findNextGridPosition(localWidgets.value, 4, 1, 2, {
         x: 'x',
         y: 'y',
@@ -1484,16 +1593,23 @@ const addTextWidget = () => {
 
 const addLinkWidget = async (url: string, isSensitive = false) => {
     showAddLinkModal.value = false;
+    const limitedUrl = url.slice(0, MAX_URL_LENGTH);
 
     if (linkTargetWidget.value) {
-        linkTargetWidget.value.content = url || null;
+        linkTargetWidget.value.content = limitedUrl || null;
         if (!linkTargetWidget.value.settings) {
             linkTargetWidget.value.settings = {};
         }
-        linkTargetWidget.value.settings.sensitive = Boolean(url && isSensitive);
+        linkTargetWidget.value.settings.sensitive = Boolean(
+            limitedUrl && isSensitive,
+        );
         linkTargetWidget.value = null;
         markDirty();
 
+        return;
+    }
+
+    if (!canAddWidget()) {
         return;
     }
 
@@ -1502,7 +1618,7 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
     const h = pos ? pos.h : 2;
 
     try {
-        const { data } = await axios.post('/fetch-ogp', { url });
+        const { data } = await axios.post('/fetch-ogp', { url: limitedUrl });
 
         const desktopPosition = pos
             ? pos
@@ -1524,7 +1640,7 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
         const newWidget = {
             id: `temp_${Date.now()}`,
             type: 'link',
-            content: url,
+            content: limitedUrl,
             thumbnail_url: data.thumbnail_url,
             x: desktopPosition.x,
             y: desktopPosition.y,
@@ -1536,7 +1652,7 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
             h_mobile: h,
 
             settings: {
-                title: data.title,
+                title: trimToLength(data.title ?? '', MAX_LINK_TITLE_LENGTH),
                 aspectClass: 'aspect-video',
                 sensitive: isSensitive,
             },
@@ -1570,7 +1686,7 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
         const newWidget = {
             id: `temp_${Date.now()}`,
             type: 'link',
-            content: url,
+            content: limitedUrl,
             x: desktopPosition.x,
             y: desktopPosition.y,
             w: w,
@@ -1581,7 +1697,7 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
             h_mobile: h,
 
             settings: {
-                title: url,
+                title: trimToLength(limitedUrl, MAX_LINK_TITLE_LENGTH),
                 aspectClass: 'aspect-video',
                 sensitive: isSensitive,
             },
@@ -1780,7 +1896,9 @@ const continueToSensitiveLink = () => {
                     :preview-mode="previewMode"
                     :avatar-url="profileAvatarUrl"
                     :display-initial="displayInitial"
+                    :is-published="Boolean(props.link.is_published)"
                     :show-private-notice="showPrivateNotice"
+                    :slug="props.link.slug"
                     @update:avatar="updateAvatar"
                     @remove:avatar="removeAvatar"
                     @publish="publishLink"
@@ -1896,6 +2014,7 @@ const continueToSensitiveLink = () => {
                             :w="item.w"
                             :h="item.h"
                             :i="item.i"
+                            :drag-ignore-from="'.widget-text-input--focused, a, input, textarea'"
                             @drag-start="draggingWidgetId = item.i"
                             @drag-end="draggingWidgetId = null"
                             @mouseenter="hoveredWidgetId = item.i"
@@ -1960,6 +2079,11 @@ const continueToSensitiveLink = () => {
                                         item.widget.type !== 'section' &&
                                         !isEditing
                                             ? 'cursor-pointer'
+                                            : '',
+                                        isEditing && !croppingWidgetId
+                                            ? draggingWidgetId === item.i
+                                                ? 'cursor-grabbing'
+                                                : 'cursor-grab active:cursor-grabbing'
                                             : '',
                                         item.widget.type === 'section' &&
                                         !isEditing
@@ -2094,7 +2218,7 @@ const continueToSensitiveLink = () => {
                             :h="item.h"
                             :i="item.i"
                             :drag-allow-from="'.mobile-widget-move-handle'"
-                            :drag-ignore-from="'.mobile-widget-ignore-drag, a, input, textarea, [contenteditable=true]'"
+                            :drag-ignore-from="'.mobile-widget-ignore-drag, .widget-text-input--focused, a, input, textarea'"
                             @drag-start="draggingWidgetId = item.i"
                             @drag-end="draggingWidgetId = null"
                             @mouseenter="hoveredWidgetId = item.i"
@@ -2293,6 +2417,7 @@ const continueToSensitiveLink = () => {
                         <input
                             v-model="mobileAddLinkUrl"
                             type="url"
+                            :maxlength="MAX_URL_LENGTH"
                             class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15"
                             placeholder="https://..."
                             @input="mobileAddLinkError = ''"
@@ -2372,6 +2497,7 @@ const continueToSensitiveLink = () => {
                         <input
                             :value="mobileLinkEditorWidget.settings?.title ?? ''"
                             type="text"
+                            :maxlength="MAX_LINK_TITLE_LENGTH"
                             class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15"
                             placeholder="タイトルを入力"
                             @input="updateMobileLinkTitle"
@@ -2548,6 +2674,7 @@ const continueToSensitiveLink = () => {
                         <input
                             :value="mobileImageEditorWidget.settings?.title ?? ''"
                             type="text"
+                            :maxlength="MAX_TEXT_WIDGET_LENGTH"
                             class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15"
                             placeholder="キャプションを入力"
                             @input="updateMobileImageCaption"
@@ -2561,6 +2688,7 @@ const continueToSensitiveLink = () => {
                         <input
                             :value="mobileImageEditorWidget.content ?? ''"
                             type="url"
+                            :maxlength="MAX_URL_LENGTH"
                             class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15"
                             placeholder="https://..."
                             @input="updateMobileImageLink"
@@ -2692,7 +2820,20 @@ const continueToSensitiveLink = () => {
                                     data-placeholder="テキストを入力"
                                     class="mobile-text-editor min-h-[1.25em] w-full break-words whitespace-pre-wrap bg-transparent outline-none"
                                     :class="mobileTextEditorInputClasses"
+                                    @beforeinput="
+                                        limitPlainTextBeforeInput(
+                                            $event,
+                                            MAX_TEXT_WIDGET_LENGTH,
+                                        )
+                                    "
                                     @input="updateMobileTextContent"
+                                    @paste="
+                                        pastePlainTextWithLimit(
+                                            $event,
+                                            MAX_TEXT_WIDGET_LENGTH,
+                                        );
+                                        updateMobileTextContent($event);
+                                    "
                                     @focus="isMobileTextEditorFocused = true"
                                     @blur="
                                         isMobileTextEditorFocused = false;
@@ -2869,6 +3010,7 @@ const continueToSensitiveLink = () => {
                         <input
                             :value="mobileTextEditorWidget.content ?? ''"
                             type="url"
+                            :maxlength="MAX_URL_LENGTH"
                             class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15"
                             placeholder="https://..."
                             @input="updateMobileTextLink"

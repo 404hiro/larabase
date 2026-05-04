@@ -205,8 +205,7 @@ const mobileSizeIconClass = (option: any) => {
                 :aria-label="isEditing ? '保存' : '編集'"
                 :title="isEditing ? '保存' : '編集'"
             >
-                <Save v-if="isEditing" class="size-5" stroke-width="2.2" />
-                <Pencil v-else class="size-5" stroke-width="2.2" />
+                <Pencil v-if="!isEditing" class="size-5" stroke-width="2.2" />
                 <span v-if="isEditing">保存</span>
             </button>
 

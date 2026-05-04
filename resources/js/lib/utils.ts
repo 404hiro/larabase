@@ -22,7 +22,7 @@ export function urlIsActive(
         return true;
     }
 
-    if (url === '/settings/' && currentUrl.startsWith('/settings')) {
+    if (url === '/settings' && currentUrl.startsWith('/settings')) {
         return true;
     }
 

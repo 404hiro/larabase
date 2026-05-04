@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class WidgetController extends Controller
@@ -15,7 +16,7 @@ class WidgetController extends Controller
     public function fetchOgp(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'url' => ['required', 'url', 'max:2048'],
+            'url' => ['required', 'url', 'max:2000'],
         ]);
 
         $url = $validated['url'];
@@ -60,11 +61,11 @@ class WidgetController extends Controller
         }
 
         $validated = $request->validate([
-            'widgets' => ['present', 'array'],
+            'widgets' => ['present', 'array', 'max:50'],
             'widgets.*.id' => ['nullable'],
             'widgets.*.type' => ['required', 'string'],
-            'widgets.*.content' => ['nullable', 'string'],
-            'widgets.*.thumbnail_url' => ['nullable', 'string'],
+            'widgets.*.content' => ['nullable', 'string', 'max:2000'],
+            'widgets.*.thumbnail_url' => ['nullable', 'string', 'max:2048'],
             'widgets.*.x' => ['required', 'integer'],
             'widgets.*.y' => ['required', 'integer'],
             'widgets.*.w' => ['required', 'integer'],
@@ -74,7 +75,33 @@ class WidgetController extends Controller
             'widgets.*.w_mobile' => ['required', 'integer'],
             'widgets.*.h_mobile' => ['required', 'integer'],
             'widgets.*.settings' => ['nullable', 'array'],
+            'widgets.*.settings.title' => ['nullable', 'string', 'max:4500'],
+            'widgets.*.settings.url' => ['nullable', 'string', 'max:2000'],
         ]);
+
+        foreach ($validated['widgets'] as $widgetData) {
+            $title = $widgetData['settings']['title'] ?? null;
+
+            if (
+                $widgetData['type'] === 'link' &&
+                is_string($title) &&
+                mb_strlen($title) > 100
+            ) {
+                throw ValidationException::withMessages([
+                    'widgets' => 'リンクウィジェットのタイトルは100文字以内で入力してください。',
+                ]);
+            }
+
+            if (
+                $widgetData['type'] === 'text' &&
+                is_string($title) &&
+                mb_strlen($title) > 4500
+            ) {
+                throw ValidationException::withMessages([
+                    'widgets' => 'テキストウィジェットは4500文字以内で入力してください。',
+                ]);
+            }
+        }
 
         // Delete existing widgets
         $link->widgets()->delete();

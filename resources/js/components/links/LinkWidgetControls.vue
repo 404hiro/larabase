@@ -202,9 +202,9 @@ onUnmounted(() => emit('lockOpen', false));
 
         <div
             v-if="widget.type === 'text' && showColorPicker"
-            class="pointer-events-auto absolute right-1/2 z-[150] flex translate-x-1/2 items-center gap-2 rounded-xl bg-black/80 p-2 shadow-xl ring-1 ring-white/10 backdrop-blur-md"
+            class="pointer-events-auto absolute right-1/2 z-[150] flex h-11 translate-x-1/2 items-center gap-1.5 rounded-2xl bg-black/80 p-1.5 shadow-xl ring-1 ring-white/10 backdrop-blur-md"
             :class="
-                mode === 'desktop' ? 'bottom-[-5.25rem]' : 'bottom-[-4.5rem]'
+                mode === 'desktop' ? 'bottom-2' : 'bottom-[-4.5rem]'
             "
             @click.stop
             @pointerdown.stop
@@ -226,7 +226,7 @@ onUnmounted(() => emit('lockOpen', false));
                 inputmode="text"
                 maxlength="7"
                 aria-label="カラーコード"
-                class="h-10 w-20 rounded-lg border border-white/15 bg-white px-2 text-xs font-bold text-gray-800 shadow-sm outline-none focus:ring-2 focus:ring-white/50"
+                class="h-8 w-20 rounded-lg border border-white/15 bg-white px-2 text-xs font-bold text-gray-800 shadow-sm outline-none focus:ring-2 focus:ring-white/50"
                 placeholder="#000"
                 @input="updateCustomColor"
                 @click.stop
@@ -382,7 +382,7 @@ onUnmounted(() => emit('lockOpen', false));
         </div>
 
         <div
-            v-if="widget.type === 'text' && !showColorPicker && !showContentLabels"
+            v-if="widget.type === 'text' && !showContentLabels"
             class="pointer-events-auto absolute right-1/2 z-[140] flex translate-x-1/2 items-center gap-1.5 rounded-2xl bg-black/80 p-1.5 text-white shadow-xl ring-1 ring-white/10 backdrop-blur-md"
             :class="mode === 'desktop' ? 'bottom-[-5.25rem]' : 'bottom-[-4.5rem]'"
             @click.stop

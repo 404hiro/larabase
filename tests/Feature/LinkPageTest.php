@@ -177,21 +177,19 @@ test('link toolbar exposes support page button after section controls', function
         ->toContain(':support-url="`/@${props.link.slug}/support`"');
 });
 
-test('private link pages with widgets show a publish notice', function () {
+test('private link pages show a publish button', function () {
     $profile = file_get_contents(resource_path('js/components/links/LinkProfile.vue'));
     $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
     $controller = file_get_contents(app_path('Http/Controllers/LinkController.php'));
 
     expect($profile)
         ->toContain('showPrivateNotice')
-        ->toContain('このページは非公開です')
-        ->toContain('あなたにだけ表示されています')
-        ->toContain('公開する')
+        ->toContain('プロフィールを公開する')
         ->toContain('publish: []');
 
     expect($linkPage)
         ->toContain('showPrivateNotice')
-        ->toContain('localWidgets.value.length > 0')
+        ->not->toContain('localWidgets.value.length > 0')
         ->toContain('!props.link.is_published')
         ->toContain('@publish="publishLink"')
         ->toContain('is_published: true');
@@ -215,7 +213,11 @@ test('text widgets support alignment controls and background colors', function (
         ->toContain('AlignVerticalJustifyStart')
         ->toContain('AlignVerticalJustifyEnd')
         ->toContain('bottom-[-5.25rem]')
-        ->toContain("widget.type === 'text' && !showColorPicker && !showContentLabels")
+        ->toContain('flex h-11 translate-x-1/2')
+        ->toContain("mode === 'desktop' ? 'bottom-2' : 'bottom-[-4.5rem]'")
+        ->toContain('class="h-8 w-20 rounded-lg')
+        ->toContain("widget.type === 'text' && !showContentLabels")
+        ->not->toContain("widget.type === 'text' && !showColorPicker && !showContentLabels")
         ->toContain('colorSwatches')
         ->toContain("'#FFFFFF'")
         ->toContain("'#BFDBFE'")
@@ -488,13 +490,17 @@ test('mobile widget editing uses tap operation controls and a bottom resize tool
         ->toContain("'.mobile-widget-move-handle'")
         ->toContain(':drag-allow-from=')
         ->toContain(':drag-ignore-from=')
-        ->toContain('mobile-widget-ignore-drag, a, input, textarea, [contenteditable=true]')
+        ->toContain('widget-text-input--focused, a, input, textarea')
+        ->toContain('mobile-widget-ignore-drag, .widget-text-input--focused, a, input, textarea')
+        ->not->toContain('[contenteditable=true]')
         ->not->toContain('mobile-widget-ignore-drag, a, button')
         ->toContain("activeWidgetId === item.i\n                                    ? 'cursor-default'")
         ->toContain('Math.max(columns - width, 0)')
         ->toContain('pushCollidingItems')
         ->not->toContain('item.y = maxY')
         ->toContain('isEditing && !isSmallViewport')
+        ->toContain('cursor-grabbing')
+        ->toContain('cursor-grab active:cursor-grabbing')
         ->toContain('mobile-widget-move-handle')
         ->toContain('ウィジェットを移動')
         ->toContain('ウィジェットを編集')
@@ -536,6 +542,7 @@ test('toasts render above sheets and modals', function () {
 
     expect($toaster)
         ->toContain('z-[9999]')
+        ->toContain("window.addEventListener('app-toast', handleToastEvent)")
         ->not->toContain('z-[100]');
 });
 
@@ -554,7 +561,102 @@ test('editing warns before leaving with unsaved changes', function () {
         ->toContain('event.preventDefault()')
         ->toContain('event.returnValue')
         ->toContain('hasUnsavedChanges.value = false')
+        ->toContain('入力エラーにより保存に失敗しました')
+        ->toContain('showSaveValidationErrorToast')
         ->toContain('markDirty()');
+});
+
+test('widget editing enforces content limits in the interface', function () {
+    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $content = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
+    $modal = file_get_contents(resource_path('js/components/links/LinkAddModal.vue'));
+
+    expect($linkPage)
+        ->toContain('const MAX_WIDGETS = 50')
+        ->toContain('const MAX_URL_LENGTH = 2000')
+        ->toContain('const MAX_LINK_TITLE_LENGTH = 100')
+        ->toContain('const MAX_TEXT_WIDGET_LENGTH = 4500')
+        ->toContain('canAddWidget')
+        ->toContain('ウィジェットは50個まで追加できます')
+        ->toContain('normalizedUrl.length > MAX_URL_LENGTH')
+        ->toContain(':maxlength="MAX_URL_LENGTH"')
+        ->toContain(':maxlength="MAX_LINK_TITLE_LENGTH"')
+        ->toContain('@beforeinput=')
+        ->toContain('limitPlainTextBeforeInput')
+        ->toContain('pastePlainTextWithLimit');
+
+    expect($content)
+        ->toContain('const MAX_LINK_TITLE_LENGTH = 100')
+        ->toContain('const MAX_TEXT_WIDGET_LENGTH = 4500')
+        ->toContain('widget-text-input')
+        ->toContain('widget-text-input--focused')
+        ->toContain('stopPointerWhenFocused')
+        ->toContain('shape.value')
+        ->toContain("isLinkTitleFocused.value ? 'cursor-text' : 'cursor-grab active:cursor-grabbing'")
+        ->not->toContain('cursor-move')
+        ->toContain('cursor-text')
+        ->toContain('maxlength="4500"')
+        ->toContain('@beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"')
+        ->toContain('pastePlainText($event, MAX_TEXT_WIDGET_LENGTH)');
+
+    expect($modal)
+        ->toContain('const maxUrlLength = 2000')
+        ->toContain(':maxlength="maxUrlLength"')
+        ->toContain('normalizedUrl.length > maxUrlLength');
+});
+
+test('widget sync rejects invalid widget limits', function () {
+    $user = User::factory()->create();
+    $link = Link::query()->create([
+        'user_id' => $user->id,
+        'slug' => 'limit-check',
+        'display_name' => 'Limit Check',
+    ]);
+
+    $widget = [
+        'id' => null,
+        'type' => 'link',
+        'content' => 'https://example.com',
+        'thumbnail_url' => null,
+        'x' => 0,
+        'y' => 0,
+        'w' => 1,
+        'h' => 2,
+        'x_mobile' => 0,
+        'y_mobile' => 0,
+        'w_mobile' => 1,
+        'h_mobile' => 2,
+        'settings' => ['title' => str_repeat('a', 101)],
+    ];
+
+    $this
+        ->actingAs($user)
+        ->from(route('links.show', $link))
+        ->post(route('widgets.sync', $link), ['widgets' => [$widget]])
+        ->assertRedirect(route('links.show', $link))
+        ->assertSessionHasErrors('widgets');
+
+    $widget['settings']['title'] = 'Valid';
+    $widget['content'] = str_repeat('a', 2001);
+
+    $this
+        ->actingAs($user)
+        ->from(route('links.show', $link))
+        ->post(route('widgets.sync', $link), ['widgets' => [$widget]])
+        ->assertRedirect(route('links.show', $link))
+        ->assertSessionHasErrors('widgets.0.content');
+
+    $widgets = array_fill(0, 51, [
+        ...$widget,
+        'content' => 'https://example.com',
+    ]);
+
+    $this
+        ->actingAs($user)
+        ->from(route('links.show', $link))
+        ->post(route('widgets.sync', $link), ['widgets' => $widgets])
+        ->assertRedirect(route('links.show', $link))
+        ->assertSessionHasErrors('widgets');
 });
 
 test('mobile toolbar link add uses a bottom sheet instead of the modal', function () {

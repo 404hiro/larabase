@@ -20,6 +20,7 @@ const emit = defineEmits<{
 const url = ref('');
 const errorMessage = ref('');
 const isSensitive = ref(false);
+const maxUrlLength = 2000;
 
 watch(
     () => props.show,
@@ -65,7 +66,7 @@ const handleAdd = () => {
         return;
     }
 
-    if (!isValidUrl(normalizedUrl)) {
+    if (normalizedUrl.length > maxUrlLength || !isValidUrl(normalizedUrl)) {
         errorMessage.value = '有効なURLを入力してください';
         return;
     }
@@ -95,6 +96,7 @@ const handleAdd = () => {
                 <input
                     v-model="url"
                     type="url"
+                    :maxlength="maxUrlLength"
                     placeholder="https://..."
                     class="w-full rounded-xl border px-4 py-3 pr-11 focus:ring-2 focus:outline-none"
                     :class="

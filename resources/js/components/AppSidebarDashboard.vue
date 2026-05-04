@@ -6,7 +6,7 @@ import {
     Folder,
     LayoutGrid,
     Link as LinkIcon,
-    Settings,
+    UserCog,
 } from 'lucide-vue-next';
 import AppSidebar from './AppSidebar.vue';
 
@@ -22,9 +22,9 @@ const mainNavItems: NavItem[] = [
         icon: LinkIcon,
     },
     {
-        title: '設定',
-        href: '/settings/',
-        icon: Settings,
+        title: 'ユーザ設定',
+        href: '/settings',
+        icon: UserCog,
     },
 ];
 

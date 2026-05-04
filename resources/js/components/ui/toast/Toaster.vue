@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { usePage } from '@inertiajs/vue3'
 import Toast from './Toast.vue'
 
@@ -27,6 +27,14 @@ const removeToast = (id: number) => {
     const index = toasts.value.findIndex(t => t.id === id)
     if (index > -1) {
         toasts.value.splice(index, 1)
+    }
+}
+
+const handleToastEvent = (event: Event) => {
+    const toast = (event as CustomEvent<Omit<ToastItem, 'id'>>).detail
+
+    if (toast) {
+        addToast(toast)
     }
 }
 
@@ -86,6 +94,14 @@ const checkFlashMessages = (flash: any) => {
 watch(() => page.props.flash, (newFlash) => {
     checkFlashMessages(newFlash)
 }, { deep: true, immediate: true })
+
+onMounted(() => {
+    window.addEventListener('app-toast', handleToastEvent)
+})
+
+onUnmounted(() => {
+    window.removeEventListener('app-toast', handleToastEvent)
+})
 </script>
 
 <template>

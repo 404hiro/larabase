@@ -16,6 +16,9 @@ const props = defineProps<{
     isCropping?: boolean;
 }>();
 
+const MAX_LINK_TITLE_LENGTH = 100;
+const MAX_TEXT_WIDGET_LENGTH = 4500;
+
 const emit = defineEmits<{
     activate: [];
     'update-title': [newTitle: string];
@@ -25,11 +28,28 @@ const emit = defineEmits<{
 }>();
 
 const updateTitle = (event: Event) => {
-    emit('update-title', (event.target as HTMLTextAreaElement).value);
+    const maxLength =
+        props.widget.type === 'link'
+            ? MAX_LINK_TITLE_LENGTH
+            : props.widget.type === 'text'
+              ? MAX_TEXT_WIDGET_LENGTH
+              : MAX_TEXT_WIDGET_LENGTH;
+
+    emit(
+        'update-title',
+        (event.target as HTMLTextAreaElement).value.slice(0, maxLength),
+    );
 };
 
 const updateTitleFromElement = (element: HTMLElement | null) => {
-    emit('update-title', element?.innerText ?? '');
+    const maxLength =
+        props.widget.type === 'link'
+            ? MAX_LINK_TITLE_LENGTH
+            : props.widget.type === 'text'
+              ? MAX_TEXT_WIDGET_LENGTH
+              : MAX_TEXT_WIDGET_LENGTH;
+
+    emit('update-title', (element?.innerText ?? '').slice(0, maxLength));
 };
 
 const activate = () => {
@@ -496,6 +516,8 @@ const textColor = computed(() => {
     return luminance > 0.55 ? 'text-gray-800' : 'text-white';
 });
 const textEditorClasses = computed(() => [
+    isTextEditorFocused.value ? 'widget-text-input--focused' : '',
+    isTextEditorFocused.value ? 'cursor-text' : 'cursor-grab active:cursor-grabbing',
     textColor.value,
     hasTitle.value ? '' : 'is-empty',
     textAlign.value === 'center'
@@ -504,8 +526,11 @@ const textEditorClasses = computed(() => [
           ? 'text-right'
           : 'text-left',
 ]);
-const linkTitleEditorClasses =
-    'block min-h-6 max-h-20 w-full overflow-auto whitespace-pre-wrap break-words rounded bg-gray-100/70 text-base leading-6 text-gray-800 outline-none focus:ring-2 focus:ring-blue-500';
+const linkTitleEditorClasses = computed(() => [
+    isLinkTitleFocused.value ? 'widget-text-input--focused' : '',
+    'block min-h-6 max-h-20 w-full overflow-auto whitespace-pre-wrap break-words rounded bg-gray-100/70 text-base leading-6 text-gray-800 outline-none focus:ring-2 focus:ring-blue-500',
+    isLinkTitleFocused.value ? 'cursor-text' : 'cursor-grab active:cursor-grabbing',
+]);
 const linkTitleDisplayClasses =
     'block min-h-6 whitespace-pre-wrap break-words text-base leading-6 text-gray-800';
 const linkDomainClasses =
@@ -534,6 +559,12 @@ const focusTextEditor = () => {
     });
 };
 
+const stopPointerWhenFocused = (event: Event, isFocused: boolean) => {
+    if (isFocused) {
+        event.stopPropagation();
+    }
+};
+
 const syncTextEditor = () => {
     if (!textEditor.value || isTextEditorFocused.value) return;
 
@@ -543,15 +574,50 @@ const syncTextEditor = () => {
 };
 
 const updateTextEditor = () => {
-    emit('update-title', textEditor.value?.innerText ?? '');
+    emit(
+        'update-title',
+        (textEditor.value?.innerText ?? '').slice(0, MAX_TEXT_WIDGET_LENGTH),
+    );
 };
 
-const pastePlainText = (event: ClipboardEvent) => {
+const limitPlainTextBeforeInput = (event: Event, maxLength: number) => {
+    const inputEvent = event as InputEvent;
+
+    if (
+        inputEvent.inputType.startsWith('delete') ||
+        inputEvent.inputType === 'historyUndo' ||
+        inputEvent.inputType === 'historyRedo'
+    ) {
+        return;
+    }
+
+    const target = event.target as HTMLElement;
+    const selection = window.getSelection();
+    const selectedLength = selection?.toString().length ?? 0;
+    const currentLength = target.innerText.length;
+    const incomingLength = inputEvent.data?.length ?? 0;
+
+    if (currentLength - selectedLength + incomingLength > maxLength) {
+        event.preventDefault();
+    }
+};
+
+const pastePlainText = (event: ClipboardEvent, maxLength: number) => {
     event.preventDefault();
 
-    const pastedText = event.clipboardData?.getData('text/plain') ?? '';
+    const target = event.target as HTMLElement;
+    const selection = window.getSelection();
+    const selectedLength = selection?.toString().length ?? 0;
+    const currentLength = target.innerText.length;
+    const remainingLength = Math.max(
+        0,
+        maxLength - currentLength + selectedLength,
+    );
+    const pastedText = (
+        event.clipboardData?.getData('text/plain') ?? ''
+    ).slice(0, remainingLength);
+
     document.execCommand('insertText', false, pastedText);
-    updateTextEditor();
 };
 
 watch(
@@ -576,10 +642,7 @@ const updateLinkTitleEditor = () => {
 };
 
 const pastePlainLinkTitle = (event: ClipboardEvent) => {
-    event.preventDefault();
-
-    const pastedText = event.clipboardData?.getData('text/plain') ?? '';
-    document.execCommand('insertText', false, pastedText);
+    pastePlainText(event, MAX_LINK_TITLE_LENGTH);
     updateLinkTitleEditor();
 };
 
@@ -588,6 +651,7 @@ watch(
         title.value,
         props.isEditing,
         props.isActive,
+        shape.value,
         socialNetwork.value?.account,
     ],
     () => nextTick(syncLinkTitleEditor),
@@ -676,8 +740,9 @@ onUnmounted(() => {
                 v-if="isEditing"
                 :value="title"
                 rows="1"
+                maxlength="4500"
                 placeholder="セクションを入力"
-                class="w-full resize-none rounded-xl border border-transparent bg-transparent px-3 py-2 leading-tight font-bold text-gray-800 transition-colors duration-150 placeholder:text-gray-400 hover:bg-gray-100/70 focus:border-gray-200 focus:bg-gray-100/70 focus:outline-none"
+                class="widget-text-input w-full cursor-text resize-none rounded-xl border border-transparent bg-transparent px-3 py-2 leading-tight font-bold text-gray-800 transition-colors duration-150 placeholder:text-gray-400 hover:bg-gray-100/70 focus:border-gray-200 focus:bg-gray-100/70 focus:outline-none"
                 :class="[
                     mode === 'desktop' ? 'text-xl' : 'text-lg',
                     hasTitle ? '' : 'bg-gray-100/60',
@@ -685,6 +750,9 @@ onUnmounted(() => {
                 @input="updateTitle"
                 @focus="activate"
                 @click.stop
+                @pointerdown.stop
+                @mousedown.stop
+                @touchstart.stop
             ></textarea>
             <p
                 v-else
@@ -707,7 +775,6 @@ onUnmounted(() => {
                 class="flex min-h-0 flex-1 flex-col rounded-xl p-3 transition-colors duration-150"
                 :class="textEditorPanelClasses"
                 @click.stop="focusTextEditor"
-                @mousedown.stop
             >
                 <div
                     ref="textEditor"
@@ -717,15 +784,32 @@ onUnmounted(() => {
                     data-placeholder="テキストを入力..."
                     class="text-widget-editor max-h-full w-full overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent text-lg font-semibold leading-snug outline-none transition-colors duration-150"
                     :class="textEditorClasses"
+                    @beforeinput="
+                        limitPlainTextBeforeInput(
+                            $event,
+                            MAX_TEXT_WIDGET_LENGTH,
+                        )
+                    "
                     @input="updateTextEditor"
-                    @paste="pastePlainText"
+                    @paste="
+                        pastePlainText($event, MAX_TEXT_WIDGET_LENGTH);
+                        updateTextEditor();
+                    "
                     @focus="
                         activate();
                         isTextEditorFocused = true;
                     "
                     @blur="isTextEditorFocused = false"
                     @click.stop
-                    @mousedown.stop
+                    @pointerdown="
+                        stopPointerWhenFocused($event, isTextEditorFocused)
+                    "
+                    @mousedown="
+                        stopPointerWhenFocused($event, isTextEditorFocused)
+                    "
+                    @touchstart="
+                        stopPointerWhenFocused($event, isTextEditorFocused)
+                    "
                 ></div>
             </div>
             <p
@@ -769,13 +853,15 @@ onUnmounted(() => {
                     :value="title"
                     placeholder="Add a title..."
                     rows="1"
-                    class="max-w-full resize-none whitespace-pre-wrap break-words rounded-xl bg-white/80 px-3 py-2 font-semibold text-gray-800 backdrop-blur-sm [field-sizing:content] placeholder:text-gray-800 focus:ring-2 focus:ring-white/80 focus:outline-none"
+                    maxlength="4500"
+                    class="widget-text-input max-w-full cursor-text resize-none whitespace-pre-wrap break-words rounded-xl bg-white/80 px-3 py-2 font-semibold text-gray-800 backdrop-blur-sm [field-sizing:content] placeholder:text-gray-800 focus:ring-2 focus:ring-white/80 focus:outline-none"
                     :class="mode === 'desktop' ? 'text-sm' : 'text-xs'"
                     :style="captionEditorStyle"
                     @keydown.enter.prevent
                     @input="updateTitle"
                     @focus="activate"
                     @click.stop
+                    @pointerdown.stop
                     @mousedown.stop
                     @touchstart.stop
                 ></textarea>
@@ -824,6 +910,7 @@ onUnmounted(() => {
                     role="textbox"
                     aria-label="リンクタイトル"
                     :class="linkTitleEditorClasses"
+                    @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
                     @input="updateLinkTitleEditor"
                     @paste="pastePlainLinkTitle"
                     @focus="
@@ -832,7 +919,15 @@ onUnmounted(() => {
                     "
                     @blur="isLinkTitleFocused = false"
                     @click.stop
-                    @mousedown.stop
+                    @pointerdown="
+                        stopPointerWhenFocused($event, isLinkTitleFocused)
+                    "
+                    @mousedown="
+                        stopPointerWhenFocused($event, isLinkTitleFocused)
+                    "
+                    @touchstart="
+                        stopPointerWhenFocused($event, isLinkTitleFocused)
+                    "
                 ></div>
                 <p v-else :class="linkTitleDisplayClasses">{{ title || socialNetwork?.account }}</p>
 
@@ -877,6 +972,7 @@ onUnmounted(() => {
                         role="textbox"
                         aria-label="リンクタイトル"
                         :class="linkTitleEditorClasses"
+                    @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
                         @input="updateLinkTitleEditor"
                         @paste="pastePlainLinkTitle"
                         @focus="
@@ -885,7 +981,15 @@ onUnmounted(() => {
                         "
                         @blur="isLinkTitleFocused = false"
                         @click.stop
-                        @mousedown.stop
+                        @pointerdown="
+                            stopPointerWhenFocused($event, isLinkTitleFocused)
+                        "
+                        @mousedown="
+                            stopPointerWhenFocused($event, isLinkTitleFocused)
+                        "
+                        @touchstart="
+                            stopPointerWhenFocused($event, isLinkTitleFocused)
+                        "
                     ></div>
                     <p v-else :class="linkTitleDisplayClasses">{{ title || socialNetwork?.account }}</p>
                     <div class="flex-1"></div>
@@ -944,6 +1048,7 @@ onUnmounted(() => {
                         role="textbox"
                         aria-label="リンクタイトル"
                         :class="linkTitleEditorClasses"
+                    @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
                         @input="updateLinkTitleEditor"
                         @paste="pastePlainLinkTitle"
                         @focus="
@@ -952,7 +1057,15 @@ onUnmounted(() => {
                         "
                         @blur="isLinkTitleFocused = false"
                         @click.stop
-                        @mousedown.stop
+                        @pointerdown="
+                            stopPointerWhenFocused($event, isLinkTitleFocused)
+                        "
+                        @mousedown="
+                            stopPointerWhenFocused($event, isLinkTitleFocused)
+                        "
+                        @touchstart="
+                            stopPointerWhenFocused($event, isLinkTitleFocused)
+                        "
                     ></div>
                     <p v-else :class="linkTitleDisplayClasses">{{ title || socialNetwork?.account }}</p>
                     <div class="flex-1"></div>
@@ -1013,6 +1126,7 @@ onUnmounted(() => {
                             role="textbox"
                             aria-label="リンクタイトル"
                             :class="linkTitleEditorClasses"
+                    @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
                             @input="updateLinkTitleEditor"
                             @paste="pastePlainLinkTitle"
                             @focus="
@@ -1021,7 +1135,15 @@ onUnmounted(() => {
                             "
                             @blur="isLinkTitleFocused = false"
                             @click.stop
-                            @mousedown.stop
+                            @pointerdown="
+                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                            "
+                            @mousedown="
+                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                            "
+                            @touchstart="
+                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                            "
                         ></div>
                         <p v-else :class="linkTitleDisplayClasses">{{
                             title || socialNetwork.account }}</p>
@@ -1040,6 +1162,7 @@ onUnmounted(() => {
                             role="textbox"
                             aria-label="リンクタイトル"
                             :class="linkTitleEditorClasses"
+                    @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
                             @input="updateLinkTitleEditor"
                             @paste="pastePlainLinkTitle"
                             @focus="
@@ -1048,7 +1171,15 @@ onUnmounted(() => {
                             "
                             @blur="isLinkTitleFocused = false"
                             @click.stop
-                            @mousedown.stop
+                            @pointerdown="
+                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                            "
+                            @mousedown="
+                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                            "
+                            @touchstart="
+                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                            "
                         ></div>
                         <p v-else :class="linkTitleDisplayClasses">{{
                             title }}</p>
@@ -1071,6 +1202,7 @@ onUnmounted(() => {
                             role="textbox"
                             aria-label="リンクタイトル"
                             :class="linkTitleEditorClasses"
+                    @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
                             @input="updateLinkTitleEditor"
                             @paste="pastePlainLinkTitle"
                             @focus="
@@ -1079,7 +1211,15 @@ onUnmounted(() => {
                             "
                             @blur="isLinkTitleFocused = false"
                             @click.stop
-                            @mousedown.stop
+                            @pointerdown="
+                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                            "
+                            @mousedown="
+                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                            "
+                            @touchstart="
+                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                            "
                         ></div>
                         <p v-else :class="linkTitleDisplayClasses">{{
                             title }}</p>

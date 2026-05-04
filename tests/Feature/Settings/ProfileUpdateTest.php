@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 test('profile page is displayed', function () {
     $user = User::factory()->create();
@@ -12,12 +14,16 @@ test('profile page is displayed', function () {
     $response->assertOk();
 });
 
+test('settings page uses the settings url', function () {
+    expect(route('profile.edit', absolute: false))->toBe('/settings');
+});
+
 test('profile information can be updated', function () {
     $user = User::factory()->create();
 
     $response = $this
         ->actingAs($user)
-        ->patch(route('profile.update'), [
+        ->post(route('profile.update'), [
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
@@ -38,7 +44,7 @@ test('email verification status is unchanged when the email address is unchanged
 
     $response = $this
         ->actingAs($user)
-        ->patch(route('profile.update'), [
+        ->post(route('profile.update'), [
             'name' => 'Test User',
             'email' => $user->email,
         ]);
@@ -48,6 +54,30 @@ test('email verification status is unchanged when the email address is unchanged
         ->assertRedirect(route('profile.edit'));
 
     expect($user->refresh()->email_verified_at)->not->toBeNull();
+});
+
+test('profile avatar can be removed', function () {
+    Storage::fake('public');
+
+    $path = UploadedFile::fake()->image('avatar.png')->store('avatars', 'public');
+    $user = User::factory()->create([
+        'avatar' => $path,
+    ]);
+
+    $response = $this
+        ->actingAs($user)
+        ->post(route('profile.update'), [
+            'name' => $user->name,
+            'email' => $user->email,
+            'remove_avatar' => true,
+        ]);
+
+    $response
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('profile.edit'));
+
+    Storage::disk('public')->assertMissing($path);
+    expect($user->refresh()->avatar)->toBeNull();
 });
 
 test('user can delete their account', function () {
@@ -61,7 +91,7 @@ test('user can delete their account', function () {
 
     $response
         ->assertSessionHasNoErrors()
-        ->assertRedirect(route('dashboard'));
+        ->assertRedirect('/');
 
     $this->assertGuest();
     expect($user->fresh())->toBeNull();

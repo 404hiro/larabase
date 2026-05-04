@@ -33,8 +33,15 @@ class ProfileController extends Controller
         $user = $request->user();
         $validated = $request->validated();
 
+        if ($request->boolean(key: 'remove_avatar')) {
+            if ($user->avatar) {
+                Storage::disk(name: 'public')->delete($user->avatar);
+            }
+
+            $validated['avatar'] = null;
+        }
+
         if ($request->hasFile(key: 'avatar')) {
-            // Delete old avatar if it exists
             if ($user->avatar) {
                 Storage::disk(name: 'public')->delete($user->avatar);
             }
