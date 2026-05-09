@@ -22,8 +22,7 @@ interface Permission {
 interface User {
     id: number;
     name: string;
-    email: string;
-    email_verified_at: string | null;
+    google_id: string;
     created_at: string;
     updated_at: string;
     roles: Role[];
@@ -123,46 +122,9 @@ const deleteUser = () => {
                         <div class="md:col-span-2">
                             <label
                                 class="text-sm font-medium text-muted-foreground"
-                                >メールアドレス</label
+                                >Google ID</label
                             >
-                            <p class="mt-1 text-lg">{{ user.email }}</p>
-                        </div>
-
-                        <div>
-                            <label
-                                class="text-sm font-medium text-muted-foreground"
-                                >ステータス</label
-                            >
-                            <div class="mt-1">
-                                <Badge
-                                    :variant="
-                                        user.email_verified_at
-                                            ? 'default'
-                                            : 'secondary'
-                                    "
-                                    class="text-sm"
-                                >
-                                    {{
-                                        user.email_verified_at
-                                            ? 'アクティブ'
-                                            : '未認証'
-                                    }}
-                                </Badge>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label
-                                class="text-sm font-medium text-muted-foreground"
-                                >メール認証日時</label
-                            >
-                            <p class="mt-1">
-                                {{
-                                    user.email_verified_at
-                                        ? formatDateTime(user.email_verified_at)
-                                        : '未認証'
-                                }}
-                            </p>
+                            <p class="mt-1 font-mono text-lg">{{ user.google_id }}</p>
                         </div>
 
                         <div class="md:col-span-2">

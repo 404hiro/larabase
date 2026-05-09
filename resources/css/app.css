@@ -172,4 +172,8 @@
     body {
         @apply bg-background text-foreground;
     }
+    a:not(.link-page *),
+    button:not(.link-page *) {
+        @apply cursor-pointer;
+    }
 }

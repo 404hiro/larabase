@@ -1,10 +1,12 @@
 <?php
 
 use App\Models\Link;
+use App\Models\Title;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
+use Spatie\Permission\Models\Role;
 
 test('published link page renders the link component', function () {
     $user = User::factory()->create();
@@ -31,10 +33,19 @@ test('empty link add controls use the full visible button area', function () {
     expect($linkPage)
         ->toContain('z-20 grid w-[864px] grid-cols-4')
         ->toContain('z-20 grid w-full max-w-[356px]')
-        ->toContain('grid-auto-rows: 92px;')
-        ->toContain('grid-auto-rows: 73px;')
-        ->toContain('flex h-full w-full flex-col items-center justify-center')
-        ->toContain('Add Link');
+        ->toContain('grid-auto-rows: 92px')
+        ->toContain('grid-auto-rows: 73px')
+        ->toContain('flex h-full w-full cursor-pointer flex-col items-center justify-center')
+        ->toContain('リンクを追加')
+        ->toContain('メディアを追加')
+        ->toContain('テキストを追加')
+        ->toContain('@click="openModalWithPos(0, 0, 2, 2)"')
+        ->toContain('@click="addTextWidget({ x: 2, y: 0, w: 1, h: 2 })"')
+        ->toContain('@click="addTextWidget({ x: 0, y: 2, w: 1, h: 2 })"')
+        ->toContain('openMediaPickerFromEmptyState({')
+        ->toContain('const addTextWidget = (position: WidgetPosition | null = null)')
+        ->toContain('const addMediaWidget = async (file: File, position: WidgetPosition | null = null)')
+        ->toContain('ref="emptyMediaInput"');
 });
 
 test('link page displays top profile navigation', function () {
@@ -185,7 +196,11 @@ test('private link pages show a publish button', function () {
     expect($profile)
         ->toContain('showPrivateNotice')
         ->toContain('プロフィールを公開する')
-        ->toContain('publish: []');
+        ->toContain('publish: []')
+        ->toContain('border-gray-200 bg-gray-100/70')
+        ->toContain('h-11 min-w-0 flex-1 cursor-pointer')
+        ->toContain('hidden h-11 cursor-pointer')
+        ->toContain('text-sm font-bold text-white');
 
     expect($linkPage)
         ->toContain('showPrivateNotice')
@@ -373,7 +388,9 @@ test('link widgets show play buttons and brand tinted backgrounds for services',
         ->toContain('actionService')
         ->toContain('linkCardClasses')
         ->toContain('backgroundColor')
-        ->toContain("actionLabel: 'Play'")
+        ->toContain("actionLabel: 'プレイ'")
+        ->toContain("config.actionLabel = 'プレイ'")
+        ->toContain("config.actionLabel = 'フォロー'")
         ->toContain('bg-[#fff1f3]')
         ->toContain('bg-[#effaf3]');
 });
@@ -396,7 +413,20 @@ test('link widgets show purchase and install actions for commerce and app stores
         ->toContain('bg-[#fff8ed]')
         ->toContain('bg-[#f3faed]')
         ->toContain('bg-[#effaf5]')
-        ->toContain('{{ actionService.actionLabel }}');
+        ->toContain('{{ actionServiceLabel }}');
+});
+
+test('link widget action labels render as unified button-like spans', function () {
+    $content = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
+
+    expect($content)
+        ->toContain('const actionPillClass')
+        ->toContain('inline-flex h-8 min-w-20 items-center justify-center')
+        ->toContain('socialActionPillClasses')
+        ->toContain('actionServicePillClasses')
+        ->toContain('actionServiceLabel')
+        ->not->toContain('<Play')
+        ->not->toContain("actionLabel: 'Play'");
 });
 
 test('link widgets show support and follow actions for creator platforms', function () {
@@ -509,7 +539,7 @@ test('mobile widget editing uses tap operation controls and a bottom resize tool
         ->toContain('<Trash2 class="size-4" />')
         ->toContain('rounded-2xl border-2 border-black')
         ->toContain('flex size-10 translate-x-1/2')
-        ->toContain('touch-none cursor-grab')
+        ->toContain('cursor-grab touch-none')
         ->toContain('<Move class="size-5" />')
         ->toContain('<Pencil class="size-4" />')
         ->toContain('@resize-mobile-widget="resizeActiveMobileWidget"')
@@ -535,6 +565,93 @@ test('mobile widget editing uses tap operation controls and a bottom resize tool
 
     expect(substr_count($linkPage, ':drag-allow-from='))
         ->toBe(1);
+});
+
+test('mobile widget move handle allows grid drag events to bubble', function () {
+    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $handleStart = strpos($linkPage, 'aria-label="ウィジェットを移動"');
+
+    expect($handleStart)->not->toBeFalse();
+
+    $handleMarkup = substr($linkPage, $handleStart, 700);
+
+    expect($handleMarkup)
+        ->toContain('mobile-widget-move-handle')
+        ->toContain('@click.stop.prevent')
+        ->toContain('@pointerdown=')
+        ->toContain('startWidgetDragPointer(')
+        ->not->toContain('@pointerdown.stop');
+});
+
+test('widget drag end suppresses the follow up click selection', function () {
+    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+
+    expect($linkPage)
+        ->toContain('const suppressWidgetClickUntil = ref(0)')
+        ->toContain('const beginDraggedWidget = (')
+        ->toContain('const finishDraggedWidget = (')
+        ->toContain('const startWidgetDragPointer = (')
+        ->toContain('const handleWindowPointerMove = (event: PointerEvent) => {')
+        ->toContain('const handleWindowPointerUp = () => {')
+        ->toContain('suppressWidgetClickUntil.value = Date.now() + 300')
+        ->toContain('const shouldSuppressWidgetClick = ()')
+        ->toContain('const isSuppressingWidgetInteractions = computed(() => {')
+        ->toContain('const isWidgetInteractionDisabled = (widgetId: string | number) => {')
+        ->toContain('const handleWidgetClick = (event: MouseEvent, item: any)')
+        ->toContain("window.addEventListener('pointermove', handleWindowPointerMove)")
+        ->toContain("window.addEventListener('pointerup', handleWindowPointerUp)")
+        ->toContain("window.addEventListener('pointercancel', handleWindowPointerUp)")
+        ->toContain('startWidgetDragPointer(')
+        ->toContain('@click="handleWidgetClick($event, item)"')
+        ->toContain('@activate="activateWidget(item.i)"')
+        ->toContain("'pointer-events-none'");
+
+    expect(substr_count($linkPage, '@click="handleWidgetClick($event, item)"'))
+        ->toBe(2);
+});
+
+test('widget dragging uses motion wobble animations', function () {
+    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $widgetContent = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
+
+    expect($linkPage)
+        ->toContain("import { useReducedMotion } from '@vueuse/motion';")
+        ->toContain('const dragPointerState = ref<{')
+        ->toContain('const dragVisualState = ref<{')
+        ->toContain('const prefersReducedMotion = useReducedMotion()')
+        ->toContain('const updateDraggedWidgetVisual = (')
+        ->toContain('const scheduleDraggedWidgetSettle = (')
+        ->toContain('const clampedOffset = Math.max(Math.min(horizontalOffset, 48), -48)')
+        ->toContain('translateX: isReducedMotion ? clampedOffset * 0.012 : clampedOffset * 0.022')
+        ->toContain('rotate: isReducedMotion ? clampedOffset * 0.018 : clampedOffset * 0.05')
+        ->toContain('boxShadow: isReducedMotion')
+        ->toContain('const getDraggedWidgetStyle = (')
+        ->toContain('transform: `translate3d(')
+        ->toContain('return `link-widget-${mode}-${widgetId}`')
+        ->toContain('updateDraggedWidgetVisual(mode, widgetId, 0)')
+        ->toContain('scheduleDraggedWidgetSettle(mode, widgetId)')
+        ->toContain('const horizontalOffset = event.clientX - pointerState.startX')
+        ->toContain('getDraggedWidgetStyle(\'desktop\', item.i)')
+        ->toContain('getDraggedWidgetStyle(\'mobile\', item.i)');
+
+    expect($widgetContent)
+        ->toContain('const cardFrameStyle = computed(() => {')
+        ->toContain("backgroundColor: 'transparent'");
+});
+
+test('newly added widgets briefly bounce into place', function () {
+    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+
+    expect($linkPage)
+        ->toContain('const newlyAddedWidgetIds = ref<Set<string>>(new Set())')
+        ->toContain('const markWidgetAsNewlyAdded = (widget: any) => {')
+        ->toContain('const addLocalWidget = (widget: any) => {')
+        ->toContain('markWidgetAsNewlyAdded(widget)')
+        ->toContain('newlyAddedWidgetIds.has(item.i)')
+        ->toContain("'widget-bounce-enter'")
+        ->toContain('@keyframes widgetBounceIn')
+        ->toContain('transform: scale(1.12);')
+        ->toContain('@media (prefers-reduced-motion: reduce)');
 });
 
 test('toasts render above sheets and modals', function () {
@@ -669,19 +786,22 @@ test('mobile toolbar link add uses a bottom sheet instead of the modal', functio
         ->toContain('mobileAddLinkUrl')
         ->toContain('mobileAddLinkSensitive')
         ->toContain('submitMobileAddLink')
-        ->toContain("if (isSmallViewport.value)")
+        ->toContain('if (isSmallViewport.value)')
         ->toContain('showAddLinkModal.value = true')
         ->toContain(':open="showMobileAddLinkSheet"')
         ->toContain('setMobileAddLinkSheetOpen')
         ->toContain('リンクを追加')
         ->toContain(':show-close="false"')
+        ->toContain('relative min-h-16 border-b border-gray-100')
+        ->toContain('top-1/2 left-4')
+        ->toContain('top-1/2 right-4')
         ->toContain('class="sr-only"')
         ->toContain('aria-label="キャンセル"')
         ->toContain('@click="closeMobileAddLinkSheet"')
         ->toContain('@click="submitMobileAddLink"')
         ->toContain('@input="mobileAddLinkError = \'\'"')
         ->toContain('有効なURLを入力してください')
-        ->toContain("addLinkWidget(normalizedUrl, mobileAddLinkSensitive.value)")
+        ->toContain('addLinkWidget(normalizedUrl, mobileAddLinkSensitive.value)')
         ->toContain('role="switch"');
 });
 
@@ -772,7 +892,7 @@ test('mobile profile avatar delete control is always visible and delete controls
         ->toContain("previewMode === 'mobile'")
         ->toContain('max-[1024px]:opacity-100')
         ->toContain('max-[1024px]:[&_*]:pointer-events-auto')
-        ->toContain("group-hover:opacity-100");
+        ->toContain('group-hover:opacity-100');
 
     expect($controls)
         ->toContain('type="button"')
@@ -820,6 +940,9 @@ test('mobile text and section widgets open bottom sheet editors', function () {
         ->toContain('mobileTextColorSwatches')
         ->toContain("height: '250px'")
         ->toContain("width: '250px'")
+        ->toContain('const previewCellSize = 125')
+        ->toContain('height: `${height * previewCellSize}px`')
+        ->toContain('width: `${width * previewCellSize}px`')
         ->toContain('contenteditable="true"')
         ->toContain('role="textbox"')
         ->toContain('data-placeholder="テキストを入力"')
@@ -831,7 +954,9 @@ test('mobile text and section widgets open bottom sheet editors', function () {
         ->toContain('テキストを追加')
         ->toContain('@click="closeMobileTextEditor"')
         ->toContain(':show-close="mobileTextEditorMode !== \'add\'"')
-        ->toContain(':close-label="mobileTextEditorMode === \'add\' ? undefined : \'完了\'"')
+        ->toContain(':close-label=')
+        ->toContain("mobileTextEditorMode === 'add'")
+        ->toContain("? undefined : '完了'")
         ->toContain('テキストを入力')
         ->toContain('スタイル')
         ->toContain('flex gap-2 overflow-x-auto')
@@ -861,7 +986,7 @@ test('mobile text and section widgets open bottom sheet editors', function () {
         ->toContain('@click="closeMobileSectionEditor"')
         ->toContain('セクションを入力してください')
         ->toContain(':show-close="mobileSectionEditorMode !== \'add\'"')
-        ->toContain(':close-label="mobileSectionEditorMode === \'add\' ? undefined : \'完了\'"')
+        ->toContain('mobileSectionEditorMode === \'add\'')
         ->toContain('セクションを入力');
 });
 
@@ -916,10 +1041,16 @@ test('links index renders the management page without links', function () {
 
 test('links index renders only the authenticated users links', function () {
     $user = User::factory()->create();
+    $title = Title::query()->create([
+        'name' => 'テスト職業',
+        'sort_order' => 1,
+        'is_active' => true,
+    ]);
     Link::query()->create([
         'user_id' => $user->id,
         'slug' => 'maessun',
         'display_name' => 'Maessun',
+        'title_id' => $title->id,
         'bio' => 'GridLink profile',
     ]);
     Link::query()->create([
@@ -937,5 +1068,96 @@ test('links index renders only the authenticated users links', function () {
         ->has('links', 1)
         ->where('links.0.slug', 'maessun')
         ->where('links.0.display_name', 'Maessun')
+        ->where('links.0.title.name', 'テスト職業')
     );
+});
+
+test('link creation allows an empty title and bio', function () {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('links.store'), [
+        'slug' => 'maessun',
+        'display_name' => 'Maessun',
+        'bio' => '',
+    ]);
+
+    $response->assertRedirect(route('links.show', 'maessun'));
+    $response->assertSessionHasNoErrors();
+    $this->assertDatabaseHas('links', [
+        'slug' => 'maessun',
+        'title_id' => null,
+        'bio' => null,
+    ]);
+});
+
+test('link creation stores the selected title', function () {
+    $user = User::factory()->create();
+    $title = Title::query()->create([
+        'name' => '配信者',
+        'sort_order' => 1,
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($user)->post(route('links.store'), [
+        'slug' => 'maessun',
+        'display_name' => 'Maessun',
+        'title_id' => $title->id,
+        'bio' => 'GridLink profile',
+    ]);
+
+    $response->assertRedirect(route('links.show', 'maessun'));
+    $this->assertDatabaseHas('links', [
+        'slug' => 'maessun',
+        'title_id' => $title->id,
+    ]);
+});
+
+test('link creation modals expose title selection', function () {
+    $linksIndexPage = file_get_contents(resource_path('js/pages/Links/Index.vue'));
+    $dashboardPage = file_get_contents(resource_path('js/pages/Dashboard.vue'));
+
+    expect($linksIndexPage)
+        ->toContain('titleOptions')
+        ->toContain('v-model="form.title_id"')
+        ->toContain('職業を選択しない')
+        ->toContain('form.errors.title_id');
+
+    expect($dashboardPage)
+        ->toContain('titleOptions')
+        ->toContain('v-model="form.title_id"')
+        ->toContain('職業を選択しない')
+        ->toContain('form.errors.title_id');
+});
+
+test('admin can manage title master records', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole(Role::query()->create(['name' => 'admin']));
+
+    $response = $this->actingAs($admin)->get(route('admin.titles.index'));
+
+    $response->assertSuccessful();
+    $response->assertInertia(fn (Assert $page) => $page
+        ->component('admin/titles/Index')
+    );
+
+    $this->actingAs($admin)->post(route('admin.titles.store'), [
+        'name' => '漫画家',
+        'sort_order' => 30,
+        'is_active' => true,
+    ])->assertRedirect();
+
+    $title = Title::query()->where('name', '漫画家')->firstOrFail();
+
+    $this->actingAs($admin)->put(route('admin.titles.update', $title), [
+        'name' => 'コミック作家',
+        'sort_order' => 31,
+        'is_active' => false,
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('titles', [
+        'id' => $title->id,
+        'name' => 'コミック作家',
+        'sort_order' => 31,
+        'is_active' => false,
+    ]);
 });

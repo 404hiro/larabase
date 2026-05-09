@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import admin from '@/routes/admin';
 import { type NavItem } from '@/types';
-import { LayoutGrid, Users } from 'lucide-vue-next';
+import { LayoutGrid, Tags, Users } from 'lucide-vue-next';
 import AppSidebar from './AppSidebar.vue';
 
 const mainNavItems: NavItem[] = [
@@ -14,6 +14,11 @@ const mainNavItems: NavItem[] = [
         title: 'ユーザ管理',
         href: admin.users.index().url,
         icon: Users,
+    },
+    {
+        title: '職業管理',
+        href: '/admin/titles',
+        icon: Tags,
     },
 ];
 </script>

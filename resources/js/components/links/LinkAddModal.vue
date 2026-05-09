@@ -47,8 +47,9 @@ const normalizeUrl = (value: string) => {
 
 const isValidUrl = (string: string) => {
     try {
-        new URL(string);
-        return true;
+        const parsed = new URL(string);
+        // プロトコルが http または https であり、ホスト名にドットが含まれていることを確認（ドメイン形式）
+        return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.hostname.includes('.');
     } catch (_) {
         return false;
     }
@@ -56,20 +57,25 @@ const isValidUrl = (string: string) => {
 
 const handleAdd = () => {
     errorMessage.value = '';
-    const normalizedUrl = normalizeUrl(url.value);
+    const trimmedValue = url.value.trim();
 
-    if (!normalizedUrl) {
+    if (!trimmedValue) {
         if (props.allowEmpty) {
             emit('add', '', isSensitive.value);
+            url.value = '';
+        } else {
+            errorMessage.value = 'URLを入力してください';
         }
-
         return;
     }
+
+    const normalizedUrl = normalizeUrl(trimmedValue);
 
     if (normalizedUrl.length > maxUrlLength || !isValidUrl(normalizedUrl)) {
-        errorMessage.value = '有効なURLを入力してください';
+        errorMessage.value = '有効なURLを入力してください（例: google.com）';
         return;
     }
+
     emit('add', normalizedUrl, isSensitive.value);
     url.value = '';
 };
@@ -92,36 +98,41 @@ const handleAdd = () => {
             <h3 class="mb-6 text-xl font-bold">
                 {{ title ?? 'リンクを追加' }}
             </h3>
-            <div class="relative mb-2">
-                <input
-                    v-model="url"
-                    type="url"
-                    :maxlength="maxUrlLength"
-                    placeholder="https://..."
-                    class="w-full rounded-xl border px-4 py-3 pr-11 focus:ring-2 focus:outline-none"
-                    :class="
-                        errorMessage
-                            ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20'
-                            : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500/20'
-                    "
-                    @keyup.enter="handleAdd"
-                    @input="errorMessage = ''"
-                />
-                <button
-                    v-if="url"
-                    type="button"
-                    aria-label="リンクをクリア"
-                    title="リンクをクリア"
-                    class="absolute top-1/2 right-3 flex size-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-                    @click="url = ''"
-                >
-                    <X class="size-4" />
-                </button>
+            <div class="mb-4">
+                <div class="relative">
+                    <input
+                        v-model="url"
+                        type="url"
+                        :maxlength="maxUrlLength"
+                        placeholder="https://..."
+                        class="block w-full rounded-xl border px-4 py-3 pr-11 text-sm focus:ring-2 focus:outline-none"
+                        :class="
+                            errorMessage
+                                ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                                : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                        "
+                        :aria-describedby="errorMessage ? 'url-error' : undefined"
+                        @keyup.enter="handleAdd"
+                        @input="errorMessage = ''"
+                    />
+                    <div v-if="errorMessage" class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                        <svg class="size-4 shrink-0 text-red-500" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+                    </div>
+                    <button
+                        v-else-if="url"
+                        type="button"
+                        aria-label="リンクをクリア"
+                        title="リンクをクリア"
+                        class="absolute top-1/2 right-3 flex size-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                        @click="url = ''"
+                    >
+                        <X class="size-4" />
+                    </button>
+                </div>
+                <p v-if="errorMessage" class="mt-2 text-sm text-red-600" id="url-error">
+                    {{ errorMessage }}
+                </p>
             </div>
-            <p v-if="errorMessage" class="mb-4 text-sm text-red-500">
-                {{ errorMessage }}
-            </p>
-            <div v-else class="mb-4"></div>
             <label
                 class="mb-6 flex cursor-pointer items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3"
             >

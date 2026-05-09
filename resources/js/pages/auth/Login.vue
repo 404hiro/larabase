@@ -1,27 +1,17 @@
 <script setup lang="ts">
-import InputError from '@/components/InputError.vue';
-import TextLink from '@/components/TextLink.vue';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import AuthBase from '@/layouts/AuthLayout.vue';
-import { register } from '@/routes';
-import { store } from '@/routes/login';
-import { request } from '@/routes/password';
-import { Form, Head } from '@inertiajs/vue3';
-import { LoaderCircle } from 'lucide-vue-next';
+import { google as googleAuth } from '@/routes/auth';
+import { Head } from '@inertiajs/vue3';
 
 defineProps<{
     status?: string;
-    canResetPassword: boolean;
-    canRegister: boolean;
 }>();
 </script>
 
 <template>
     <AuthBase
         title="アカウントにログイン"
-        description="メールアドレスとパスワードを入力してログインしてください"
+        description="Googleアカウントを使用してログインしてください"
     >
         <Head title="ログイン" />
 
@@ -32,76 +22,28 @@ defineProps<{
             {{ status }}
         </div>
 
-        <Form
-            v-bind="store.form()"
-            :reset-on-success="['password']"
-            v-slot="{ errors, processing }"
-            class="flex flex-col gap-6"
-        >
-            <div class="grid gap-6">
-                <div class="grid gap-2">
-                    <Label for="email">メールアドレス</Label>
-                    <Input
-                        id="email"
-                        type="email"
-                        name="email"
-                        required
-                        autofocus
-                        :tabindex="1"
-                        autocomplete="email"
-                        placeholder="email@example.com"
-                    />
-                    <InputError :message="errors.email" />
-                </div>
-
-                <div class="grid gap-2">
-                    <div class="flex items-center justify-between">
-                        <Label for="password">パスワード</Label>
-                        <TextLink
-                            v-if="canResetPassword"
-                            :href="request()"
-                            class="text-sm"
-                            :tabindex="5"
-                        >
-                            パスワードを忘れた場合
-                        </TextLink>
-                    </div>
-                    <Input
-                        id="password"
-                        type="password"
-                        name="password"
-                        required
-                        :tabindex="2"
-                        autocomplete="current-password"
-                        placeholder="パスワード"
-                    />
-                    <InputError :message="errors.password" />
-                </div>
-
-                <input type="hidden" name="remember" value="1" />
-
-                <Button
-                    type="submit"
-                    class="mt-4 w-full"
-                    :tabindex="3"
-                    :disabled="processing"
-                    data-test="login-button"
-                >
-                    <LoaderCircle
-                        v-if="processing"
-                        class="h-4 w-4 animate-spin"
-                    />
-                    ログイン
-                </Button>
-            </div>
-
-            <div
-                class="text-center text-sm text-muted-foreground"
-                v-if="canRegister"
+        <div class="flex flex-col gap-6 mt-4">
+            <a
+                :href="googleAuth().url"
+                class="inline-flex h-10 w-full items-center justify-center whitespace-nowrap rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
             >
-                アカウントをお持ちでないですか？
-                <TextLink :href="register()" :tabindex="5">新規登録</TextLink>
-            </div>
-        </Form>
+                <svg
+                    class="mr-2 h-4 w-4"
+                    aria-hidden="true"
+                    focusable="false"
+                    data-prefix="fab"
+                    data-icon="google"
+                    role="img"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 488 512"
+                >
+                    <path
+                        fill="currentColor"
+                        d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"
+                    ></path>
+                </svg>
+                Googleでログイン
+            </a>
+        </div>
     </AuthBase>
 </template>

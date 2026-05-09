@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/vue3';
@@ -35,6 +36,10 @@ interface ManagedLink {
     id: number;
     slug: string;
     display_name: string;
+    title?: {
+        id: number;
+        name: string;
+    } | null;
     bio?: string | null;
     avatar_url?: string | null;
     is_published: boolean;
@@ -44,6 +49,10 @@ interface ManagedLink {
 
 const props = defineProps<{
     links: ManagedLink[];
+    titleOptions: Array<{
+        id: number;
+        name: string;
+    }>;
     userName: string;
 }>();
 
@@ -52,6 +61,7 @@ const isCreateDialogOpen = ref(false);
 const form = useForm({
     slug: '',
     display_name: props.links.length === 0 ? props.userName : '',
+    title_id: '',
     bio: '',
 });
 
@@ -162,6 +172,25 @@ const submit = () => {
                                 </div>
 
                                 <div class="grid gap-2">
+                                    <Label for="title_id">職業</Label>
+                                    <Select id="title_id" v-model="form.title_id">
+                                        <option value="">
+                                            職業を選択しない
+                                        </option>
+                                        <option
+                                            v-for="title in props.titleOptions"
+                                            :key="title.id"
+                                            :value="String(title.id)"
+                                        >
+                                            {{ title.name }}
+                                        </option>
+                                    </Select>
+                                    <InputError
+                                        :message="form.errors.title_id"
+                                    />
+                                </div>
+
+                                <div class="grid gap-2">
                                     <Label for="bio">BIO</Label>
                                     <textarea
                                         id="bio"
@@ -267,6 +296,14 @@ const submit = () => {
                         </p>
 
                         <dl class="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <dt class="text-muted-foreground">職業</dt>
+                                <dd
+                                    class="mt-1 font-medium text-gray-900 dark:text-white"
+                                >
+                                    {{ link.title?.name || '未設定' }}
+                                </dd>
+                            </div>
                             <div>
                                 <dt class="text-muted-foreground">
                                     ウィジェット

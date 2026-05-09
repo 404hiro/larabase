@@ -55,7 +55,7 @@ const auth = computed(() => page.props.auth);
                 <div class="lg:hidden">
                     <button
                         type="button"
-                        class="inline-flex size-9 items-center justify-center rounded-lg border border-gray-200 bg-transparent text-gray-800 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800 dark:focus:bg-neutral-800"
+                        class="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-transparent text-gray-800 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800 dark:focus:bg-neutral-800"
                         data-hs-overlay="#application-sidebar"
                         aria-controls="application-sidebar"
                         aria-label="Toggle navigation"
@@ -73,7 +73,7 @@ const auth = computed(() => page.props.auth);
                 <div class="flex flex-row items-center justify-end gap-2">
                     <button
                         type="button"
-                        class="inline-flex h-[2.375rem] w-[2.375rem] items-center justify-center gap-x-2 rounded-full border border-transparent text-sm font-semibold text-gray-800 hover:bg-gray-100 disabled:pointer-events-none disabled:opacity-50 dark:text-white dark:hover:bg-neutral-700"
+                        class="inline-flex h-[2.375rem] w-[2.375rem] cursor-pointer items-center justify-center gap-x-2 rounded-full border border-transparent text-sm font-semibold text-gray-800 hover:bg-gray-100 disabled:pointer-events-none disabled:opacity-50 dark:text-white dark:hover:bg-neutral-700"
                     >
                         <Search class="size-4 flex-shrink-0" />
                     </button>
@@ -83,7 +83,7 @@ const auth = computed(() => page.props.auth);
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                class="relative size-10 w-auto rounded-full p-1 focus-within:ring-2 focus-within:ring-primary"
+                                class="relative size-10 w-auto cursor-pointer rounded-full p-1 focus-within:ring-2 focus-within:ring-primary"
                             >
                                 <Avatar
                                     class="size-8 overflow-hidden rounded-full"

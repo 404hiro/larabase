@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import LinkWidgetControls from '@/components/links/LinkWidgetControls.vue';
-import { Check, Copy, Image as ImageIcon } from 'lucide-vue-next';
+import { Check, Image as ImageIcon, Share2, MoreHorizontal, Flag } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
-import imageCompression from 'browser-image-compression';
+import { compressImage } from '@/utils/imageCompression';
 
 const props = defineProps<{
     isEditing: boolean;
@@ -40,11 +40,7 @@ const profileUrl = computed(() => {
 });
 
 const profileUrlDisplay = computed(() => {
-    if (typeof window === 'undefined') {
-        return props.slug;
-    }
-
-    return `${window.location.host}/${props.slug}`;
+    return `/@${props.slug}`;
 });
 
 const showPublicCopyButton = computed(() => {
@@ -133,23 +129,10 @@ const updateAvatar = async (event: Event) => {
     const file = input.files?.[0] ?? null;
     if (!file) return;
     
-    // アニメーションを保持するためgif/pngは圧縮をスキップ
-    if (file.type === 'image/gif' || file.type === 'image/png') {
-        emit('update:avatar', file);
-    } else {
-        try {
-            const options = {
-                maxSizeMB: 1,
-                maxWidthOrHeight: 1024,
-                useWebWorker: true,
-            };
-            const compressedFile = await imageCompression(file, options);
-            emit('update:avatar', compressedFile as File);
-        } catch (error) {
-            console.error('Image compression error:', error);
-            emit('update:avatar', file); // エラー時はオリジナルを送信
-        }
-    }
+    const compressedFile = await compressImage(file, { preset: 'avatar' });
+    if (!compressedFile) return;
+
+    emit('update:avatar', compressedFile);
     
     input.value = '';
 };
@@ -160,7 +143,19 @@ const removeAvatar = () => {
 
 const copyProfileUrl = async () => {
     try {
-        await navigator.clipboard.writeText(profileUrl.value);
+        if (navigator.clipboard) {
+            await navigator.clipboard.writeText(profileUrl.value);
+        } else {
+            const textArea = document.createElement('textarea');
+            textArea.value = profileUrl.value;
+            textArea.setAttribute('readonly', 'true');
+            textArea.className = 'fixed -left-[9999px] top-0';
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+        }
+
         copiedProfileUrl.value = true;
         window.setTimeout(() => {
             copiedProfileUrl.value = false;
@@ -168,6 +163,28 @@ const copyProfileUrl = async () => {
     } catch (error) {
         console.error('Failed to copy profile URL:', error);
     }
+};
+
+const handleShare = async () => {
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: props.displayName || 'GRID Profile',
+                text: props.bio,
+                url: profileUrl.value
+            });
+        } catch (error) {
+            if ((error as Error).name !== 'AbortError') {
+                copyProfileUrl();
+            }
+        }
+    } else {
+        copyProfileUrl();
+    }
+};
+
+const reportUser = () => {
+    alert('このユーザーを通報しました。ご協力ありがとうございます。');
 };
 </script>
 
@@ -190,7 +207,7 @@ const copyProfileUrl = async () => {
         >
             <div class="text-left">
                 <div
-                    class="mb-6 flex items-start gap-4"
+                    class="mb-4 flex items-start gap-4"
                     :class="previewMode === 'mobile' ? 'mt-4' : 'mt-4'"
                 >
                     <div
@@ -215,7 +232,10 @@ const copyProfileUrl = async () => {
                                 class="h-full w-full object-cover"
                                 draggable="false"
                             />
-                            <span v-else>{{ displayInitial }}</span>
+                            <template v-else>
+                                <ImageIcon v-if="isEditing" class="size-12 text-gray-400" />
+                                <span v-else>{{ displayInitial }}</span>
+                            </template>
 
                             <span
                                 v-if="isEditing"
@@ -237,40 +257,61 @@ const copyProfileUrl = async () => {
                         <input
                             ref="avatarInput"
                             type="file"
-                            accept="image/*"
+                            accept="image/*,.apng"
                             class="hidden"
                             @change="updateAvatar"
                         />
                     </div>
 
-                    <button
-                        v-if="showPublicCopyButton && previewMode === 'mobile'"
-                        type="button"
-                        class="mt-1 flex h-[72px] min-w-0 flex-1 items-center gap-3 rounded-2xl bg-gray-50 px-5 text-left text-xl font-bold text-gray-500 transition-colors hover:bg-gray-100"
-                        @click="copyProfileUrl"
-                    >
-                        <span class="min-w-0 flex-1 truncate">
-                            {{ profileUrlDisplay }}
-                        </span>
-                        <Check
-                            v-if="copiedProfileUrl"
-                            class="size-6 shrink-0 text-emerald-500"
-                        />
-                        <Copy v-else class="size-6 shrink-0 text-gray-500" />
-                    </button>
+                    <div v-if="showPublicCopyButton" class="ml-auto flex flex-col items-center gap-2">
+                        <button
+                            type="button"
+                            class="flex size-10 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
+                            aria-label="シェア"
+                            @click="handleShare"
+                        >
+                            <Check v-if="copiedProfileUrl" class="size-5 text-emerald-500" />
+                            <Share2 v-else class="size-5" />
+                        </button>
+
+                        <div class="hs-dropdown relative inline-flex">
+                            <button
+                                id="hs-dropdown-report"
+                                type="button"
+                                class="hs-dropdown-toggle flex size-10 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
+                                aria-label="メニュー"
+                            >
+                                <MoreHorizontal class="size-5" />
+                            </button>
+
+                            <div 
+                                class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden z-50 min-w-48 bg-white shadow-xl rounded-xl p-1 mt-2 ring-1 ring-black/5 dark:bg-neutral-800 dark:ring-neutral-700"
+                                aria-labelledby="hs-dropdown-report"
+                            >
+                                <button
+                                    type="button"
+                                    class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                                    @click="reportUser"
+                                >
+                                    <Flag class="size-4" />
+                                    このユーザーを通報する
+                                </button>
+                            </div>
+                        </div>
+                    </div>
 
                     <button
                         v-else-if="showPublishButton && previewMode === 'mobile'"
                         type="button"
-                        class="mt-1 flex h-[72px] min-w-0 flex-1 items-center justify-center rounded-2xl bg-blue-600 px-5 text-center text-base font-bold text-white transition-colors hover:bg-blue-700"
+                        class="mt-1 flex h-11 min-w-0 flex-1 cursor-pointer items-center justify-center rounded-2xl bg-blue-600 px-5 text-center text-sm font-bold text-white transition-colors hover:bg-blue-700"
                         @click="emit('publish')"
                     >
-                        プロフィールを公開する
+                        公開する
                     </button>
                 </div>
 
                 <div
-                    class="mb-3 flex flex-col items-start gap-2"
+                    class="mb-2 flex flex-col items-start gap-2"
                     :class="
                         previewMode === 'desktop'
                             ? 'lg:flex-row lg:items-baseline lg:gap-3'
@@ -283,12 +324,13 @@ const copyProfileUrl = async () => {
                         contenteditable="true"
                         role="textbox"
                         aria-label="表示名"
+                        data-placeholder="名前を入力"
                         @keydown.enter.prevent
                         @input="updateDisplayName"
                         @paste="pastePlainText($event, true)"
                         @focus="isNameFocused = true"
                         @blur="isNameFocused = false"
-                        class="w-full resize-none overflow-hidden rounded-xl border-2 border-transparent bg-transparent px-3 py-1 text-3xl font-bold tracking-tight transition-colors duration-200 outline-none hover:border-gray-200 hover:bg-gray-100/70 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/20"
+                        class="editor-placeholder w-full resize-none overflow-hidden rounded-xl border-2 border-gray-200 bg-gray-100/70 px-3 py-1 text-3xl font-bold tracking-tight transition-colors duration-200 outline-none hover:border-gray-300 hover:bg-gray-100 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/20"
                     ></div>
                     <h1
                         v-else
@@ -304,12 +346,13 @@ const copyProfileUrl = async () => {
                     contenteditable="true"
                     role="textbox"
                     aria-label="BIO"
+                    data-placeholder="自己紹介を入力"
                     aria-multiline="true"
                     @input="updateBio"
                     @paste="pastePlainText($event)"
                     @focus="isBioFocused = true"
                     @blur="isBioFocused = false"
-                    class="w-full max-w-[374px] resize-none overflow-hidden rounded-xl border-2 border-transparent bg-transparent px-3 py-2 text-base text-gray-700 transition-colors duration-200 outline-none hover:border-gray-200 hover:bg-gray-100/70 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/20"
+                    class="editor-placeholder w-full max-w-[374px] resize-none overflow-hidden rounded-xl border-2 border-gray-200 bg-gray-100/70 px-3 py-2 text-base text-gray-700 transition-colors duration-200 outline-none hover:border-gray-300 hover:bg-gray-100 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/20"
                     :class="previewMode === 'desktop' ? 'lg:max-w-xl' : ''"
                 ></div>
                 <p
@@ -325,32 +368,9 @@ const copyProfileUrl = async () => {
                 </p>
 
                 <button
-                    v-if="showPublicCopyButton && previewMode === 'desktop'"
+                    v-if="showPublishButton && previewMode === 'desktop'"
                     type="button"
-                    class="fixed bottom-6 left-6 z-[1000] hidden h-[72px] max-w-[430px] items-center gap-4 rounded-2xl bg-gray-50 px-7 text-xl font-bold text-black shadow-sm transition-colors hover:bg-gray-100 min-[1025px]:flex"
-                    @click="copyProfileUrl"
-                >
-                    <span
-                        class="grid size-5 shrink-0 grid-cols-2 gap-1"
-                        aria-hidden="true"
-                    >
-                        <span class="rounded-[3px] bg-blue-500"></span>
-                        <span class="rounded-[3px] bg-red-500"></span>
-                        <span class="rounded-[3px] bg-gray-200"></span>
-                        <span class="rounded-[3px] bg-emerald-500"></span>
-                    </span>
-                    <span class="truncate">{{ profileUrlDisplay }}</span>
-                    <Check
-                        v-if="copiedProfileUrl"
-                        class="size-7 shrink-0 text-emerald-500"
-                    />
-                    <Copy v-else class="size-7 shrink-0 text-gray-500" />
-                </button>
-
-                <button
-                    v-else-if="showPublishButton && previewMode === 'desktop'"
-                    type="button"
-                    class="fixed bottom-6 left-6 z-[1000] hidden h-[56px] items-center justify-center rounded-2xl bg-blue-600 px-6 text-base font-bold text-white shadow-sm transition-colors hover:bg-blue-700 min-[1025px]:flex"
+                    class="fixed bottom-6 left-6 z-[1000] hidden h-11 cursor-pointer items-center justify-center rounded-2xl bg-blue-600 px-6 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-700 min-[1025px]:flex"
                     @click="emit('publish')"
                 >
                     プロフィールを公開する
@@ -359,3 +379,12 @@ const copyProfileUrl = async () => {
         </div>
     </aside>
 </template>
+
+<style scoped>
+.editor-placeholder:empty:before {
+    content: attr(data-placeholder);
+    color: #9ca3af;
+    pointer-events: none;
+    display: block;
+}
+</style>

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MultiSelect } from '@/components/ui/select';
@@ -20,9 +19,8 @@ interface Role {
 interface User {
     id: number;
     name: string;
-    email: string;
+    google_id: string;
     avatar_url: string | null;
-    email_verified_at: string | null;
     roles: Role[];
 }
 
@@ -32,12 +30,6 @@ interface Props {
 }
 
 const props = defineProps<Props>();
-
-// デバッグ情報を出力
-console.log('Edit page props:', props);
-console.log('User data:', props.user);
-console.log('User roles:', props.user.roles);
-console.log('Available roles:', props.roles);
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -60,13 +52,11 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 const form = useForm({
     name: props.user.name,
-    email: props.user.email,
     avatar: null as File | null,
     roles:
         props.user.roles && Array.isArray(props.user.roles)
             ? props.user.roles.map((role) => role.name)
             : [],
-    email_verified: !!props.user.email_verified_at,
 });
 
 const avatarPreview = ref<string | null>(props.user.avatar_url);
@@ -96,30 +86,13 @@ const removeAvatar = () => {
     }
 };
 
-console.log('Form initialized with roles:', form.roles);
-
 const submit = () => {
-    console.log('Submitting form data:', {
-        name: form.name,
-        email: form.email,
-        avatar: form.avatar,
-        roles: form.roles,
-        email_verified: form.email_verified,
-    });
-
     // 常にPOSTメソッドを使用し、_methodでPUTをエミュレート
-    // これによりファイルアップロードの有無に関わらず一貫した処理が可能
     form.transform((data) => ({
         ...data,
         _method: 'PUT',
     })).post(`/admin/users/${props.user.id}`, {
         preserveScroll: true,
-        onSuccess: () => {
-            console.log('Update successful');
-        },
-        onError: (errors) => {
-            console.log('Update errors:', errors);
-        },
     });
 };
 </script>
@@ -173,7 +146,7 @@ const submit = () => {
                                     <input
                                         ref="fileInput"
                                         type="file"
-                                        accept="image/*"
+                                        accept="image/*,.apng"
                                         class="hidden"
                                         @change="handleAvatarChange"
                                     />
@@ -230,21 +203,16 @@ const submit = () => {
                             </div>
 
                             <div class="space-y-2">
-                                <Label for="email">メールアドレス *</Label>
+                                <Label for="google_id">Google ID</Label>
                                 <Input
-                                    id="email"
-                                    v-model="form.email"
-                                    type="email"
-                                    required
-                                    :class="{
-                                        'border-red-500': form.errors.email,
-                                    }"
+                                    id="google_id"
+                                    :value="user.google_id"
+                                    type="text"
+                                    disabled
+                                    class="bg-muted font-mono"
                                 />
-                                <p
-                                    v-if="form.errors.email"
-                                    class="text-sm text-red-500"
-                                >
-                                    {{ form.errors.email }}
+                                <p class="text-xs text-muted-foreground">
+                                    Google IDは編集できません。
                                 </p>
                             </div>
 
@@ -276,14 +244,6 @@ const submit = () => {
                                     {{ form.errors.roles }}
                                 </p>
                             </div>
-                        </div>
-
-                        <div class="flex items-center space-x-2">
-                            <Checkbox
-                                id="email_verified"
-                                v-model:checked="form.email_verified"
-                            />
-                            <Label for="email_verified">メール認証済み</Label>
                         </div>
 
                         <div class="flex justify-end gap-4">

@@ -29,6 +29,7 @@ class Link extends Model
         'user_id',
         'slug',
         'display_name',
+        'title_id',
         'bio',
         'avatar_url',
         'theme_config',
@@ -41,6 +42,14 @@ class Link extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the selected title for the link page.
+     */
+    public function title(): BelongsTo
+    {
+        return $this->belongsTo(Title::class);
     }
 
     /**

@@ -17,14 +17,12 @@ class DatabaseSeeder extends Seeder
         // ユーザー作成
         $adminUser = User::factory()->create([
             'name' => '管理者',
-            'email' => 'admin@example.com',
-            'password' => bcrypt('password'),
+            'google_id' => '1234567890',
         ]);
 
         User::factory()->create([
             'name' => 'テスト',
-            'email' => 'test@example.com',
-            'password' => bcrypt('password'),
+            'google_id' => '0987654321',
         ]);
 
         // ロール作成

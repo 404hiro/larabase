@@ -3,7 +3,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
 import {
     Table,
     TableBody,
@@ -15,7 +14,7 @@ import {
 import AdminLayout from '@/layouts/AdminLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { Edit, Eye, Plus, Search, Trash2 } from 'lucide-vue-next';
+import { Edit, Eye, Search, Trash2 } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 
 interface Role {
@@ -27,8 +26,7 @@ interface Role {
 interface User {
     id: number;
     name: string;
-    email: string;
-    email_verified_at: string | null;
+    google_id: string;
     created_at: string;
     roles: Role[];
 }
@@ -50,14 +48,12 @@ interface Props {
     users: PaginatedUsers;
     filters: {
         search?: string;
-        status?: string;
     };
 }
 
 const props = defineProps<Props>();
 
 const search = ref(props.filters.search || '');
-const status = ref(props.filters.status || '');
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -72,14 +68,13 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 // フィルター変更時の処理
 let timeout: number;
-watch([search, status], () => {
+watch([search], () => {
     clearTimeout(timeout);
     timeout = setTimeout(() => {
         router.get(
             '/admin/users',
             {
                 search: search.value || undefined,
-                status: status.value || undefined,
             },
             {
                 preserveState: true,
@@ -111,12 +106,6 @@ const deleteUser = (user: User) => {
                 <CardHeader>
                     <div class="flex items-center justify-between">
                         <CardTitle>ユーザ管理</CardTitle>
-                        <Button as-child>
-                            <Link href="/admin/users/create">
-                                <Plus class="mr-2 h-4 w-4" />
-                                新規ユーザ作成
-                            </Link>
-                        </Button>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -128,15 +117,10 @@ const deleteUser = (user: User) => {
                             />
                             <Input
                                 v-model="search"
-                                placeholder="名前またはメールアドレスで検索..."
+                                placeholder="名前で検索..."
                                 class="h-10 pl-10"
                             />
                         </div>
-                        <Select v-model="status" class="w-48">
-                            <option value="">すべて</option>
-                            <option value="active">アクティブ</option>
-                            <option value="inactive">未認証</option>
-                        </Select>
                     </div>
 
                     <!-- ユーザ一覧テーブル -->
@@ -146,9 +130,8 @@ const deleteUser = (user: User) => {
                                 <TableRow>
                                     <TableHead>ID</TableHead>
                                     <TableHead>名前</TableHead>
-                                    <TableHead>メールアドレス</TableHead>
+                                    <TableHead>Google ID</TableHead>
                                     <TableHead>権限</TableHead>
-                                    <TableHead>ステータス</TableHead>
                                     <TableHead>登録日</TableHead>
                                     <TableHead class="text-right"
                                         >操作</TableHead
@@ -166,7 +149,7 @@ const deleteUser = (user: User) => {
                                     <TableCell class="font-medium">{{
                                         user.name
                                     }}</TableCell>
-                                    <TableCell>{{ user.email }}</TableCell>
+                                    <TableCell class="font-mono text-xs">{{ user.google_id }}</TableCell>
                                     <TableCell>
                                         <div class="flex flex-wrap gap-1">
                                             <Badge
@@ -188,21 +171,6 @@ const deleteUser = (user: User) => {
                                                 権限なし
                                             </Badge>
                                         </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge
-                                            :variant="
-                                                user.email_verified_at
-                                                    ? 'default'
-                                                    : 'secondary'
-                                            "
-                                        >
-                                            {{
-                                                user.email_verified_at
-                                                    ? 'アクティブ'
-                                                    : '未認証'
-                                            }}
-                                        </Badge>
                                     </TableCell>
                                     <TableCell>{{
                                         formatDate(user.created_at)

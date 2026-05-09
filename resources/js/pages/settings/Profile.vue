@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import PasswordController from '@/actions/App/Http/Controllers/Settings/PasswordController';
 import AppearanceTabs from '@/components/AppearanceTabs.vue';
 import { edit, update } from '@/routes/profile';
-import { send } from '@/routes/verification';
-import { Form, Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 import DeleteUser from '@/components/DeleteUser.vue';
@@ -17,9 +15,9 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Image as ImageIcon, Trash2 } from 'lucide-vue-next';
+import { compressImage } from '@/utils/imageCompression';
 
 interface Props {
-    mustVerifyEmail: boolean;
     status?: string;
 }
 
@@ -37,15 +35,13 @@ const user = computed(() => page.props.auth.user);
 
 const form = useForm({
     name: user.value.name,
-    email: user.value.email,
     avatar: null as File | null,
     remove_avatar: false,
 });
 
 const avatarPreview = ref<string | null>(null);
 const avatarInput = ref<InstanceType<typeof Input> | null>(null);
-const passwordInput = ref<HTMLInputElement | null>(null);
-const currentPasswordInput = ref<HTMLInputElement | null>(null);
+
 const profileAvatarUrl = computed(() => {
     if (avatarPreview.value) {
         return avatarPreview.value;
@@ -57,6 +53,7 @@ const profileAvatarUrl = computed(() => {
 
     return user.value.avatar_url;
 });
+
 const profileInitials = computed(() =>
     getInitials(form.name || user.value.name),
 );
@@ -65,14 +62,20 @@ function selectNewAvatar() {
     (avatarInput.value?.$el as HTMLInputElement)?.click();
 }
 
-function updateAvatarPreview() {
+async function updateAvatarPreview() {
     const avatar = (avatarInput.value?.$el as HTMLInputElement)?.files?.[0];
 
     if (!avatar) {
         return;
     }
 
-    form.avatar = avatar;
+    const compressedAvatar = await compressImage(avatar, { preset: 'avatar' });
+
+    if (!compressedAvatar) {
+        return;
+    }
+
+    form.avatar = compressedAvatar;
     form.remove_avatar = false;
 
     const reader = new FileReader();
@@ -81,7 +84,7 @@ function updateAvatarPreview() {
         avatarPreview.value = e.target?.result as string;
     };
 
-    reader.readAsDataURL(avatar);
+    reader.readAsDataURL(compressedAvatar);
 }
 
 function removeAvatar() {
@@ -162,7 +165,7 @@ function submit() {
                                 ref="avatarInput"
                                 @change="updateAvatarPreview"
                                 name="avatar"
-                                accept="image/*"
+                                accept="image/*,.apng"
                             />
                         </div>
                         <InputError
@@ -182,40 +185,6 @@ function submit() {
                             placeholder="氏名"
                         />
                         <InputError class="mt-2" :message="form.errors.name" />
-                    </div>
-
-                    <div class="grid gap-2">
-                        <Label for="email">メールアドレス</Label>
-                        <Input
-                            id="email"
-                            type="email"
-                            class="mt-1 block w-full"
-                            v-model="form.email"
-                            required
-                            autocomplete="email"
-                            placeholder="メールアドレス"
-                        />
-                        <InputError class="mt-2" :message="form.errors.email" />
-                    </div>
-
-                    <div v-if="mustVerifyEmail && !user.email_verified_at">
-                        <p class="-mt-4 text-sm text-muted-foreground">
-                            メールアドレスが未認証です。
-                            <Link
-                                :href="send()"
-                                as="button"
-                                class="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
-                            >
-                                認証メールを再送信するには、ここをクリックしてください。
-                            </Link>
-                        </p>
-
-                        <div
-                            v-if="status === 'verification-link-sent'"
-                            class="mt-2 text-sm font-medium text-green-600"
-                        >
-                            新しい認証リンクがメールアドレスに送信されました。
-                        </div>
                     </div>
 
                     <div class="flex items-center gap-4">
@@ -240,93 +209,6 @@ function submit() {
                         </Transition>
                     </div>
                 </form>
-            </div>
-
-            <div class="space-y-6">
-                <HeadingSmall
-                    title="パスワードの更新"
-                    description="アカウントを安全に保つため、長くてランダムなパスワードを使用してください"
-                />
-
-                <Form
-                    v-bind="PasswordController.update.form()"
-                    :options="{
-                        preserveScroll: true,
-                    }"
-                    reset-on-success
-                    :reset-on-error="[
-                        'password',
-                        'password_confirmation',
-                        'current_password',
-                    ]"
-                    class="space-y-6"
-                    v-slot="{ errors, processing, recentlySuccessful }"
-                >
-                    <div class="grid gap-2">
-                        <Label for="current_password">現在のパスワード</Label>
-                        <Input
-                            id="current_password"
-                            ref="currentPasswordInput"
-                            name="current_password"
-                            type="password"
-                            class="mt-1 block w-full"
-                            autocomplete="current-password"
-                            placeholder="現在のパスワード"
-                        />
-                        <InputError :message="errors.current_password" />
-                    </div>
-
-                    <div class="grid gap-2">
-                        <Label for="new_password">新しいパスワード</Label>
-                        <Input
-                            id="new_password"
-                            ref="passwordInput"
-                            name="password"
-                            type="password"
-                            class="mt-1 block w-full"
-                            autocomplete="new-password"
-                            placeholder="新しいパスワード"
-                        />
-                        <InputError :message="errors.password" />
-                    </div>
-
-                    <div class="grid gap-2">
-                        <Label for="password_confirmation"
-                            >パスワードの確認</Label
-                        >
-                        <Input
-                            id="password_confirmation"
-                            name="password_confirmation"
-                            type="password"
-                            class="mt-1 block w-full"
-                            autocomplete="new-password"
-                            placeholder="パスワードを再入力"
-                        />
-                        <InputError :message="errors.password_confirmation" />
-                    </div>
-
-                    <div class="flex items-center gap-4">
-                        <Button
-                            :disabled="processing"
-                            data-test="update-password-button"
-                            >パスワードを保存</Button
-                        >
-
-                        <Transition
-                            enter-active-class="transition ease-in-out"
-                            enter-from-class="opacity-0"
-                            leave-active-class="transition ease-in-out"
-                            leave-to-class="opacity-0"
-                        >
-                            <p
-                                v-show="recentlySuccessful"
-                                class="text-sm text-neutral-600"
-                            >
-                                保存しました。
-                            </p>
-                        </Transition>
-                    </div>
-                </Form>
             </div>
 
             <div class="space-y-6">

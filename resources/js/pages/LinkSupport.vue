@@ -41,7 +41,7 @@ const fanMessages = [
 <template>
     <Head :title="`${link.display_name} のサポート`" />
 
-    <main class="min-h-screen bg-white px-5 pt-14 text-gray-950 min-[1025px]:pt-20">
+    <main class="min-h-screen bg-white px-5 pt-14 text-gray-950">
         <LinkPageNavigation :slug="props.link.slug" active-tab="support" />
 
         <section
@@ -59,18 +59,22 @@ const fanMessages = [
                                 :alt="link.display_name"
                                 class="h-full w-full object-cover"
                             />
-                            <span v-else>{{ link.display_name.charAt(0) }}</span>
+                            <span v-else>{{
+                                link.display_name.charAt(0)
+                            }}</span>
                         </div>
                         <div class="min-w-0">
                             <h1 class="truncate text-xl font-bold">
                                 {{ link.display_name }}
                             </h1>
-                            <p class="text-sm text-gray-500">@{{ link.slug }}</p>
+                            <p class="text-sm text-gray-500">
+                                @{{ link.slug }}
+                            </p>
                         </div>
                     </div>
                     <p
                         v-if="link.bio"
-                        class="mt-4 whitespace-pre-wrap text-sm leading-6 text-gray-700"
+                        class="mt-4 text-sm leading-6 whitespace-pre-wrap text-gray-700"
                     >
                         {{ link.bio }}
                     </p>
@@ -136,9 +140,13 @@ const fanMessages = [
                                 >
                                     {{ message.name.charAt(0) }}
                                 </div>
-                                <span class="font-bold">{{ message.name }}</span>
+                                <span class="font-bold">{{
+                                    message.name
+                                }}</span>
                             </div>
-                            <span class="inline-flex items-center gap-1 text-sm font-bold text-pink-500">
+                            <span
+                                class="inline-flex items-center gap-1 text-sm font-bold text-pink-500"
+                            >
                                 <Heart class="size-4 fill-current" />
                                 ¥{{ message.amount.toLocaleString() }}
                             </span>

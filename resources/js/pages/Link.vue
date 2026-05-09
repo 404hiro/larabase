@@ -12,7 +12,9 @@ import {
     SheetTitle,
 } from '@/components/ui/sheet';
 import { Toaster } from '@/components/ui/toast';
+import { compressImage } from '@/utils/imageCompression';
 import { Head, router, usePage } from '@inertiajs/vue3';
+import { usePreferredReducedMotion } from '@vueuse/core';
 import axios from 'axios';
 import { GridItem, GridLayout } from 'grid-layout-plus';
 import {
@@ -27,16 +29,46 @@ import {
     LayoutGrid,
     Link as LinkIcon,
     Move,
-    Music,
     Pencil,
     Plus,
     RectangleHorizontal,
     RectangleVertical,
     Square,
     Trash2,
+    Type,
     X,
 } from 'lucide-vue-next';
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useMotionValue, useSpring } from 'motion-v';
+import {
+    computed,
+    h,
+    nextTick,
+    onMounted,
+    onUnmounted,
+    reactive,
+    ref,
+    watch,
+} from 'vue';
+
+const RectangleThin = (props: any) =>
+    h(
+        'svg',
+        {
+            xmlns: 'http://www.w3.org/2000/svg',
+            viewBox: '0 0 24 24',
+            fill: 'none',
+            class: props.class,
+        },
+        [
+            h('path', {
+                d: 'M19 10H5C3.89543 10 3 10.199 3 10.4444V13.5556C3 13.801 3.89543 14 5 14H19C20.1046 14 21 13.801 21 13.5556V10.4444C21 10.199 20.1046 10 19 10Z',
+                stroke: 'currentColor',
+                'stroke-width': '2',
+                'stroke-linecap': 'round',
+                'stroke-linejoin': 'round',
+            }),
+        ],
+    );
 
 const props = defineProps<{
     link: {
@@ -68,15 +100,7 @@ const isEditing = ref(false);
 
 const editForm = ref({
     display_name: props.link.display_name,
-    bio:
-        props.link.bio ||
-        [
-            "Photographe d'architecture contemporaine, j’explore les mutations urbaines",
-            '',
-            "Mon projet ELEVATION redécouvre l'architecture pour offrir un nouveau regard sur notre quotidien.",
-            '',
-            'contact : hello@grid.link',
-        ].join('\n'),
+    bio: props.link.bio ?? '',
 });
 const avatarFile = ref<File | null>(null);
 const avatarPreviewUrl = ref<string | null>(null);
@@ -85,11 +109,66 @@ const avatarRemoved = ref(false);
 const localWidgets = ref<any[]>([]);
 const desktopLayout = ref<any[]>([]);
 const mobileLayout = ref<any[]>([]);
+
+const newlyAddedWidgetIds = ref<Set<string>>(new Set());
+const markWidgetAsNewlyAdded = (widget: any) => {
+    if (widget?.id === undefined || widget?.id === null) {
+        return;
+    }
+
+    const widgetId = String(widget.id);
+    newlyAddedWidgetIds.value = new Set([
+        ...newlyAddedWidgetIds.value,
+        widgetId,
+    ]);
+
+    window.setTimeout(() => {
+        const nextWidgetIds = new Set(newlyAddedWidgetIds.value);
+        nextWidgetIds.delete(widgetId);
+        newlyAddedWidgetIds.value = nextWidgetIds;
+    }, 600);
+};
+
+const addLocalWidget = (widget: any) => {
+    localWidgets.value.push(widget);
+    markWidgetAsNewlyAdded(widget);
+};
+
 const pageScrollContainer = ref<HTMLElement | null>(null);
 
 const draggingWidgetId = ref<string | number | null>(null);
+const draggingWidgetMode = ref<'desktop' | 'mobile' | null>(null);
+const suppressWidgetClickUntil = ref(0);
 const croppingWidgetId = ref<string | number | null>(null);
 const isSmallViewport = ref(false);
+let suppressWidgetClickTimeout: number | null = null;
+let dragSettleTimeout: number | null = null;
+const prefersReducedMotion = usePreferredReducedMotion();
+const dragPointerState = ref<{
+    widgetId: string | number;
+    mode: 'desktop' | 'mobile';
+    startX: number;
+    startY: number;
+    lastX: number;
+    lastY: number;
+    isDragging: boolean;
+} | null>(null);
+const dragVisualState = ref<{
+    widgetId: string | number;
+    mode: 'desktop' | 'mobile';
+    translateX: number;
+    translateY: number;
+    rotate: number;
+    scale: number;
+    boxShadow: string;
+} | null>(null);
+
+const isSuppressingWidgetInteractions = computed(() => {
+    return (
+        draggingWidgetId.value !== null ||
+        suppressWidgetClickUntil.value > Date.now()
+    );
+});
 
 const updateLayoutsFromWidgets = () => {
     desktopLayout.value = localWidgets.value.map((w) => ({
@@ -192,6 +271,12 @@ const sectionSizeOptions = {
     ],
 };
 const widgetSizeOptionList = [
+    {
+        key: 'inline',
+        icon: RectangleThin,
+        label: '0.5x1',
+        size: { w: 2, h: 1 },
+    },
     { key: 'small', icon: Square, label: '1x1', size: { w: 1, h: 2 } },
     {
         key: 'wide',
@@ -217,7 +302,15 @@ const findNextGridPosition = (
 ) => {
     const maxX = Math.max(columns - width, 0);
 
-    for (let y = 0; y < 1000; y += 1) {
+    // Get current maximum Y to start searching from the bottom
+    const maxY = widgets.reduce((max, widget) => {
+        const widgetY = Number(widget[keys.y] ?? 0);
+        const widgetH = Number(widget[keys.h] ?? 1);
+
+        return Math.max(max, widgetY + widgetH);
+    }, 0);
+
+    for (let y = maxY; y < maxY + 1000; y += 1) {
         for (let x = 0; x <= maxX; x += 1) {
             const overlaps = widgets.some((widget) => {
                 const widgetX = Number(widget[keys.x] ?? 0);
@@ -239,7 +332,7 @@ const findNextGridPosition = (
         }
     }
 
-    return { x: 0, y: widgets.length };
+    return { x: 0, y: maxY };
 };
 
 const normalizeWidgetLayout = (widgets: any[]) => {
@@ -420,6 +513,9 @@ onMounted(() => {
     updateViewportMode();
     window.addEventListener('resize', updateViewportMode);
     window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pointermove', handleWindowPointerMove);
+    window.addEventListener('pointerup', handleWindowPointerUp);
+    window.addEventListener('pointercancel', handleWindowPointerUp);
     removeInertiaBeforeListener.value = router.on('before', (event) => {
         if (!shouldConfirmUnsavedChanges()) {
             return;
@@ -436,8 +532,19 @@ onUnmounted(() => {
         URL.revokeObjectURL(avatarPreviewUrl.value);
     }
 
+    if (suppressWidgetClickTimeout !== null) {
+        window.clearTimeout(suppressWidgetClickTimeout);
+    }
+
+    if (dragSettleTimeout !== null) {
+        window.clearTimeout(dragSettleTimeout);
+    }
+
     window.removeEventListener('resize', updateViewportMode);
     window.removeEventListener('beforeunload', handleBeforeUnload);
+    window.removeEventListener('pointermove', handleWindowPointerMove);
+    window.removeEventListener('pointerup', handleWindowPointerUp);
+    window.removeEventListener('pointercancel', handleWindowPointerUp);
     removeInertiaBeforeListener.value?.();
 });
 
@@ -496,6 +603,7 @@ const toggleEdit = () => {
                                 hasUnsavedChanges.value = false;
                                 isEditing.value = false;
                                 activeWidgetId.value = null;
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
                             },
                             onError: () => {
                                 showSaveValidationErrorToast();
@@ -645,6 +753,17 @@ const updateTextWidgetBackgroundColor = (widget: any, color: string) => {
     markDirty();
 };
 
+const updateWidgetYoutubeMode = (
+    widget: any,
+    mode: 'link' | 'link_embed' | 'embed',
+) => {
+    if (!widget.settings) {
+        widget.settings = {};
+    }
+    widget.settings.youtubeMode = mode;
+    markDirty();
+};
+
 const updateTextWidgetAlign = (
     widget: any,
     align: 'left' | 'center' | 'right',
@@ -713,7 +832,7 @@ const addSectionWidget = () => {
         return;
     }
 
-    localWidgets.value.push(newWidget);
+    addLocalWidget(newWidget);
     updateLayoutsFromWidgets();
     markDirty();
     scrollToWidgetBottom();
@@ -724,13 +843,15 @@ const showMobileAddLinkSheet = ref(false);
 const mobileAddLinkUrl = ref('');
 const mobileAddLinkError = ref('');
 const mobileAddLinkSensitive = ref(false);
+const emptyMediaInput = ref<HTMLInputElement | null>(null);
 const linkTargetWidget = ref<any | null>(null);
-const pendingWidgetPosition = ref<{
+type WidgetPosition = {
     x: number;
     y: number;
     w: number;
     h: number;
-} | null>(null);
+};
+const pendingWidgetPosition = ref<WidgetPosition | null>(null);
 const openAddLinkModal = () => {
     linkTargetWidget.value = null;
     pendingWidgetPosition.value = null;
@@ -751,6 +872,27 @@ const openAddLinkFromToolbar = () => {
     }
 
     showAddLinkModal.value = true;
+};
+
+const openMediaPickerFromEmptyState = (position: WidgetPosition) => {
+    pendingWidgetPosition.value = position;
+    emptyMediaInput.value?.click();
+};
+
+const handleEmptyMediaChange = async (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+
+    if (file) {
+        const compressedFile = await compressImage(file, { preset: 'card' });
+
+        if (compressedFile) {
+            await addMediaWidget(compressedFile, pendingWidgetPosition.value);
+        }
+    }
+
+    input.value = '';
+    pendingWidgetPosition.value = null;
 };
 
 const openModalWithPos = (x: number, y: number, w: number, h: number) => {
@@ -921,9 +1063,10 @@ const pastePlainTextWithLimit = (event: ClipboardEvent, maxLength: number) => {
         0,
         maxLength - currentLength + selectedLength,
     );
-    const pastedText = (
-        event.clipboardData?.getData('text/plain') ?? ''
-    ).slice(0, remainingLength);
+    const pastedText = (event.clipboardData?.getData('text/plain') ?? '').slice(
+        0,
+        remainingLength,
+    );
 
     document.execCommand('insertText', false, pastedText);
 };
@@ -963,7 +1106,7 @@ const commitMobileAddedWidget = (widget: any) => {
             (localWidget) => String(localWidget.id) === String(widget.id),
         )
     ) {
-        localWidgets.value.push(widget);
+        addLocalWidget(widget);
     }
 
     updateLayoutsFromWidgets();
@@ -1011,7 +1154,10 @@ const updateMobileLinkImage = async (event: Event) => {
     const widget = mobileLinkEditorWidget.value;
 
     if (file && widget) {
-        await uploadWidgetImage(widget, file);
+        const compressedFile = await compressImage(file, { preset: 'card' });
+        if (!compressedFile) return;
+
+        await uploadWidgetImage(widget, compressedFile);
     }
 
     input.value = '';
@@ -1099,7 +1245,10 @@ const updateMobileImage = async (event: Event) => {
     const widget = mobileImageEditorWidget.value;
 
     if (file && widget) {
-        await uploadWidgetImage(widget, file);
+        const compressedFile = await compressImage(file, { preset: 'card' });
+        if (!compressedFile) return;
+
+        await uploadWidgetImage(widget, compressedFile);
     }
 
     input.value = '';
@@ -1123,7 +1272,9 @@ const updateMobileImageLink = (event: Event) => {
 
     mobileImageEditorWidget.value.content = (
         event.target as HTMLInputElement
-    ).value.trim().slice(0, MAX_URL_LENGTH);
+    ).value
+        .trim()
+        .slice(0, MAX_URL_LENGTH);
 
     if (
         !mobileImageEditorWidget.value.content &&
@@ -1298,7 +1449,9 @@ const updateMobileTextLink = (event: Event) => {
 
     mobileTextEditorWidget.value.content = (
         event.target as HTMLInputElement
-    ).value.trim().slice(0, MAX_URL_LENGTH);
+    ).value
+        .trim()
+        .slice(0, MAX_URL_LENGTH);
 
     if (
         !mobileTextEditorWidget.value.content &&
@@ -1333,18 +1486,11 @@ const mobileTextEditorPreviewStyle = computed(() => {
 
     const width = Number(widget.w_mobile ?? 1);
     const height = Number(widget.h_mobile ?? 2) / 2;
-    const aspectRatio = width / height;
-
-    if (aspectRatio >= 1) {
-        return {
-            height: `${250 / aspectRatio}px`,
-            width: '250px',
-        };
-    }
+    const previewCellSize = 125;
 
     return {
-        height: '250px',
-        width: `${250 * aspectRatio}px`,
+        height: `${height * previewCellSize}px`,
+        width: `${width * previewCellSize}px`,
     };
 });
 
@@ -1471,7 +1617,10 @@ const updateMobileSectionTitle = (event: Event) => {
     );
 };
 
-const addMediaWidget = async (file: File) => {
+const addMediaWidget = async (
+    file: File,
+    position: WidgetPosition | null = null,
+) => {
     if (!canAddWidget()) {
         return;
     }
@@ -1496,20 +1645,24 @@ const addMediaWidget = async (file: File) => {
             },
         });
 
-        const desktopPosition = findNextGridPosition(
-            localWidgets.value,
-            4,
-            1,
-            2,
-            { x: 'x', y: 'y', w: 'w', h: 'h' },
-        );
-        const mobilePosition = findNextGridPosition(
-            localWidgets.value,
-            2,
-            1,
-            2,
-            { x: 'x_mobile', y: 'y_mobile', w: 'w_mobile', h: 'h_mobile' },
-        );
+        const w = position ? position.w : 1;
+        const h = position ? position.h : 2;
+        const desktopPosition =
+            position ??
+            findNextGridPosition(localWidgets.value, 4, w, h, {
+                x: 'x',
+                y: 'y',
+                w: 'w',
+                h: 'h',
+            });
+        const mobilePosition =
+            position ??
+            findNextGridPosition(localWidgets.value, 2, w, h, {
+                x: 'x_mobile',
+                y: 'y_mobile',
+                w: 'w_mobile',
+                h: 'h_mobile',
+            });
         const newWidget = {
             id: `temp_media_${Date.now()}`,
             type: 'image',
@@ -1517,12 +1670,12 @@ const addMediaWidget = async (file: File) => {
             thumbnail_url: response.data.url,
             x: desktopPosition.x,
             y: desktopPosition.y,
-            w: 1,
-            h: 2,
+            w,
+            h,
             x_mobile: mobilePosition.x,
             y_mobile: mobilePosition.y,
-            w_mobile: 1,
-            h_mobile: 2,
+            w_mobile: w,
+            h_mobile: h,
             settings: {
                 title: '',
                 cropX: 50,
@@ -1530,7 +1683,7 @@ const addMediaWidget = async (file: File) => {
             },
         };
 
-        localWidgets.value.push(newWidget);
+        addLocalWidget(newWidget);
 
         updateLayoutsFromWidgets();
         markDirty();
@@ -1541,23 +1694,29 @@ const addMediaWidget = async (file: File) => {
     }
 };
 
-const addTextWidget = () => {
+const addTextWidget = (position: WidgetPosition | null = null) => {
     if (!canAddWidget()) {
         return;
     }
 
-    const desktopPosition = findNextGridPosition(localWidgets.value, 4, 1, 2, {
-        x: 'x',
-        y: 'y',
-        w: 'w',
-        h: 'h',
-    });
-    const mobilePosition = findNextGridPosition(localWidgets.value, 2, 1, 2, {
-        x: 'x_mobile',
-        y: 'y_mobile',
-        w: 'w_mobile',
-        h: 'h_mobile',
-    });
+    const w = position ? position.w : 1;
+    const h = position ? position.h : 2;
+    const desktopPosition =
+        position ??
+        findNextGridPosition(localWidgets.value, 4, w, h, {
+            x: 'x',
+            y: 'y',
+            w: 'w',
+            h: 'h',
+        });
+    const mobilePosition =
+        position ??
+        findNextGridPosition(localWidgets.value, 2, w, h, {
+            x: 'x_mobile',
+            y: 'y_mobile',
+            w: 'w_mobile',
+            h: 'h_mobile',
+        });
     const newWidget = {
         id: `temp_text_${Date.now()}`,
         type: 'text',
@@ -1565,12 +1724,12 @@ const addTextWidget = () => {
         thumbnail_url: null,
         x: desktopPosition.x,
         y: desktopPosition.y,
-        w: 1,
-        h: 2,
+        w,
+        h,
         x_mobile: mobilePosition.x,
         y_mobile: mobilePosition.y,
-        w_mobile: 1,
-        h_mobile: 2,
+        w_mobile: w,
+        h_mobile: h,
         settings: {
             title: '',
             bgColor: '#FFFFFF',
@@ -1585,7 +1744,7 @@ const addTextWidget = () => {
         return;
     }
 
-    localWidgets.value.push(newWidget);
+    addLocalWidget(newWidget);
     updateLayoutsFromWidgets();
     markDirty();
     scrollToWidgetBottom();
@@ -1658,7 +1817,7 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
             },
         };
 
-        localWidgets.value.push(newWidget);
+        addLocalWidget(newWidget);
 
         updateLayoutsFromWidgets();
         markDirty();
@@ -1702,7 +1861,7 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
                 sensitive: isSensitive,
             },
         };
-        localWidgets.value.push(newWidget);
+        addLocalWidget(newWidget);
 
         updateLayoutsFromWidgets();
         markDirty();
@@ -1738,7 +1897,333 @@ const deleteWidget = (widgetId: number | string) => {
     }
 };
 
+const getWidgetMotionKey = (
+    mode: 'desktop' | 'mobile',
+    widgetId: string | number,
+) => {
+    return `link-widget-${mode}-${widgetId}`;
+};
+
+const motionValues = {
+    x: useMotionValue(0),
+    y: useMotionValue(0),
+    rotate: useMotionValue(0),
+    scale: useMotionValue(1),
+    shadow: useMotionValue(0),
+};
+
+const springConfig = { stiffness: 400, damping: 30, mass: 0.5 };
+
+const springValues = {
+    x: useSpring(motionValues.x, springConfig),
+    y: useSpring(motionValues.y, springConfig),
+    rotate: useSpring(motionValues.rotate, springConfig),
+    scale: useSpring(motionValues.scale, springConfig),
+    shadow: useSpring(motionValues.shadow, springConfig),
+};
+
+const dragSpringValues = reactive({
+    x: 0,
+    y: 0,
+    rotate: 0,
+    scale: 1,
+    shadow: 0,
+});
+
+springValues.x.on('change', (v) => {
+    dragSpringValues.x = v;
+    if (!prefersReducedMotion.value) {
+        const velocity = springValues.x.getVelocity();
+        // Use velocity to calculate tilt (-15 to 15 degrees)
+        const rotateTarget = Math.max(Math.min(velocity * 0.006, 15), -15);
+        motionValues.rotate.set(rotateTarget);
+    }
+});
+
+springValues.y.on('change', (v) => (dragSpringValues.y = v));
+springValues.rotate.on('change', (v) => (dragSpringValues.rotate = v));
+springValues.scale.on('change', (v) => (dragSpringValues.scale = v));
+springValues.shadow.on('change', (v) => (dragSpringValues.shadow = v));
+
+const dragSpring = {
+    values: dragSpringValues,
+    set(targets: any) {
+        if (prefersReducedMotion.value) {
+            Object.assign(dragSpringValues, targets);
+            for (const key in targets) {
+                if (targets[key] !== undefined) {
+                    motionValues[key as keyof typeof motionValues].set(
+                        targets[key],
+                    );
+                    springValues[key as keyof typeof springValues].set(
+                        targets[key],
+                    );
+                }
+            }
+            return;
+        }
+        for (const [key, target] of Object.entries(targets)) {
+            if (target !== undefined && key !== 'rotate') {
+                motionValues[key as keyof typeof motionValues].set(
+                    target as number,
+                );
+            }
+        }
+    },
+};
+
+const updateDraggedWidgetVisual = (
+    mode: 'desktop' | 'mobile',
+    widgetId: string | number,
+    horizontalOffset: number,
+    deltaX: number = 0,
+) => {
+    const isReducedMotion = prefersReducedMotion.value;
+    const clampedOffset = Math.max(Math.min(horizontalOffset, 48), -48);
+    const rotateTarget = Math.max(Math.min(deltaX * 1.2, 25), -25);
+
+    dragSpring.set({
+        x: isReducedMotion ? clampedOffset * 0.012 : clampedOffset * 0.022,
+        y: isReducedMotion ? -2 : -5,
+        rotate: isReducedMotion ? rotateTarget * 0.3 : rotateTarget,
+        scale: isReducedMotion ? 1.008 : 1.015,
+        shadow: isReducedMotion ? 0.08 : 0.1,
+    });
+
+    dragVisualState.value = {
+        widgetId,
+        mode,
+        translateX: dragSpring.values.x,
+        translateY: dragSpring.values.y,
+        rotate: dragSpring.values.rotate,
+        scale: dragSpring.values.scale,
+        boxShadow: '',
+    };
+};
+
+const getDraggedWidgetStyle = (
+    mode: 'desktop' | 'mobile',
+    widgetId: string | number,
+) => {
+    if (
+        !dragVisualState.value ||
+        dragVisualState.value.mode !== mode ||
+        String(dragVisualState.value.widgetId) !== String(widgetId)
+    ) {
+        return undefined;
+    }
+
+    return {
+        transform: `translate3d(${dragSpring.values.x}px, ${dragSpring.values.y}px, 0) rotate(${dragSpring.values.rotate}deg) scale(${dragSpring.values.scale})`,
+        boxShadow: `0px ${dragSpring.values.y * -2.4}px ${dragSpring.values.y * -4.8}px rgba(15, 23, 42, ${dragSpring.values.shadow})`,
+    };
+};
+
+const scheduleDraggedWidgetSettle = (
+    mode: 'desktop' | 'mobile',
+    widgetId: string | number,
+) => {
+    if (dragSettleTimeout !== null) {
+        window.clearTimeout(dragSettleTimeout);
+    }
+
+    dragSettleTimeout = window.setTimeout(() => {
+        if (
+            String(draggingWidgetId.value) !== String(widgetId) ||
+            draggingWidgetMode.value !== mode
+        ) {
+            dragSettleTimeout = null;
+
+            return;
+        }
+
+        updateDraggedWidgetVisual(mode, widgetId, 0);
+        dragSettleTimeout = null;
+    }, 90);
+};
+
+const isWidgetInteractionDisabled = (widgetId: string | number) => {
+    if (!isEditing.value || !isSuppressingWidgetInteractions.value) {
+        return false;
+    }
+
+    return String(draggingWidgetId.value) !== String(widgetId);
+};
+
+const beginDraggedWidget = (
+    mode: 'desktop' | 'mobile',
+    widgetId: string | number,
+) => {
+    if (
+        String(draggingWidgetId.value) === String(widgetId) &&
+        draggingWidgetMode.value === mode
+    ) {
+        return;
+    }
+
+    draggingWidgetId.value = widgetId;
+    draggingWidgetMode.value = mode;
+
+    dragSpring.set({
+        x: 0,
+        y: 0,
+        rotate: 0,
+        scale: 1,
+        shadow: 0,
+    });
+    document.body.classList.add('is-dragging');
+    updateDraggedWidgetVisual(mode, widgetId, 0);
+    scheduleDraggedWidgetSettle(mode, widgetId);
+};
+
+const finishDraggedWidget = (
+    widgetId: string | number,
+    mode: 'desktop' | 'mobile',
+) => {
+    document.body.classList.remove('is-dragging');
+    if (
+        dragVisualState.value &&
+        dragVisualState.value.mode === mode &&
+        String(dragVisualState.value.widgetId) === String(widgetId)
+    ) {
+        dragVisualState.value = null;
+    }
+
+    if (dragSettleTimeout !== null) {
+        window.clearTimeout(dragSettleTimeout);
+        dragSettleTimeout = null;
+    }
+
+    draggingWidgetId.value = null;
+    draggingWidgetMode.value = null;
+    suppressWidgetClickUntil.value = Date.now() + 300;
+
+    if (suppressWidgetClickTimeout !== null) {
+        window.clearTimeout(suppressWidgetClickTimeout);
+    }
+
+    suppressWidgetClickTimeout = window.setTimeout(() => {
+        suppressWidgetClickUntil.value = 0;
+        suppressWidgetClickTimeout = null;
+    }, 300);
+};
+
+const startWidgetDragPointer = (
+    widgetId: string | number,
+    mode: 'desktop' | 'mobile',
+    event: PointerEvent,
+) => {
+    if (!isEditing.value || croppingWidgetId.value) {
+        return;
+    }
+
+    dragPointerState.value = {
+        widgetId,
+        mode,
+        startX: event.clientX,
+        startY: event.clientY,
+        lastX: event.clientX,
+        lastY: event.clientY,
+        isDragging: false,
+    };
+};
+
+const handleWindowPointerMove = (event: PointerEvent) => {
+    const pointerState = dragPointerState.value;
+
+    if (!pointerState) {
+        return;
+    }
+
+    const totalDeltaX = event.clientX - pointerState.startX;
+    const totalDeltaY = event.clientY - pointerState.startY;
+    const movedEnough = Math.abs(totalDeltaX) > 3 || Math.abs(totalDeltaY) > 3;
+
+    if (movedEnough && !pointerState.isDragging) {
+        pointerState.isDragging = true;
+        beginDraggedWidget(pointerState.mode, pointerState.widgetId);
+    }
+
+    if (!pointerState.isDragging) {
+        pointerState.lastX = event.clientX;
+        pointerState.lastY = event.clientY;
+
+        return;
+    }
+
+    const horizontalOffset = event.clientX - pointerState.startX;
+    const deltaX = event.clientX - pointerState.lastX;
+
+    updateDraggedWidgetVisual(
+        pointerState.mode,
+        pointerState.widgetId,
+        horizontalOffset,
+        deltaX,
+    );
+    scheduleDraggedWidgetSettle(pointerState.mode, pointerState.widgetId);
+
+    pointerState.lastX = event.clientX;
+    pointerState.lastY = event.clientY;
+};
+
+const handleWindowPointerUp = () => {
+    if (!dragPointerState.value) {
+        return;
+    }
+
+    if (dragPointerState.value.isDragging) {
+        finishDraggedWidget(
+            dragPointerState.value.widgetId,
+            dragPointerState.value.mode,
+        );
+    }
+
+    dragPointerState.value = null;
+};
+
+const shouldSuppressWidgetClick = () => {
+    return Date.now() < suppressWidgetClickUntil.value;
+};
+
+const activateWidget = (widgetId: string | number) => {
+    if (draggingWidgetId.value !== null || shouldSuppressWidgetClick()) {
+        return;
+    }
+
+    activeWidgetId.value = widgetId;
+};
+
+const handleWidgetClick = (event: MouseEvent, item: any) => {
+    if (draggingWidgetId.value !== null || shouldSuppressWidgetClick()) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        return;
+    }
+
+    if (isEditing.value) {
+        activeWidgetId.value = activeWidgetId.value === item.i ? null : item.i;
+
+        return;
+    }
+
+    if (
+        item.widget.content &&
+        item.widget.type !== 'section' &&
+        isSensitiveWidget(item.widget)
+    ) {
+        openSensitiveWarning(item.widget);
+    }
+};
+
 const handlePageClick = (event: MouseEvent) => {
+    if (draggingWidgetId.value !== null || shouldSuppressWidgetClick()) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        return;
+    }
+
     const target = event.target as HTMLElement | null;
 
     if (!target?.closest('.vgl-item')) {
@@ -1749,6 +2234,48 @@ const handlePageClick = (event: MouseEvent) => {
 
 const isSensitiveWidget = (widget: any) => {
     return Boolean(widget.settings?.sensitive);
+};
+
+const isYouTubeVideoUrl = (value: string | null | undefined) => {
+    if (!value) {
+        return false;
+    }
+
+    try {
+        const url = new URL(value);
+        const host = url.hostname.replace(/^www\./, '');
+        const pathParts = url.pathname.split('/').filter(Boolean);
+        const isYouTubeHost =
+            host === 'youtube.com' ||
+            host.endsWith('.youtube.com') ||
+            host === 'youtu.be';
+
+        if (!isYouTubeHost) {
+            return false;
+        }
+
+        return Boolean(
+            host === 'youtu.be'
+                ? pathParts[0]
+                : url.searchParams.get('v') ||
+                      (['embed', 'shorts', 'live'].includes(
+                          pathParts[0] ?? '',
+                      ) &&
+                          pathParts[1]),
+        );
+    } catch (e) {
+        return false;
+    }
+};
+
+const isYouTubeVideoWidget = (widget: any) => {
+    return widget.type === 'link' && isYouTubeVideoUrl(widget.content);
+};
+
+const isYouTubeEmbedMode = (widget: any) => {
+    return (
+        isYouTubeVideoWidget(widget) && widget.settings?.youtubeMode === 'embed'
+    );
 };
 
 const openSensitiveWarning = (widget: any) => {
@@ -1773,15 +2300,77 @@ const continueToSensitiveLink = () => {
 
 <style>
 .link-page--editing .vgl-item.vgl-item--dragging {
-    z-index: 100 !important;
+    z-index: 9999 !important;
+    background-color: transparent !important;
 }
+
+@keyframes widgetBounceIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.94);
+    }
+
+    36% {
+        opacity: 1;
+        transform: scale(1.12);
+    }
+
+    62% {
+        opacity: 1;
+        transform: scale(0.97);
+    }
+
+    82% {
+        opacity: 1;
+        transform: scale(1.03);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.widget-bounce-enter {
+    animation: widgetBounceIn 0.58s cubic-bezier(0.19, 1, 0.22, 1) both;
+    transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .widget-bounce-enter {
+        animation-duration: 0.16s;
+        animation-name: widgetFadeIn;
+    }
+}
+
+@keyframes widgetFadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+body.is-dragging * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+
+body.is-dragging .vgl-item:not(.vgl-item--dragging) {
+    pointer-events: none !important;
+}
+
 .link-page--editing .vgl-item:has(.link-widget-controls) {
     z-index: 150 !important;
 }
+
 .link-page:not(.link-page--editing) .vgl-item,
 .link-page:not(.link-page--editing) .vgl-item * {
     cursor: default !important;
 }
+
 .cursor-pointer,
 .vgl-item a,
 .vgl-item button,
@@ -1789,6 +2378,7 @@ const continueToSensitiveLink = () => {
 .link-page:not(.link-page--editing) .vgl-item a * {
     cursor: pointer !important;
 }
+
 .vgl-item--placeholder,
 .vue-grid-item.vue-grid-placeholder {
     background: rgb(209 213 219 / 0.8) !important;
@@ -1802,12 +2392,14 @@ const continueToSensitiveLink = () => {
     -o-user-select: none;
     user-select: none;
 }
+
 .vgl-item:not(.vgl-item--dragging):not(.vgl-item--resizing) {
     transition:
         transform 0.2s ease,
         width 0.2s ease,
         height 0.2s ease !important;
 }
+
 .mobile-text-editor.is-empty::before {
     content: attr(data-placeholder);
     color: rgb(156 163 175);
@@ -1852,7 +2444,7 @@ const continueToSensitiveLink = () => {
             :mobile-widget-operation-active="
                 Boolean(
                     activeMobileLayoutItem &&
-                        activeMobileLayoutItem.widget.type !== 'section',
+                    activeMobileLayoutItem.widget.type !== 'section',
                 )
             "
             :mobile-size-options="activeMobileSizeOptions"
@@ -1865,6 +2457,13 @@ const continueToSensitiveLink = () => {
             @resize-mobile-widget="resizeActiveMobileWidget"
             @complete-mobile-widget-operation="completeMobileWidgetOperation"
         />
+        <input
+            ref="emptyMediaInput"
+            type="file"
+            accept="image/*,.apng"
+            class="hidden"
+            @change="handleEmptyMediaChange"
+        />
 
         <div
             v-if="croppingWidgetId"
@@ -1875,8 +2474,8 @@ const continueToSensitiveLink = () => {
             class="transition-all duration-300"
             :class="[
                 previewMode === 'mobile'
-                    ? 'min-h-screen px-5 pt-14'
-                    : 'min-h-screen px-5 pt-14 min-[1025px]:pt-20 sm:px-8',
+                    ? 'min-h-screen px-5 pt-8'
+                    : 'min-h-screen px-5 pt-12 sm:px-8',
             ]"
         >
             <div
@@ -1886,7 +2485,7 @@ const continueToSensitiveLink = () => {
                 :class="[
                     previewMode === 'mobile'
                         ? 'flex w-full max-w-[374px] flex-col gap-4 pb-32'
-                        : 'flex w-full flex-col pb-32 min-[1025px]:flex-row min-[1025px]:justify-center min-[1025px]:gap-8',
+                        : 'flex w-full flex-col pb-32 min-[1025px]:flex-row min-[1025px]:justify-center min-[1025px]:gap-4',
                 ]"
             >
                 <LinkProfile
@@ -1927,27 +2526,40 @@ const continueToSensitiveLink = () => {
                                 <Plus class="size-4" />
                             </div>
                             <LinkIcon class="mb-2 size-6" />
-                            <span class="text-xs font-semibold">Add Link</span>
+                            <span class="text-xs font-semibold">
+                                リンクを追加
+                            </span>
                         </button>
                         <button
-                            @click="openModalWithPos(2, 0, 1, 2)"
-                            class="relative col-span-1 row-span-2 flex h-full w-full flex-col items-center justify-center rounded-[32px] border-2 border-dashed border-gray-200 text-slate-400 transition-colors hover:bg-gray-50"
+                            @click="addTextWidget({ x: 2, y: 0, w: 1, h: 2 })"
+                            class="relative col-span-1 row-span-2 flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-[32px] border-2 border-dashed border-gray-200 text-slate-400 transition-colors hover:bg-gray-50"
                         >
                             <div class="absolute top-4 right-4 text-gray-300">
                                 <Plus class="size-4" />
                             </div>
-                            <Music class="mb-2 size-6" />
-                            <span class="text-xs font-semibold">Add Music</span>
+                            <Type class="mb-2 size-6" />
+                            <span class="text-xs font-semibold">
+                                テキストを追加
+                            </span>
                         </button>
                         <button
-                            @click="openModalWithPos(0, 2, 2, 4)"
+                            @click="
+                                openMediaPickerFromEmptyState({
+                                    x: 0,
+                                    y: 2,
+                                    w: 2,
+                                    h: 4,
+                                })
+                            "
                             class="relative col-span-2 row-span-4 flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-[32px] border-2 border-dashed border-gray-200 text-slate-400 transition-colors hover:bg-gray-50"
                         >
                             <div class="absolute top-4 right-4 text-gray-300">
                                 <Plus class="size-4" />
                             </div>
                             <ImageIcon class="mb-2 size-6" />
-                            <span class="text-xs font-semibold">Add Media</span>
+                            <span class="text-xs font-semibold">
+                                メディアを追加
+                            </span>
                         </button>
                     </div>
 
@@ -1969,27 +2581,40 @@ const continueToSensitiveLink = () => {
                                 <Plus class="size-4" />
                             </div>
                             <LinkIcon class="mb-2 size-6" />
-                            <span class="text-xs font-semibold">Add Link</span>
+                            <span class="text-xs font-semibold">
+                                リンクを追加
+                            </span>
                         </button>
                         <button
-                            @click="openModalWithPos(0, 2, 1, 2)"
-                            class="relative col-span-1 row-span-2 flex h-full w-full flex-col items-center justify-center rounded-[32px] border-2 border-dashed border-gray-200 text-slate-400 transition-colors hover:bg-gray-50"
+                            @click="addTextWidget({ x: 0, y: 2, w: 1, h: 2 })"
+                            class="relative col-span-1 row-span-2 flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-[32px] border-2 border-dashed border-gray-200 text-slate-400 transition-colors hover:bg-gray-50"
                         >
                             <div class="absolute top-4 right-4 text-gray-300">
                                 <Plus class="size-4" />
                             </div>
-                            <Music class="mb-2 size-6" />
-                            <span class="text-xs font-semibold">Add Music</span>
+                            <Type class="mb-2 size-6" />
+                            <span class="text-xs font-semibold">
+                                テキストを追加
+                            </span>
                         </button>
                         <button
-                            @click="openModalWithPos(0, 4, 2, 4)"
+                            @click="
+                                openMediaPickerFromEmptyState({
+                                    x: 0,
+                                    y: 4,
+                                    w: 2,
+                                    h: 4,
+                                })
+                            "
                             class="relative col-span-2 row-span-4 flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-[32px] border-2 border-dashed border-gray-200 text-slate-400 transition-colors hover:bg-gray-50"
                         >
                             <div class="absolute top-4 right-4 text-gray-300">
                                 <Plus class="size-4" />
                             </div>
                             <ImageIcon class="mb-2 size-6" />
-                            <span class="text-xs font-semibold">Add Media</span>
+                            <span class="text-xs font-semibold">
+                                メディアを追加
+                            </span>
                         </button>
                     </div>
                     <!-- Desktop Grid -->
@@ -2015,9 +2640,11 @@ const continueToSensitiveLink = () => {
                             :h="item.h"
                             :i="item.i"
                             :drag-ignore-from="'.widget-text-input--focused, a, input, textarea'"
-                            @drag-start="draggingWidgetId = item.i"
-                            @drag-end="draggingWidgetId = null"
-                            @mouseenter="hoveredWidgetId = item.i"
+                            @mouseenter="
+                                draggingWidgetId === null
+                                    ? (hoveredWidgetId = item.i)
+                                    : null
+                            "
                             @mouseleave="hoveredWidgetId = null"
                             class="group"
                             :class="[
@@ -2031,12 +2658,18 @@ const continueToSensitiveLink = () => {
                                       : 'z-10',
                             ]"
                         >
-                            <div class="h-full w-full">
+                            <div
+                                class="h-full w-full rounded-2xl will-change-transform"
+                                :style="
+                                    getDraggedWidgetStyle('desktop', item.i)
+                                "
+                            >
                                 <component
                                     :is="
                                         item.widget.content &&
                                         item.widget.type !== 'section' &&
                                         !isSensitiveWidget(item.widget) &&
+                                        !isYouTubeEmbedMode(item.widget) &&
                                         !isEditing
                                             ? 'a'
                                             : 'div'
@@ -2045,6 +2678,7 @@ const continueToSensitiveLink = () => {
                                         item.widget.content &&
                                         item.widget.type !== 'section' &&
                                         !isSensitiveWidget(item.widget) &&
+                                        !isYouTubeEmbedMode(item.widget) &&
                                         !isEditing
                                             ? item.widget.content
                                             : undefined
@@ -2053,30 +2687,34 @@ const continueToSensitiveLink = () => {
                                         item.widget.content &&
                                         item.widget.type !== 'section' &&
                                         !isSensitiveWidget(item.widget) &&
+                                        !isYouTubeEmbedMode(item.widget) &&
                                         !isEditing
                                             ? '_blank'
                                             : undefined
                                     "
                                     rel="noopener noreferrer"
-                                    @click="
-                                        isEditing
-                                            ? (activeWidgetId =
-                                                  activeWidgetId === item.i
-                                                      ? null
-                                                      : item.i)
-                                            : item.widget.content &&
-                                                item.widget.type !==
-                                                    'section' &&
-                                                isSensitiveWidget(item.widget)
-                                              ? openSensitiveWarning(
-                                                    item.widget,
-                                                )
-                                              : null
+                                    @click="handleWidgetClick($event, item)"
+                                    @pointerdown="
+                                        startWidgetDragPointer(
+                                            item.i,
+                                            'desktop',
+                                            $event,
+                                        )
                                     "
-                                    class="relative block h-full w-full transition-transform duration-150 will-change-transform"
+                                    class="relative block h-full w-full rounded-2xl"
                                     :class="[
+                                        newlyAddedWidgetIds.has(item.i)
+                                            ? 'widget-bounce-enter'
+                                            : '',
+                                        draggingWidgetId === item.i
+                                            ? ''
+                                            : 'transition-[transform,box-shadow] duration-200 ease-out',
+                                        isWidgetInteractionDisabled(item.i)
+                                            ? 'pointer-events-none'
+                                            : '',
                                         item.widget.content &&
                                         item.widget.type !== 'section' &&
+                                        !isYouTubeEmbedMode(item.widget) &&
                                         !isEditing
                                             ? 'cursor-pointer'
                                             : '',
@@ -2089,14 +2727,12 @@ const continueToSensitiveLink = () => {
                                         !isEditing
                                             ? ''
                                             : 'hover:scale-[1.015] active:scale-[0.99]',
-                                        draggingWidgetId == item.i
-                                            ? 'scale-[1.025]'
-                                            : '',
                                     ]"
                                 >
                                     <LinkWidgetControls
                                         v-if="
                                             isEditing &&
+                                            draggingWidgetId !== item.i &&
                                             (hoveredWidgetId === item.i ||
                                                 croppingWidgetId === item.i ||
                                                 lockedControlsWidgetId ===
@@ -2145,6 +2781,12 @@ const continueToSensitiveLink = () => {
                                                 $event,
                                             )
                                         "
+                                        @update-youtube-mode="
+                                            updateWidgetYoutubeMode(
+                                                item.widget,
+                                                $event,
+                                            )
+                                        "
                                         @resize="
                                             resizeWidget(
                                                 item.i,
@@ -2163,7 +2805,7 @@ const continueToSensitiveLink = () => {
                                             croppingWidgetId === item.i
                                         "
                                         :profile-image-url="profileAvatarUrl"
-                                        @activate="activeWidgetId = item.i"
+                                        @activate="activateWidget(item.i)"
                                         @update-title="
                                             updateWidgetTitle(
                                                 item.widget,
@@ -2217,33 +2859,48 @@ const continueToSensitiveLink = () => {
                             :w="item.w"
                             :h="item.h"
                             :i="item.i"
-                            :drag-allow-from="'.mobile-widget-move-handle'"
+                            :drag-allow-from="
+                                !isSmallViewport
+                                    ? undefined
+                                    : '.mobile-widget-move-handle'
+                            "
                             :drag-ignore-from="'.mobile-widget-ignore-drag, .widget-text-input--focused, a, input, textarea'"
-                            @drag-start="draggingWidgetId = item.i"
-                            @drag-end="draggingWidgetId = null"
-                            @mouseenter="hoveredWidgetId = item.i"
+                            @mouseenter="
+                                draggingWidgetId === null
+                                    ? (hoveredWidgetId = item.i)
+                                    : null
+                            "
                             @mouseleave="hoveredWidgetId = null"
                             class="group"
                             :class="[
                                 croppingWidgetId === item.i ? 'z-[120]' : '',
                                 draggingWidgetId === item.i
-                                    ? 'z-[130]'
+                                    ? 'z-[130] cursor-grabbing'
                                     : hoveredWidgetId === item.i ||
                                         croppingWidgetId === item.i ||
                                         lockedControlsWidgetId === item.i
-                                      ? 'z-[120]'
+                                      ? 'z-[120] cursor-grab'
                                       : 'z-10',
                                 isEditing && activeWidgetId === item.i
                                     ? 'cursor-default'
                                     : '',
+                                isEditing && !isSmallViewport
+                                    ? draggingWidgetId === item.i
+                                        ? '!cursor-grabbing'
+                                        : '!cursor-grab active:!cursor-grabbing'
+                                    : '',
                             ]"
                         >
-                            <div class="h-full w-full">
+                            <div
+                                class="h-full w-full rounded-2xl will-change-transform"
+                                :style="getDraggedWidgetStyle('mobile', item.i)"
+                            >
                                 <component
                                     :is="
                                         item.widget.content &&
                                         item.widget.type !== 'section' &&
                                         !isSensitiveWidget(item.widget) &&
+                                        !isYouTubeEmbedMode(item.widget) &&
                                         !isEditing
                                             ? 'a'
                                             : 'div'
@@ -2252,6 +2909,7 @@ const continueToSensitiveLink = () => {
                                         item.widget.content &&
                                         item.widget.type !== 'section' &&
                                         !isSensitiveWidget(item.widget) &&
+                                        !isYouTubeEmbedMode(item.widget) &&
                                         !isEditing
                                             ? item.widget.content
                                             : undefined
@@ -2260,14 +2918,26 @@ const continueToSensitiveLink = () => {
                                         item.widget.content &&
                                         item.widget.type !== 'section' &&
                                         !isSensitiveWidget(item.widget) &&
+                                        !isYouTubeEmbedMode(item.widget) &&
                                         !isEditing
                                             ? '_blank'
                                             : undefined
                                     "
                                     rel="noopener noreferrer"
-                                    class="relative block h-full w-full overflow-visible"
+                                    class="relative block h-full w-full overflow-visible rounded-2xl"
                                     :class="[
-                                        activeWidgetId === item.i && isEditing
+                                        newlyAddedWidgetIds.has(item.i)
+                                            ? 'widget-bounce-enter'
+                                            : '',
+                                        draggingWidgetId === item.i
+                                            ? ''
+                                            : 'transition-[transform,box-shadow] duration-200 ease-out',
+                                        isWidgetInteractionDisabled(item.i)
+                                            ? 'pointer-events-none'
+                                            : '',
+                                        activeWidgetId === item.i &&
+                                        isEditing &&
+                                        isSmallViewport
                                             ? 'rounded-2xl border-2 border-black'
                                             : '',
                                         item.widget.content &&
@@ -2279,25 +2949,21 @@ const continueToSensitiveLink = () => {
                                             ? 'z-50'
                                             : '',
                                     ]"
-                                    @click="
-                                        isEditing
-                                            ? (activeWidgetId =
-                                                  activeWidgetId === item.i
-                                                      ? null
-                                                      : item.i)
-                                            : item.widget.content &&
-                                                item.widget.type !==
-                                                    'section' &&
-                                                isSensitiveWidget(item.widget)
-                                              ? openSensitiveWarning(
-                                                    item.widget,
-                                                )
-                                              : null
+                                    @click="handleWidgetClick($event, item)"
+                                    @pointerdown="
+                                        !isSmallViewport
+                                            ? startWidgetDragPointer(
+                                                  item.i,
+                                                  'mobile',
+                                                  $event,
+                                              )
+                                            : null
                                     "
                                 >
                                     <div
                                         v-if="
                                             isEditing &&
+                                            isSmallViewport &&
                                             activeWidgetId === item.i
                                         "
                                         class="pointer-events-none absolute inset-0 z-[150]"
@@ -2327,21 +2993,97 @@ const continueToSensitiveLink = () => {
                                         <button
                                             type="button"
                                             aria-label="ウィジェットを移動"
-                                            class="mobile-widget-move-handle pointer-events-auto absolute right-1/2 -bottom-5 flex size-10 translate-x-1/2 touch-none cursor-grab items-center justify-center rounded-full bg-black text-white shadow-lg active:cursor-grabbing"
+                                            class="mobile-widget-move-handle pointer-events-auto absolute right-1/2 -bottom-5 flex size-10 translate-x-1/2 cursor-grab touch-none items-center justify-center rounded-full bg-black text-white shadow-lg active:cursor-grabbing"
+                                            @click.stop.prevent
+                                            @pointerdown="
+                                                startWidgetDragPointer(
+                                                    item.i,
+                                                    'mobile',
+                                                    $event,
+                                                )
+                                            "
                                         >
                                             <Move class="size-5" />
                                         </button>
                                     </div>
+                                    <LinkWidgetControls
+                                        v-if="
+                                            isEditing &&
+                                            !isSmallViewport &&
+                                            (hoveredWidgetId === item.i ||
+                                                croppingWidgetId === item.i ||
+                                                lockedControlsWidgetId ===
+                                                    item.i)
+                                        "
+                                        :widget="item.widget"
+                                        mode="mobile"
+                                        :size-options="
+                                            widgetSizeOptions(
+                                                item.widget,
+                                                'mobile',
+                                            )
+                                        "
+                                        :is-cropping="
+                                            croppingWidgetId === item.i
+                                        "
+                                        @delete="deleteWidget(item.i)"
+                                        @lock-open="
+                                            setControlsLock(item.i, $event)
+                                        "
+                                        @edit-link="
+                                            updateWidgetLink(item.widget)
+                                        "
+                                        @toggle-crop="toggleImageCrop(item.i)"
+                                        @update-background-color="
+                                            updateTextWidgetBackgroundColor(
+                                                item.widget,
+                                                $event,
+                                            )
+                                        "
+                                        @update-text-align="
+                                            updateTextWidgetAlign(
+                                                item.widget,
+                                                $event,
+                                            )
+                                        "
+                                        @update-vertical-align="
+                                            updateTextWidgetVerticalAlign(
+                                                item.widget,
+                                                $event,
+                                            )
+                                        "
+                                        @update-sensitive="
+                                            updateWidgetSensitive(
+                                                item.widget,
+                                                $event,
+                                            )
+                                        "
+                                        @update-youtube-mode="
+                                            updateWidgetYoutubeMode(
+                                                item.widget,
+                                                $event,
+                                            )
+                                        "
+                                        @resize="
+                                            resizeWidget(
+                                                item.i,
+                                                'mobile',
+                                                $event,
+                                            )
+                                        "
+                                    />
                                     <LinkWidgetContent
                                         :widget="item.widget"
                                         mode="mobile"
-                                        :is-editing="isEditing && !isSmallViewport"
+                                        :is-editing="
+                                            isEditing && !isSmallViewport
+                                        "
                                         :is-active="activeWidgetId === item.i"
                                         :is-cropping="
                                             croppingWidgetId === item.i
                                         "
                                         :profile-image-url="profileAvatarUrl"
-                                        @activate="activeWidgetId = item.i"
+                                        @activate="activateWidget(item.i)"
                                         @update-title="
                                             updateWidgetTitle(
                                                 item.widget,
@@ -2380,31 +3122,35 @@ const continueToSensitiveLink = () => {
                 side="bottom"
                 :show-close="false"
                 overlay-class="z-[9999]"
-                class="z-[9999] max-h-[92vh] overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0 gap-0"
+                class="z-[9999] max-h-[92vh] gap-0 overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0"
                 @click.stop
                 @pointerdown.stop
                 @touchstart.stop
             >
-                <SheetHeader class="border-b border-gray-100 px-5 py-4 text-left">
-                    <SheetTitle class="sr-only">
-                        リンクを追加
-                    </SheetTitle>
-                    <button
-                        type="button"
-                        class="absolute top-4 left-4 z-30 flex size-8 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-950"
-                        aria-label="キャンセル"
-                        title="キャンセル"
-                        @click="closeMobileAddLinkSheet"
-                    >
-                        <X class="size-5" />
-                    </button>
-                    <button
-                        type="button"
-                        class="absolute top-4 right-4 z-30 rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black"
-                        @click="submitMobileAddLink"
-                    >
-                        追加
-                    </button>
+                <SheetHeader
+                    class="sticky top-0 z-10 border-b border-gray-100 bg-white p-0"
+                >
+                    <div class="flex h-16 items-center justify-between px-5">
+                        <button
+                            type="button"
+                            class="flex size-8 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-950"
+                            aria-label="キャンセル"
+                            title="キャンセル"
+                            @click="closeMobileAddLinkSheet"
+                        >
+                            <X class="size-5" />
+                        </button>
+                        <SheetTitle class="text-base font-bold text-gray-950">
+                            リンクを追加
+                        </SheetTitle>
+                        <button
+                            type="button"
+                            class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black"
+                            @click="submitMobileAddLink"
+                        >
+                            追加
+                        </button>
+                    </div>
                 </SheetHeader>
 
                 <form
@@ -2448,8 +3194,7 @@ const continueToSensitiveLink = () => {
                                     : 'bg-gray-300'
                             "
                             @click.prevent.stop="
-                                mobileAddLinkSensitive =
-                                    !mobileAddLinkSensitive
+                                mobileAddLinkSensitive = !mobileAddLinkSensitive
                             "
                         >
                             <span
@@ -2472,18 +3217,28 @@ const continueToSensitiveLink = () => {
         >
             <SheetContent
                 side="bottom"
-                close-label="完了"
-                close-class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white opacity-100 shadow-sm hover:bg-black hover:opacity-100 focus:ring-black/20"
+                :show-close="false"
                 overlay-class="z-[9999]"
-                class="z-[9999] max-h-[92vh] overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0 gap-0"
+                class="z-[9999] max-h-[92vh] gap-0 overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0"
                 @click.stop
                 @pointerdown.stop
                 @touchstart.stop
             >
-                <SheetHeader class="border-b border-gray-100 px-5 py-4 text-left">
-                    <SheetTitle class="text-base font-bold text-gray-950">
-                        リンクを編集
-                    </SheetTitle>
+                <SheetHeader
+                    class="sticky top-0 z-10 border-b border-gray-100 bg-white p-0"
+                >
+                    <div class="flex h-16 items-center justify-between px-5">
+                        <SheetTitle class="text-base font-bold text-gray-950">
+                            リンクを編集
+                        </SheetTitle>
+                        <button
+                            type="button"
+                            class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black"
+                            @click="closeMobileLinkEditor"
+                        >
+                            完了
+                        </button>
+                    </div>
                 </SheetHeader>
 
                 <div
@@ -2495,7 +3250,9 @@ const continueToSensitiveLink = () => {
                             タイトル
                         </span>
                         <input
-                            :value="mobileLinkEditorWidget.settings?.title ?? ''"
+                            :value="
+                                mobileLinkEditorWidget.settings?.title ?? ''
+                            "
                             type="text"
                             :maxlength="MAX_LINK_TITLE_LENGTH"
                             class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15"
@@ -2505,7 +3262,9 @@ const continueToSensitiveLink = () => {
                     </label>
 
                     <div class="grid gap-2">
-                        <span class="text-sm font-bold text-gray-800">画像</span>
+                        <span class="text-sm font-bold text-gray-800"
+                            >画像</span
+                        >
                         <div class="relative">
                             <button
                                 type="button"
@@ -2539,7 +3298,7 @@ const continueToSensitiveLink = () => {
                         <input
                             ref="mobileLinkImageInput"
                             type="file"
-                            accept="image/*"
+                            accept="image/*,.apng"
                             class="hidden"
                             @change="updateMobileLinkImage"
                         />
@@ -2588,18 +3347,28 @@ const continueToSensitiveLink = () => {
         >
             <SheetContent
                 side="bottom"
-                close-label="完了"
-                close-class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white opacity-100 shadow-sm hover:bg-black hover:opacity-100 focus:ring-black/20"
+                :show-close="false"
                 overlay-class="z-[9999]"
-                class="z-[9999] max-h-[92vh] overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0 gap-0"
+                class="z-[9999] max-h-[92vh] gap-0 overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0"
                 @click.stop
                 @pointerdown.stop
                 @touchstart.stop
             >
-                <SheetHeader class="border-b border-gray-100 px-5 py-4 text-left">
-                    <SheetTitle class="text-base font-bold text-gray-950">
-                        メディアを編集
-                    </SheetTitle>
+                <SheetHeader
+                    class="sticky top-0 z-10 border-b border-gray-100 bg-white p-0"
+                >
+                    <div class="flex h-16 items-center justify-between px-5">
+                        <SheetTitle class="text-base font-bold text-gray-950">
+                            メディアを編集
+                        </SheetTitle>
+                        <button
+                            type="button"
+                            class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black"
+                            @click="closeMobileImageEditor"
+                        >
+                            完了
+                        </button>
+                    </div>
                 </SheetHeader>
 
                 <div
@@ -2660,7 +3429,7 @@ const continueToSensitiveLink = () => {
                             <input
                                 ref="mobileImageInput"
                                 type="file"
-                                accept="image/*"
+                                accept="image/*,.apng"
                                 class="hidden"
                                 @change="updateMobileImage"
                             />
@@ -2672,7 +3441,9 @@ const continueToSensitiveLink = () => {
                             キャプション
                         </span>
                         <input
-                            :value="mobileImageEditorWidget.settings?.title ?? ''"
+                            :value="
+                                mobileImageEditorWidget.settings?.title ?? ''
+                            "
                             type="text"
                             :maxlength="MAX_TEXT_WIDGET_LENGTH"
                             class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15"
@@ -2711,8 +3482,7 @@ const continueToSensitiveLink = () => {
                             :aria-checked="
                                 Boolean(
                                     mobileImageEditorWidget.content &&
-                                        mobileImageEditorWidget.settings
-                                            ?.sensitive,
+                                    mobileImageEditorWidget.settings?.sensitive,
                                 )
                             "
                             aria-label="センシティブ"
@@ -2746,47 +3516,45 @@ const continueToSensitiveLink = () => {
         >
             <SheetContent
                 side="bottom"
-                :show-close="mobileTextEditorMode !== 'add'"
-                :close-label="mobileTextEditorMode === 'add' ? undefined : '完了'"
-                close-class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white opacity-100 shadow-sm hover:bg-black hover:opacity-100 focus:ring-black/20"
+                :show-close="false"
                 overlay-class="z-[9999]"
-                class="z-[9999] max-h-[92vh] overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0 gap-0"
+                class="z-[9999] max-h-[92vh] gap-0 overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0"
                 @click.stop
                 @pointerdown.stop
                 @touchstart.stop
             >
-                <SheetHeader class="border-b border-gray-100 px-5 py-4 text-left">
-                    <SheetTitle
-                        :class="
-                            mobileTextEditorMode === 'add'
-                                ? 'sr-only'
-                                : 'text-base font-bold text-gray-950'
-                        "
-                    >
-                        {{
-                            mobileTextEditorMode === 'add'
-                                ? 'テキストを追加'
-                                : 'テキストを編集'
-                        }}
-                    </SheetTitle>
-                    <button
-                        v-if="mobileTextEditorMode === 'add'"
-                        type="button"
-                        class="absolute top-4 left-4 z-30 flex size-8 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-950"
-                        aria-label="キャンセル"
-                        title="キャンセル"
-                        @click="closeMobileTextEditor"
-                    >
-                        <X class="size-5" />
-                    </button>
-                    <button
-                        v-if="mobileTextEditorMode === 'add'"
-                        type="button"
-                        class="absolute top-4 right-4 z-30 rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black"
-                        @click="completeMobileTextEditor"
-                    >
-                        追加
-                    </button>
+                <SheetHeader
+                    class="sticky top-0 z-10 border-b border-gray-100 bg-white p-0"
+                >
+                    <div class="flex h-16 items-center justify-between px-5">
+                        <button
+                            v-if="mobileTextEditorMode === 'add'"
+                            type="button"
+                            class="flex size-8 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-950"
+                            aria-label="キャンセル"
+                            title="キャンセル"
+                            @click="closeMobileTextEditor"
+                        >
+                            <X class="size-5" />
+                        </button>
+                        <div v-else class="size-8"></div>
+
+                        <SheetTitle class="text-base font-bold text-gray-950">
+                            {{
+                                mobileTextEditorMode === 'add'
+                                    ? 'テキストを追加'
+                                    : 'テキストを編集'
+                            }}
+                        </SheetTitle>
+
+                        <button
+                            type="button"
+                            class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black"
+                            @click="completeMobileTextEditor"
+                        >
+                            {{ mobileTextEditorMode === 'add' ? '追加' : '完了' }}
+                        </button>
+                    </div>
                 </SheetHeader>
 
                 <div
@@ -2818,7 +3586,7 @@ const continueToSensitiveLink = () => {
                                     role="textbox"
                                     aria-multiline="true"
                                     data-placeholder="テキストを入力"
-                                    class="mobile-text-editor min-h-[1.25em] w-full break-words whitespace-pre-wrap bg-transparent outline-none"
+                                    class="mobile-text-editor min-h-[1.25em] w-full bg-transparent break-words whitespace-pre-wrap outline-none"
                                     :class="mobileTextEditorInputClasses"
                                     @beforeinput="
                                         limitPlainTextBeforeInput(
@@ -2931,7 +3699,8 @@ const continueToSensitiveLink = () => {
                                 class="flex size-10 shrink-0 items-center justify-center rounded-xl border transition-colors"
                                 :class="
                                     (mobileTextEditorWidget.settings
-                                        ?.verticalAlign ?? 'center') === 'center'
+                                        ?.verticalAlign ?? 'center') ===
+                                    'center'
                                         ? 'border-black bg-black text-white'
                                         : 'border-gray-200 bg-gray-50 text-gray-700'
                                 "
@@ -2997,7 +3766,7 @@ const continueToSensitiveLink = () => {
                                 type="text"
                                 inputmode="text"
                                 maxlength="7"
-                                class="h-10 w-[90px] shrink-0 rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm font-bold text-gray-800 outline-none transition-colors focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15"
+                                class="h-10 w-[90px] shrink-0 rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm font-bold text-gray-800 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15"
                                 placeholder="#FFFFFF"
                                 aria-label="カラーコード"
                                 @input="updateMobileTextBackgroundColorInput"
@@ -3033,8 +3802,7 @@ const continueToSensitiveLink = () => {
                             :aria-checked="
                                 Boolean(
                                     mobileTextEditorWidget.content &&
-                                        mobileTextEditorWidget.settings
-                                            ?.sensitive,
+                                    mobileTextEditorWidget.settings?.sensitive,
                                 )
                             "
                             aria-label="センシティブ"
@@ -3068,47 +3836,45 @@ const continueToSensitiveLink = () => {
         >
             <SheetContent
                 side="bottom"
-                :show-close="mobileSectionEditorMode !== 'add'"
-                :close-label="mobileSectionEditorMode === 'add' ? undefined : '完了'"
-                close-class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white opacity-100 shadow-sm hover:bg-black hover:opacity-100 focus:ring-black/20"
+                :show-close="false"
                 overlay-class="z-[9999]"
-                class="z-[9999] max-h-[92vh] overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0 gap-0"
+                class="z-[9999] max-h-[92vh] gap-0 overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0"
                 @click.stop
                 @pointerdown.stop
                 @touchstart.stop
             >
-                <SheetHeader class="border-b border-gray-100 px-5 py-4 text-left">
-                    <SheetTitle
-                        :class="
-                            mobileSectionEditorMode === 'add'
-                                ? 'sr-only'
-                                : 'text-base font-bold text-gray-950'
-                        "
-                    >
-                        {{
-                            mobileSectionEditorMode === 'add'
-                                ? 'セクションを追加'
-                                : 'セクションを編集'
-                        }}
-                    </SheetTitle>
-                    <button
-                        v-if="mobileSectionEditorMode === 'add'"
-                        type="button"
-                        class="absolute top-4 left-4 z-30 flex size-8 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-950"
-                        aria-label="キャンセル"
-                        title="キャンセル"
-                        @click="closeMobileSectionEditor"
-                    >
-                        <X class="size-5" />
-                    </button>
-                    <button
-                        v-if="mobileSectionEditorMode === 'add'"
-                        type="button"
-                        class="absolute top-4 right-4 z-30 rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black"
-                        @click="completeMobileSectionEditor"
-                    >
-                        追加
-                    </button>
+                <SheetHeader
+                    class="sticky top-0 z-10 border-b border-gray-100 bg-white p-0"
+                >
+                    <div class="flex h-16 items-center justify-between px-5">
+                        <button
+                            v-if="mobileSectionEditorMode === 'add'"
+                            type="button"
+                            class="flex size-8 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-950"
+                            aria-label="キャンセル"
+                            title="キャンセル"
+                            @click="closeMobileSectionEditor"
+                        >
+                            <X class="size-5" />
+                        </button>
+                        <div v-else class="size-8"></div>
+
+                        <SheetTitle class="text-base font-bold text-gray-950">
+                            {{
+                                mobileSectionEditorMode === 'add'
+                                    ? 'セクションを追加'
+                                    : 'セクションを編集'
+                            }}
+                        </SheetTitle>
+
+                        <button
+                            type="button"
+                            class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black"
+                            @click="completeMobileSectionEditor"
+                        >
+                            {{ mobileSectionEditorMode === 'add' ? '追加' : '完了' }}
+                        </button>
+                    </div>
                 </SheetHeader>
 
                 <div

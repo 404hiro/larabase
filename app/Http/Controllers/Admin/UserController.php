@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -20,19 +19,8 @@ class UserController extends Controller
         if ($request->filled('search')) {
             $search = $request->get('search');
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
+                $q->where('name', 'like', "%{$search}%");
             });
-        }
-
-        // ステータスフィルター
-        if ($request->filled('status')) {
-            $status = $request->get('status');
-            if ($status === 'active') {
-                $query->whereNotNull('email_verified_at');
-            } elseif ($status === 'inactive') {
-                $query->whereNull('email_verified_at');
-            }
         }
 
         $users = $query->with('roles')
@@ -42,7 +30,7 @@ class UserController extends Controller
 
         return Inertia::render('admin/users/Index', [
             'users' => $users,
-            'filters' => $request->only(['search', 'status']),
+            'filters' => $request->only(['search']),
         ]);
     }
 
@@ -55,42 +43,6 @@ class UserController extends Controller
         ]);
     }
 
-    public function create(): Response
-    {
-        $roles = \Spatie\Permission\Models\Role::all();
-
-        return Inertia::render('admin/users/Create', [
-            'roles' => $roles,
-        ]);
-    }
-
-    public function store(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-            'password' => ['required', 'string', 'min:8'],
-            'roles' => ['nullable', 'array'],
-            'roles.*' => ['string', 'exists:roles,name'],
-            'email_verified' => ['boolean'],
-        ]);
-
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => bcrypt($validated['password']),
-            'email_verified_at' => $validated['email_verified'] ?? false ? now() : null,
-        ]);
-
-        // ロールの設定 - Laravel-permissionの正しい方法
-        if (isset($validated['roles']) && ! empty($validated['roles'])) {
-            $user->assignRole($validated['roles']);
-        }
-
-        return redirect()->route('admin.users.index')
-            ->with('success', 'ユーザが正常に作成されました。');
-    }
-
     public function edit(User $user): Response
     {
         $user->load('roles', 'permissions');
@@ -100,11 +52,10 @@ class UserController extends Controller
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
-                'email' => $user->email,
                 'avatar_url' => $user->avatar_url,
-                'email_verified_at' => $user->email_verified_at,
                 'created_at' => $user->created_at,
                 'updated_at' => $user->updated_at,
+                'google_id' => $user->google_id,
                 'roles' => $user->roles->map(function ($role) {
                     return [
                         'id' => $role->id,
@@ -125,11 +76,9 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
             'avatar' => ['nullable', 'image', 'max:2048'], // 2MB max
             'roles' => ['nullable', 'array'],
             'roles.*' => ['string', 'exists:roles,name'],
-            'email_verified' => ['boolean'],
         ]);
 
         // アバター画像の処理
@@ -146,9 +95,7 @@ class UserController extends Controller
 
         $user->update([
             'name' => $validated['name'],
-            'email' => $validated['email'],
             'avatar' => $validated['avatar'] ?? $user->avatar,
-            'email_verified_at' => $validated['email_verified'] ?? false ? now() : null,
         ]);
 
         // ロールの更新 - Laravel-permissionの正しい方法

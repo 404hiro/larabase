@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Links\StoreLinkRequest;
+use App\Http\Requests\Links\UpdateLinkRequest;
 use App\Models\Link;
+use App\Models\Title;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -19,21 +22,13 @@ class LinkController extends Controller
     {
         $links = $request->user()
             ->links()
+            ->with('title')
             ->withCount('widgets')
-            ->get()
-            ->map(fn (Link $link): array => [
-                'id' => $link->id,
-                'slug' => $link->slug,
-                'display_name' => $link->display_name,
-                'bio' => $link->bio,
-                'avatar_url' => $link->avatar_url,
-                'is_published' => $link->is_published,
-                'widgets_count' => (int) $link->widgets_count,
-                'updated_at' => $link->updated_at?->toISOString(),
-            ]);
+            ->get();
 
         return Inertia::render('Links/Index', [
-            'links' => $links,
+            'links' => \App\Http\Resources\LinkResource::collection($links),
+            'titleOptions' => $this->titleOptions(),
             'userName' => $request->user()->name,
         ]);
     }
@@ -41,33 +36,12 @@ class LinkController extends Controller
     /**
      * Store a newly created link page.
      */
-    public function store(Request $request): RedirectResponse
+    public function store(StoreLinkRequest $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'slug' => [
-                'required',
-                'string',
-                'max:80',
-                'regex:/^[A-Za-z0-9._~-]+$/',
-                Rule::notIn([
-                    'admin',
-                    'confirm-password',
-                    'dashboard',
-                    'email-verification',
-                    'forgot-password',
-                    'login',
-                    'logout',
-                    'register',
-                    'reset-password',
-                    'settings',
-                    'two-factor-challenge',
-                    'verify-email',
-                ]),
-                Rule::unique('links', 'slug'),
-            ],
-            'display_name' => ['required', 'string', 'max:100'],
-            'bio' => ['nullable', 'string', 'max:280'],
-        ]);
+        $validated = $request->validated();
+
+        $validated['bio'] = filled($validated['bio'] ?? null) ? $validated['bio'] : null;
+        $validated['title_id'] = $validated['title_id'] ?? null;
 
         $link = $request->user()->links()->create($validated);
 
@@ -80,7 +54,7 @@ class LinkController extends Controller
     public function show(Link $link): Response
     {
         return Inertia::render('Link', [
-            'link' => $link->load('widgets'),
+            'link' => $link->load(['widgets', 'title']),
         ]);
     }
 
@@ -97,23 +71,13 @@ class LinkController extends Controller
     /**
      * Update the specified link.
      */
-    public function update(Request $request, Link $link): RedirectResponse
+    public function update(UpdateLinkRequest $request, Link $link): RedirectResponse
     {
-        if ($request->user()->id !== $link->user_id) {
-            abort(403);
-        }
-
-        $validated = $request->validate([
-            'display_name' => ['required', 'string', 'max:100'],
-            'bio' => ['nullable', 'string', 'max:280'],
-            'avatar' => ['nullable', 'image', 'mimes:jpg,jpeg,png,gif,webp', 'max:2048'],
-            'is_published' => ['nullable', 'boolean'],
-            'remove_avatar' => ['nullable', 'boolean'],
-        ]);
+        $validated = $request->validated();
 
         $linkData = [
             'display_name' => $validated['display_name'],
-            'bio' => $validated['bio'] ?? null,
+            'bio' => filled($validated['bio'] ?? null) ? $validated['bio'] : null,
         ];
 
         if ($request->has('is_published')) {
@@ -151,5 +115,21 @@ class LinkController extends Controller
         }
 
         Storage::disk('public')->delete(substr($path, strlen($storagePrefix)));
+    }
+
+    /**
+     * @return Collection<int, array{id: int, name: string}>
+     */
+    private function titleOptions(): Collection
+    {
+        return Title::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'name'])
+            ->map(fn (Title $title): array => [
+                'id' => $title->id,
+                'name' => $title->name,
+            ]);
     }
 }

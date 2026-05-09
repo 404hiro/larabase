@@ -7,12 +7,15 @@ import {
     AlignVerticalJustifyEnd,
     AlignVerticalJustifyStart,
     Circle,
+    CirclePlay,
     Crop,
     Link,
+    ListVideo,
     LockKeyhole,
     Trash2,
 } from 'lucide-vue-next';
-import { computed, onUnmounted, ref, watch } from 'vue';
+import { HSStaticMethods } from 'preline';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { onClickOutside } from '@vueuse/core';
 
 const props = defineProps<{
@@ -32,7 +35,12 @@ const emit = defineEmits<{
     updateTextAlign: [align: 'left' | 'center' | 'right'];
     updateVerticalAlign: [align: 'start' | 'center' | 'end'];
     resize: [size: { w: number; h: number }];
+    updateYoutubeMode: [mode: 'link' | 'link_embed' | 'embed'];
 }>();
+
+onMounted(() => {
+    HSStaticMethods.autoInit();
+});
 
 const showColorPicker = ref(false);
 const showContentLabels = ref(false);
@@ -60,6 +68,63 @@ const verticalAlign = computed(
     () => props.widget.settings?.verticalAlign || 'center',
 );
 const isSensitive = computed(() => Boolean(props.widget.settings?.sensitive));
+
+const isYouTubeVideoUrl = (value: string | null | undefined) => {
+    if (!value) return false;
+    try {
+        const url = new URL(value);
+        const host = url.hostname.toLowerCase();
+        const isYouTubeHost =
+            host === 'youtube.com' ||
+            host.endsWith('.youtube.com') ||
+            host === 'youtu.be' ||
+            host.endsWith('.youtu.be');
+
+        if (!isYouTubeHost) {
+            return false;
+        }
+
+        return (
+            url.pathname === '/watch' ||
+            url.pathname.startsWith('/live/') ||
+            url.pathname.startsWith('/shorts/') ||
+            (host === 'youtu.be' && url.pathname.length > 1)
+        );
+    } catch (e) {
+        return false;
+    }
+};
+
+const isMusicUrl = (value: string | null | undefined) => {
+    if (!value) return false;
+    try {
+        const url = new URL(value);
+        const host = url.hostname.toLowerCase().replace(/^www\./, '');
+        const pathParts = url.pathname.split('/').filter(Boolean);
+        
+        return (
+            host === 'music.youtube.com' ||
+            host === 'vimeo.com' ||
+            (host === 'tiktok.com' && pathParts[1] === 'video')
+        );
+    } catch (e) {
+        return false;
+    }
+};
+
+const isEmbeddableWidget = computed(() => {
+    const width =
+        props.mode === 'desktop' ? props.widget.w : props.widget.w_mobile;
+    const height =
+        props.mode === 'desktop' ? props.widget.h : props.widget.h_mobile;
+    
+    // 0.5x1 (inline) size is width 2, height 1
+    const isInline = Number(width) === 2 && Number(height) === 1;
+
+    return props.widget.type === 'link' && !isInline && (isYouTubeVideoUrl(props.widget.content) || isMusicUrl(props.widget.content));
+});
+
+const youtubeMode = computed(() => props.widget.settings?.youtubeMode || 'link');
 
 const isWidgetSize = (size: { w: number; h: number }) => {
     const width =
@@ -211,15 +276,18 @@ onUnmounted(() => emit('lockOpen', false));
             @mousedown.stop
             @touchstart.stop
         >
-            <button
-                v-for="color in colorSwatches"
-                :key="color"
-                :aria-label="`背景色 ${color}`"
-                :title="color"
-                :style="{ backgroundColor: color }"
-                :class="colorButtonClass(color)"
-                @click.prevent.stop="setBackgroundColor(color)"
-            ></button>
+            <div v-for="color in colorSwatches" :key="color" class="hs-tooltip inline-block">
+                <button
+                    :aria-label="`背景色 ${color}`"
+                    :style="{ backgroundColor: color }"
+                    :class="[...colorButtonClass(color), 'hs-tooltip-toggle']"
+                    @click.prevent.stop="setBackgroundColor(color)"
+                >
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        {{ color }}
+                    </span>
+                </button>
+            </div>
             <input
                 :value="customColorValue || backgroundColor"
                 type="text"
@@ -244,69 +312,95 @@ onUnmounted(() => emit('lockOpen', false));
             @mousedown.prevent.stop
             @touchstart.prevent.stop
         >
-            <button
+            <div
                 v-for="option in sizeOptions"
                 :key="option.key"
-                :aria-label="option.label"
-                :title="option.label"
-                @click.prevent.stop="emit('resize', option.size)"
-                :class="sizeButtonClass(option.size)"
+                class="hs-tooltip inline-block"
             >
-                <span
-                    v-if="widget.type !== 'section'"
-                    :class="sizeIconClass(option.key, isWidgetSize(option.size))"
-                ></span>
-                <component
-                    v-else
-                    :is="option.icon"
-                    :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
-                />
-            </button>
+                <button
+                    :aria-label="option.label"
+                    @click.prevent.stop="emit('resize', option.size)"
+                    :class="[...sizeButtonClass(option.size), 'hs-tooltip-toggle']"
+                >
+                    <span
+                        v-if="widget.type !== 'section' && option.key !== 'inline'"
+                        :class="sizeIconClass(option.key, isWidgetSize(option.size))"
+                    ></span>
+                    <component
+                        v-else
+                        :is="option.icon"
+                        :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                    />
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        {{ option.label }}
+                    </span>
+                </button>
+            </div>
 
             <template v-if="widget.type === 'image'">
                 <div class="mx-1 h-7 w-px bg-gray-600"></div>
-                <button
-                    aria-label="リンクを設定"
-                    title="リンクを設定"
+                <div class="hs-tooltip inline-block">
+                <button aria-label="リンクを設定"
+                    
                     @click.prevent.stop="emit('editLink')"
-                    :class="toolButtonClass(Boolean(widget.content))"
+                    :class="[...toolButtonClass(Boolean(widget.content)), 'hs-tooltip-toggle']"
                 >
                     <Link :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
+                
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        リンクを設定
+                    </span>
                 </button>
-                <button
+            </div>
+                <div class="hs-tooltip inline-block">
+                <button aria-label="コンテンツ設定"
                     v-if="shouldShowContentLabelsButton"
-                    aria-label="コンテンツ設定"
-                    title="コンテンツ設定"
+                    
                     @click.prevent.stop="toggleContentLabels"
-                    :class="toolButtonClass(showContentLabels || isSensitive)"
+                    :class="[...toolButtonClass(showContentLabels || isSensitive), 'hs-tooltip-toggle']"
                 >
                     <LockKeyhole
                         :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
                     />
+                
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        コンテンツ設定
+                    </span>
                 </button>
-                <button
-                    aria-label="クロップを調整"
-                    title="クロップを調整"
+            </div>
+                <div class="hs-tooltip inline-block">
+                <button aria-label="クロップを調整"
+                    
                     @click.prevent.stop="emit('toggleCrop')"
-                    :class="toolButtonClass(isCropping)"
+                    :class="[...toolButtonClass(isCropping), 'hs-tooltip-toggle']"
                 >
                     <Crop :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
+                
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        クロップを調整
+                    </span>
                 </button>
+            </div>
             </template>
 
             <template v-if="widget.type === 'link'">
                 <div class="mx-1 h-7 w-px bg-gray-600"></div>
-                <button
+                <div class="hs-tooltip inline-block">
+                <button aria-label="コンテンツ設定"
                     v-if="shouldShowContentLabelsButton"
-                    aria-label="コンテンツ設定"
-                    title="コンテンツ設定"
+                    
                     @click.prevent.stop="toggleContentLabels"
-                    :class="toolButtonClass(showContentLabels || isSensitive)"
+                    :class="[...toolButtonClass(showContentLabels || isSensitive), 'hs-tooltip-toggle']"
                 >
                     <LockKeyhole
                         :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
                     />
+                
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        コンテンツ設定
+                    </span>
                 </button>
+            </div>
             </template>
 
             <!-- Content Settings Popup -->
@@ -348,37 +442,107 @@ onUnmounted(() => emit('lockOpen', false));
 
             <template v-if="widget.type === 'text'">
                 <div class="mx-1 h-7 w-px bg-gray-600"></div>
-                <button
-                    aria-label="背景色を変更"
-                    title="背景色を変更"
+                <div class="hs-tooltip inline-block">
+                <button aria-label="背景色を変更"
+                    
                     @click.prevent.stop="toggleColorPicker"
-                    :class="toolButtonClass(showColorPicker)"
+                    :class="[...toolButtonClass(showColorPicker), 'hs-tooltip-toggle']"
                 >
                     <Circle
                         :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
                         :fill="backgroundColor"
                     />
+                
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        背景色を変更
+                    </span>
                 </button>
-                <button
-                    aria-label="リンクを設定"
-                    title="リンクを設定"
+            </div>
+                <div class="hs-tooltip inline-block">
+                <button aria-label="リンクを設定"
+                    
                     @click.prevent.stop="openLinkSettings"
-                    :class="toolButtonClass(Boolean(widget.content))"
+                    :class="[...toolButtonClass(Boolean(widget.content)), 'hs-tooltip-toggle']"
                 >
                     <Link :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
+                
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        リンクを設定
+                    </span>
                 </button>
-                <button
+            </div>
+                <div class="hs-tooltip inline-block">
+                <button aria-label="コンテンツ設定"
                     v-if="shouldShowContentLabelsButton"
-                    aria-label="コンテンツ設定"
-                    title="コンテンツ設定"
+                    
                     @click.prevent.stop="toggleContentLabels"
-                    :class="toolButtonClass(showContentLabels || isSensitive)"
+                    :class="[...toolButtonClass(showContentLabels || isSensitive), 'hs-tooltip-toggle']"
                 >
                     <LockKeyhole
                         :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
                     />
+                
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        コンテンツ設定
+                    </span>
                 </button>
+            </div>
             </template>
+        </div>
+
+        <!-- YouTube / Music Mode Switcher -->
+        <div
+            v-if="isEmbeddableWidget && !showContentLabels"
+            class="pointer-events-auto absolute right-1/2 z-[140] flex translate-x-1/2 items-center gap-1.5 rounded-2xl bg-black/80 p-1.5 text-white shadow-xl ring-1 ring-white/10 backdrop-blur-md"
+            :class="
+                mode === 'desktop'
+                    ? (sizeOptions && sizeOptions.length > 0 ? '-bottom-[5.25rem]' : '-bottom-10')
+                    : (sizeOptions && sizeOptions.length > 0 ? '-bottom-[4.75rem]' : '-bottom-8')
+            "
+            @click.stop
+            @pointerdown.prevent.stop
+            @mousedown.prevent.stop
+            @touchstart.prevent.stop
+        >
+            <div class="hs-tooltip inline-block">
+                <button aria-label="通常リンク"
+                
+                @click.prevent.stop="emit('updateYoutubeMode', 'link')"
+                :class="[...toolButtonClass(youtubeMode === 'link'), 'hs-tooltip-toggle']"
+            >
+                <Link :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
+            
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        通常リンク
+                    </span>
+                </button>
+            </div>
+            <div class="hs-tooltip inline-block">
+                <button aria-label="リンク＋埋め込み"
+                
+                @click.prevent.stop="emit('updateYoutubeMode', 'link_embed')"
+                :class="[...toolButtonClass(youtubeMode === 'link_embed'), 'hs-tooltip-toggle']"
+            >
+                <ListVideo :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
+            
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        リンク＋埋め込み
+                    </span>
+                </button>
+            </div>
+            <div class="hs-tooltip inline-block">
+                <button aria-label="埋め込みプレイヤー"
+                
+                @click.prevent.stop="emit('updateYoutubeMode', 'embed')"
+                :class="[...toolButtonClass(youtubeMode === 'embed'), 'hs-tooltip-toggle']"
+            >
+                <CirclePlay :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
+            
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        埋め込みプレイヤー
+                    </span>
+                </button>
+            </div>
         </div>
 
         <div
@@ -390,57 +554,87 @@ onUnmounted(() => emit('lockOpen', false));
             @mousedown.prevent.stop
             @touchstart.prevent.stop
         >
-            <button
-                aria-label="左寄せ"
-                title="左寄せ"
+            <div class="hs-tooltip inline-block">
+                <button aria-label="左寄せ"
+                
                 @click.prevent.stop="emit('updateTextAlign', 'left')"
-                :class="toolButtonClass(textAlign === 'left')"
+                :class="[...toolButtonClass(textAlign === 'left'), 'hs-tooltip-toggle']"
             >
                 <AlignLeft :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-            </button>
-            <button
-                aria-label="中央寄せ"
-                title="中央寄せ"
+            
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        左寄せ
+                    </span>
+                </button>
+            </div>
+            <div class="hs-tooltip inline-block">
+                <button aria-label="中央寄せ"
+                
                 @click.prevent.stop="emit('updateTextAlign', 'center')"
-                :class="toolButtonClass(textAlign === 'center')"
+                :class="[...toolButtonClass(textAlign === 'center'), 'hs-tooltip-toggle']"
             >
                 <AlignCenter :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-            </button>
-            <button
-                aria-label="右寄せ"
-                title="右寄せ"
+            
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        中央寄せ
+                    </span>
+                </button>
+            </div>
+            <div class="hs-tooltip inline-block">
+                <button aria-label="右寄せ"
+                
                 @click.prevent.stop="emit('updateTextAlign', 'right')"
-                :class="toolButtonClass(textAlign === 'right')"
+                :class="[...toolButtonClass(textAlign === 'right'), 'hs-tooltip-toggle']"
             >
                 <AlignRight :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-            </button>
+            
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        右寄せ
+                    </span>
+                </button>
+            </div>
 
             <div class="mx-1 h-7 w-px bg-gray-600"></div>
 
-            <button
-                aria-label="上寄せ"
-                title="上寄せ"
+            <div class="hs-tooltip inline-block">
+                <button aria-label="上寄せ"
+                
                 @click.prevent.stop="emit('updateVerticalAlign', 'start')"
-                :class="toolButtonClass(verticalAlign === 'start')"
+                :class="[...toolButtonClass(verticalAlign === 'start'), 'hs-tooltip-toggle']"
             >
                 <AlignVerticalJustifyStart :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-            </button>
-            <button
-                aria-label="上下中央"
-                title="上下中央"
+            
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        上寄せ
+                    </span>
+                </button>
+            </div>
+            <div class="hs-tooltip inline-block">
+                <button aria-label="上下中央"
+                
                 @click.prevent.stop="emit('updateVerticalAlign', 'center')"
-                :class="toolButtonClass(verticalAlign === 'center')"
+                :class="[...toolButtonClass(verticalAlign === 'center'), 'hs-tooltip-toggle']"
             >
                 <AlignVerticalJustifyCenter :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-            </button>
-            <button
-                aria-label="下寄せ"
-                title="下寄せ"
+            
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        上下中央
+                    </span>
+                </button>
+            </div>
+            <div class="hs-tooltip inline-block">
+                <button aria-label="下寄せ"
+                
                 @click.prevent.stop="emit('updateVerticalAlign', 'end')"
-                :class="toolButtonClass(verticalAlign === 'end')"
+                :class="[...toolButtonClass(verticalAlign === 'end'), 'hs-tooltip-toggle']"
             >
                 <AlignVerticalJustifyEnd :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-            </button>
+            
+                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                        下寄せ
+                    </span>
+                </button>
+            </div>
         </div>
     </div>
 </template>

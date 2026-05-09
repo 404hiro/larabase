@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import { Form } from '@inertiajs/vue3';
-import { ref } from 'vue';
 
 // Components
 import HeadingSmall from '@/components/HeadingSmall.vue';
-import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -17,10 +15,6 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-
-const passwordInput = ref<InstanceType<typeof Input> | null>(null);
 </script>
 
 <template>
@@ -48,35 +42,20 @@ const passwordInput = ref<InstanceType<typeof Input> | null>(null);
                     <Form
                         v-bind="ProfileController.destroy.form()"
                         reset-on-success
-                        @error="() => passwordInput?.$el?.focus()"
                         :options="{
                             preserveScroll: true,
                         }"
                         class="space-y-6"
-                        v-slot="{ errors, processing, reset, clearErrors }"
+                        v-slot="{ processing, reset, clearErrors }"
                     >
                         <DialogHeader class="space-y-3">
                             <DialogTitle
                                 v-text="'アカウントを完全に削除しますか？'"
                             ></DialogTitle>
                             <DialogDescription>
-                                アカウントが削除されると、すべてのリソースとデータも完全に削除されます。アカウントを完全に削除することを確認するには、パスワードを入力してください。
+                                アカウントが削除されると、すべてのリソースとデータも完全に削除されます。
                             </DialogDescription>
                         </DialogHeader>
-
-                        <div class="grid gap-2">
-                            <Label for="password" class="sr-only"
-                                >パスワード</Label
-                            >
-                            <Input
-                                id="password"
-                                type="password"
-                                name="password"
-                                ref="passwordInput"
-                                placeholder="パスワード"
-                            />
-                            <InputError :message="errors.password" />
-                        </div>
 
                         <DialogFooter class="gap-2">
                             <DialogClose as-child>

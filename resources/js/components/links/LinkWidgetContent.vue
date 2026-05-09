@@ -3,10 +3,12 @@ import {
     ArrowRight,
     Link as LinkIcon,
     Image,
-    Play,
     Trash2,
+    X,
 } from 'lucide-vue-next';
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
+import { type LinkService, linkServicesConfig } from '@/lib/linkServices';
+import { compressImage } from '@/utils/imageCompression';
 
 const props = defineProps<{
     widget: any;
@@ -58,6 +60,116 @@ const activate = () => {
 
 const settings = computed(() => props.widget.settings || {});
 
+const youtubeVideoId = computed(() => {
+    if (props.widget.type !== 'link' || !href.value) return null;
+    try {
+        const url = new URL(href.value);
+        const host = url.hostname.replace(/^www\./, '');
+        const pathParts = url.pathname.split('/').filter(Boolean);
+        
+        if (host === 'youtu.be') {
+            return pathParts[0] || null;
+        }
+        
+        if (host === 'youtube.com' || host.endsWith('.youtube.com')) {
+            if (pathParts[0] === 'watch') {
+                return url.searchParams.get('v');
+            }
+            if (['embed', 'shorts', 'live'].includes(pathParts[0] ?? '')) {
+                return pathParts[1] || null;
+            }
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
+});
+
+const vimeoVideoId = computed(() => {
+    if (props.widget.type !== 'link' || !href.value) return null;
+    try {
+        const url = new URL(href.value);
+        const host = url.hostname.replace(/^www\./, '');
+        const pathParts = url.pathname.split('/').filter(Boolean);
+
+        if (host === 'vimeo.com' && pathParts[0]) {
+            return pathParts[0];
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
+});
+
+const tiktokVideoId = computed(() => {
+    if (props.widget.type !== 'link' || !href.value) return null;
+    try {
+        const url = new URL(href.value);
+        const host = url.hostname.replace(/^www\./, '');
+        const pathParts = url.pathname.split('/').filter(Boolean);
+
+        // Standard: tiktok.com/@user/video/ID
+        if (host === 'tiktok.com' && pathParts[1] === 'video' && pathParts[2]) {
+            return pathParts[2];
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
+});
+
+const musicEmbedInfo = computed(() => {
+    if (props.widget.type !== 'link' || !href.value) return null;
+    try {
+        const url = new URL(href.value);
+        const host = url.hostname.replace(/^www\./, '');
+        
+        // YouTube Music
+        if (host === 'music.youtube.com') {
+            const videoId = url.searchParams.get('v');
+            if (videoId) {
+                return {
+                    service: 'youtube-music',
+                    url: `https://www.youtube.com/embed/${videoId}`,
+                };
+            }
+        }
+
+        // YouTube
+        if (youtubeVideoId.value) {
+            return {
+                service: 'youtube',
+                url: `https://www.youtube.com/embed/${youtubeVideoId.value}`,
+            };
+        }
+
+        // Vimeo
+        if (vimeoVideoId.value) {
+            return {
+                service: 'vimeo',
+                url: `https://player.vimeo.com/video/${vimeoVideoId.value}`,
+            };
+        }
+
+        // TikTok
+        if (tiktokVideoId.value) {
+            return {
+                service: 'tiktok',
+                url: `https://www.tiktok.com/embed/v2/${tiktokVideoId.value}`,
+            };
+        }
+
+        return null;
+    } catch (e) {
+        return null;
+    }
+});
+
+const embedMode = computed(() => {
+    if (!musicEmbedInfo.value || shape.value === 'inline') return 'link';
+    return settings.value.youtubeMode || 'link';
+});
+
 const title = computed(() => {
     if (props.widget.type === 'section') {
         return props.widget.content || settings.value.title || '';
@@ -84,6 +196,7 @@ const domain = computed(() => {
 });
 
 const faviconUrl = computed(() => {
+    if (props.widget.favicon_url) return props.widget.favicon_url;
     if (!domain.value) return '';
     return `https://www.google.com/s2/favicons?domain=${domain.value}&sz=128`;
 });
@@ -96,6 +209,7 @@ const shape = computed(() => {
     if (w === 2 && h === 2) return '2x1';
     if (w === 1 && h === 4) return '1x2';
     if (w === 2 && h === 4) return '2x2';
+    if (w === 2 && h === 1) return 'inline';
 
     return '1x1';
 });
@@ -104,19 +218,6 @@ const faviconFailed = ref(false);
 
 const handleFaviconError = () => {
     faviconFailed.value = true;
-};
-
-type LinkService = {
-    name: string;
-    account: string;
-    color: string;
-    backgroundColor: string;
-    actionLabel?: string;
-    isAppStore?: boolean;
-    isCommerce?: boolean;
-    isFanPlatform?: boolean;
-    isMusic?: boolean;
-    isSupport?: boolean;
 };
 
 const linkService = computed<LinkService | null>(() => {
@@ -129,138 +230,6 @@ const linkService = computed<LinkService | null>(() => {
         const account = rawAccount ? `@${rawAccount.replace(/^@/, '')}` : '';
         const isHost = (domain: string) => {
             return host === domain || host.endsWith(`.${domain}`);
-        };
-
-        const services: Record<
-            string,
-            Omit<LinkService, 'account'> & { account?: string }
-        > = {
-            'x.com': {
-                name: 'X',
-                color: 'bg-black text-white hover:bg-gray-800',
-                backgroundColor: 'bg-gray-50',
-            },
-            'twitter.com': {
-                name: 'X',
-                color: 'bg-black text-white hover:bg-gray-800',
-                backgroundColor: 'bg-gray-50',
-            },
-            'instagram.com': {
-                name: 'Instagram',
-                color: 'bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045] text-white hover:opacity-90',
-                backgroundColor: 'bg-[#fff1f6]',
-            },
-            'threads.net': {
-                name: 'Threads',
-                color: 'bg-black text-white hover:bg-gray-800',
-                backgroundColor: 'bg-gray-50',
-            },
-            'youtube.com': {
-                name: 'YouTube',
-                color: 'bg-[#FF0000] text-white hover:bg-[#CC0000]',
-                backgroundColor: 'bg-[#fff1f1]',
-            },
-            'music.youtube.com': {
-                name: 'YouTube Music',
-                color: 'bg-[#FF0000] text-white hover:bg-[#CC0000]',
-                backgroundColor: 'bg-[#fff1f1]',
-                isMusic: true,
-            },
-            'tiktok.com': {
-                name: 'TikTok',
-                color: 'bg-black text-white hover:bg-gray-800',
-                backgroundColor: 'bg-gray-50',
-            },
-            'facebook.com': {
-                name: 'Facebook',
-                color: 'bg-[#1877F2] text-white hover:bg-[#0C63D4]',
-                backgroundColor: 'bg-[#eff6ff]',
-            },
-            'tumblr.com': {
-                name: 'Tumblr',
-                color: 'bg-[#36465D] text-white hover:bg-[#253142]',
-                backgroundColor: 'bg-[#f1f5f9]',
-            },
-            'pixiv.net': {
-                name: 'Pixiv',
-                color: 'bg-[#0096FA] text-white hover:bg-[#007AD1]',
-                backgroundColor: 'bg-[#eff8ff]',
-            },
-            'snapchat.com': {
-                name: 'Snapchat',
-                color: 'bg-[#FFFC00] text-black hover:bg-[#E6E200]',
-                backgroundColor: 'bg-[#fffde7]',
-            },
-            'github.com': {
-                name: 'GitHub',
-                color: 'bg-[#24292F] text-white hover:bg-[#000000]',
-                backgroundColor: 'bg-gray-50',
-            },
-            'linkedin.com': {
-                name: 'LinkedIn',
-                color: 'bg-[#0A66C2] text-white hover:bg-[#004182]',
-                backgroundColor: 'bg-[#eff6ff]',
-            },
-            'twitch.tv': {
-                name: 'Twitch',
-                color: 'bg-[#9146FF] text-white hover:bg-[#772CE8]',
-                backgroundColor: 'bg-[#f5f0ff]',
-            },
-            'medium.com': {
-                name: 'Medium',
-                color: 'bg-black text-white hover:bg-gray-800',
-                backgroundColor: 'bg-gray-50',
-            },
-            'dribbble.com': {
-                name: 'Dribbble',
-                color: 'bg-[#ea4c89] text-white hover:bg-[#e0357a]',
-                backgroundColor: 'bg-[#fff1f6]',
-            },
-            'figma.com': {
-                name: 'Figma',
-                color: 'bg-[#F24E1E] text-white hover:bg-[#E14013]',
-                backgroundColor: 'bg-[#fff4ef]',
-            },
-            'note.com': {
-                name: 'Note',
-                color: 'bg-[#2CB696] text-white hover:bg-[#239B7F]',
-                backgroundColor: 'bg-[#effcf8]',
-            },
-            'music.apple.com': {
-                name: 'Apple Music',
-                color: 'bg-[#FA243C] text-white hover:bg-[#dd1830]',
-                backgroundColor: 'bg-[#fff1f3]',
-                actionLabel: 'Play',
-                isMusic: true,
-            },
-            'itunes.apple.com': {
-                name: 'Apple Music',
-                color: 'bg-[#FA243C] text-white hover:bg-[#dd1830]',
-                backgroundColor: 'bg-[#fff1f3]',
-                actionLabel: 'Play',
-                isMusic: true,
-            },
-            'open.spotify.com': {
-                name: 'Spotify',
-                color: 'bg-[#1DB954] text-white hover:bg-[#169c46]',
-                backgroundColor: 'bg-[#effaf3]',
-                actionLabel: 'Play',
-                isMusic: true,
-            },
-            'spotify.com': {
-                name: 'Spotify',
-                color: 'bg-[#1DB954] text-white hover:bg-[#169c46]',
-                backgroundColor: 'bg-[#effaf3]',
-                actionLabel: 'Play',
-                isMusic: true,
-            },
-            'music.google.com': {
-                name: 'Google Music',
-                color: 'bg-[#1A73E8] text-white hover:bg-[#1558b0]',
-                backgroundColor: 'bg-[#eff6ff]',
-                actionLabel: 'Play',
-                isMusic: true,
-            },
         };
 
         if (
@@ -294,7 +263,7 @@ const linkService = computed<LinkService | null>(() => {
                 account: '',
                 color: 'bg-[#1A73E8] text-white hover:bg-[#1558b0]',
                 backgroundColor: 'bg-[#eff6ff]',
-                actionLabel: 'Play',
+                actionLabel: 'プレイ',
                 isMusic: true,
             };
         }
@@ -409,11 +378,38 @@ const linkService = computed<LinkService | null>(() => {
             };
         }
 
-        if (services[host]) {
+        const matchedServiceConfig =
+            linkServicesConfig[host] ??
+            (isHost('youtube.com') ? linkServicesConfig['youtube.com'] : null);
+
+        if (matchedServiceConfig) {
+            const config = { ...matchedServiceConfig };
+            
+            // YouTube specific handling for videos vs channels
+            if (isHost('youtube.com') || host === 'youtu.be') {
+                if (youtubeVideoId.value) {
+                    config.actionLabel = 'プレイ';
+                    config.isMusic = true;
+                } else {
+                    config.actionLabel = 'フォロー';
+                }
+            }
+
+            // TikTok specific handling for videos vs accounts
+            if (host === 'tiktok.com') {
+                if (tiktokVideoId.value) {
+                    config.actionLabel = 'プレイ';
+                    config.isMusic = true;
+                } else {
+                    config.actionLabel = 'フォロー';
+                    config.isMusic = false;
+                }
+            }
+
             return {
-                ...services[host],
-                account: services[host].account ?? account,
-            };
+                ...config,
+                account: config.account ?? account,
+            } as LinkService;
         }
         
         return null;
@@ -442,6 +438,21 @@ const actionService = computed(() => {
         : null;
 });
 
+const actionPillClass =
+    'inline-flex h-8 w-fit items-center justify-center rounded-full px-4 text-xs font-semibold leading-none transition-colors';
+
+const socialActionPillClasses = computed(() => [
+    actionPillClass,
+    socialNetwork.value?.color ?? 'bg-black text-white',
+]);
+
+const actionServicePillClasses = computed(() => [
+    actionPillClass,
+    actionService.value?.color ?? 'bg-black text-white',
+]);
+
+const actionServiceLabel = computed(() => actionService.value?.actionLabel ?? '');
+
 const ogpInput = ref<HTMLInputElement | null>(null);
 const textEditor = ref<HTMLElement | null>(null);
 const linkTitleEditor = ref<HTMLElement | null>(null);
@@ -454,11 +465,14 @@ const chooseOgpImage = () => {
     ogpInput.value?.click();
 };
 
-const handleOgpUpdate = (event: Event) => {
+const handleOgpUpdate = async (event: Event) => {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
     if (!file) return;
-    emit('upload-image', file);
+    const compressedFile = await compressImage(file, { preset: 'card' });
+    if (!compressedFile) return;
+
+    emit('upload-image', compressedFile);
     input.value = '';
 };
 
@@ -490,6 +504,32 @@ const textWidgetClasses = computed(() => {
 const textWidgetStyle = computed(() => ({
     backgroundColor: bgColor.value,
 }));
+const cardFrameClasses = computed(() => {
+    if (props.widget.type === 'section' && !props.isEditing) {
+        return '';
+    }
+
+    if (props.widget.type === 'image' || props.widget.type === 'text') {
+        return 'rounded-2xl border border-gray-200';
+    }
+
+    return 'rounded-2xl border border-gray-200 bg-white';
+});
+const cardFrameStyle = computed(() => {
+    if (props.widget.type === 'text') {
+        return {
+            backgroundColor: bgColor.value,
+        };
+    }
+
+    if (props.widget.type === 'image') {
+        return {
+            backgroundColor: 'transparent',
+        };
+    }
+
+    return undefined;
+});
 const normalizedBgColor = computed(() => {
     const color = bgColor.value.trim();
 
@@ -528,18 +568,29 @@ const textEditorClasses = computed(() => [
 ]);
 const linkTitleEditorClasses = computed(() => [
     isLinkTitleFocused.value ? 'widget-text-input--focused' : '',
-    'block min-h-6 max-h-20 w-full overflow-auto whitespace-pre-wrap break-words rounded bg-gray-100/70 text-base leading-6 text-gray-800 outline-none focus:ring-2 focus:ring-blue-500',
+    'block w-full overflow-auto whitespace-pre-wrap break-words rounded bg-gray-600/10 text-base leading-6 text-gray-800 outline-none focus:ring-2 focus:ring-blue-500',
+    shape.value === 'inline'
+        ? 'h-6'
+        : props.mode === 'mobile'
+          ? 'h-[48px]'
+          : 'h-[72px]',
     isLinkTitleFocused.value ? 'cursor-text' : 'cursor-grab active:cursor-grabbing',
 ]);
-const linkTitleDisplayClasses =
-    'block min-h-6 whitespace-pre-wrap break-words text-base leading-6 text-gray-800';
+const linkTitleDisplayClasses = computed(() => [
+    'block whitespace-pre-wrap break-words text-base leading-6 text-gray-800',
+    shape.value === 'inline'
+        ? 'h-6 truncate whitespace-nowrap'
+        : props.mode === 'mobile'
+          ? 'h-[48px] line-clamp-2'
+          : 'h-[72px] line-clamp-3',
+]);
 const linkDomainClasses =
     'whitespace-normal break-words text-base font-semibold text-gray-500';
 const linkCardClasses = computed(() => {
     return linkService.value?.backgroundColor ?? 'bg-white';
 });
 const textEditorPanelClasses = computed(() => [
-    isTextEditorFocused.value ? 'bg-gray-200/40' : 'bg-transparent',
+    'bg-gray-200/40',
     verticalAlign.value === 'start'
         ? 'justify-start'
         : verticalAlign.value === 'end'
@@ -653,6 +704,7 @@ watch(
         props.isActive,
         shape.value,
         socialNetwork.value?.account,
+        embedMode.value,
     ],
     () => nextTick(syncLinkTitleEditor),
     { immediate: true },
@@ -726,11 +778,8 @@ onUnmounted(() => {
 <template>
     <div
         class="relative h-full w-full overflow-hidden"
-        :class="
-            widget.type === 'section' && !isEditing
-                ? ''
-                : 'rounded-2xl border border-gray-200 bg-white'
-        "
+        :class="cardFrameClasses"
+        :style="cardFrameStyle"
     >
         <div
             v-if="widget.type === 'section'"
@@ -756,7 +805,7 @@ onUnmounted(() => {
             ></textarea>
             <p
                 v-else
-                class="truncate font-bold text-gray-800"
+                class="truncate px-3 py-2 font-bold text-gray-800"
                 :class="mode === 'desktop' ? 'text-xl' : 'text-lg'"
             >
                 {{ title }}
@@ -814,7 +863,8 @@ onUnmounted(() => {
             </div>
             <p
                 v-else-if="title"
-                class="whitespace-pre-wrap break-words text-lg font-semibold leading-snug"
+                class="p-3 text-lg font-semibold leading-snug"
+                :class="shape === 'inline' ? 'truncate' : 'whitespace-pre-wrap break-words'"
             >
                 {{ title }}
             </p>
@@ -885,8 +935,8 @@ onUnmounted(() => {
                 {{ title }}
             </span>
             <div class="flex-1" />
-            <span class="w-fit rounded-full bg-[#0095f6] px-4 py-1.5 text-xs font-semibold text-white">
-                Follow
+            <span :class="[actionPillClass, 'bg-[#0095f6] text-white']">
+                フォロー
             </span>
         </div>
 
@@ -895,13 +945,64 @@ onUnmounted(() => {
             class="h-full w-full"
             :class="linkCardClasses"
         >
-            <!-- 1x1 Layout -->
-            <div v-if="shape === '1x1'" class="flex h-full flex-col p-5">
+            <!-- Embed Mode -->
+            <div v-if="embedMode === 'embed' && musicEmbedInfo" class="h-full w-full overflow-hidden rounded-2xl bg-black">
+                <iframe
+                    :src="musicEmbedInfo.url"
+                    :title="`${musicEmbedInfo.service} player`"
+                    frameborder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowfullscreen
+                    class="h-full w-full"
+                    :class="{ 'pointer-events-none': isEditing }"
+                ></iframe>
+            </div>
+
+            <!-- Inline Layout -->
+            <div v-else-if="shape === 'inline'" class="flex h-full items-center px-5">
                 <img v-if="faviconUrl && !faviconFailed" :src="faviconUrl" @error="handleFaviconError" alt=""
-                    class="mb-3 size-10 rounded-[10px] object-cover" draggable="false" />
+                    class="mr-3 size-8 shrink-0 rounded-lg object-cover" draggable="false" />
                 <div v-else
-                    class="mb-3 flex size-10 items-center justify-center rounded-[10px] bg-gray-100 text-gray-400">
-                    <LinkIcon class="size-5" />
+                    class="mr-3 flex size-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-400">
+                    <LinkIcon class="size-4" />
+                </div>
+                <div
+                    v-if="isEditing"
+                    ref="linkTitleEditor"
+                    contenteditable="true"
+                    role="textbox"
+                    aria-label="リンクタイトル"
+                    :class="[linkTitleEditorClasses, 'flex-1']"
+                    @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
+                    @keydown.enter.prevent
+                    @input="updateLinkTitleEditor"
+                    @paste="pastePlainLinkTitle"
+                    @focus="
+                        activate();
+                        isLinkTitleFocused = true;
+                    "
+                    @blur="isLinkTitleFocused = false"
+                    @click.stop
+                    @pointerdown="
+                        stopPointerWhenFocused($event, isLinkTitleFocused)
+                    "
+                    @mousedown="
+                        stopPointerWhenFocused($event, isLinkTitleFocused)
+                    "
+                    @touchstart="
+                        stopPointerWhenFocused($event, isLinkTitleFocused)
+                    "
+                ></div>
+                <p v-else class="flex-1 truncate text-lg font-bold text-gray-800">{{ title || socialNetwork?.account }}</p>
+            </div>
+
+            <!-- 1x1 Layout -->
+            <div v-else-if="shape === '1x1'" class="flex h-full flex-col p-5">
+                <img v-if="faviconUrl && !faviconFailed" :src="faviconUrl" @error="handleFaviconError" alt=""
+                    class="mb-3 size-8 rounded-lg object-cover" draggable="false" />
+                <div v-else
+                    class="mb-3 flex size-8 items-center justify-center rounded-lg bg-gray-100 text-gray-400">
+                    <LinkIcon class="size-4" />
                 </div>
                 <div
                     v-if="isEditing"
@@ -911,6 +1012,7 @@ onUnmounted(() => {
                     aria-label="リンクタイトル"
                     :class="linkTitleEditorClasses"
                     @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
+                    @keydown.enter.prevent
                     @input="updateLinkTitleEditor"
                     @paste="pastePlainLinkTitle"
                     @focus="
@@ -934,21 +1036,15 @@ onUnmounted(() => {
                 <div class="flex-1"></div>
 
                 <template v-if="socialNetwork && socialNetwork.account">
-                    <a :href="href" target="_blank" rel="noopener noreferrer"
-                        :class="['w-fit rounded-full  px-4 py-1.5 text-xs font-semibold  cursor-pointer  transition-colors'.replace('  ', ' ').trim(), socialNetwork.color]"
-                        @click.stop>
-                        Follow
-                    </a>
+                    <span
+                        :class="socialActionPillClasses">
+                        フォロー</span>
                 </template>
                 <template v-else-if="actionService">
                     <span
-                        :class="['inline-flex w-fit items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors', actionService.color]"
+                        :class="actionServicePillClasses"
                     >
-                        <Play
-                            v-if="actionService.isMusic"
-                            class="size-3 fill-current"
-                        />
-                        {{ actionService.actionLabel }}
+                        {{ actionServiceLabel }}
                     </span>
                 </template>
                 <template v-else>
@@ -959,11 +1055,15 @@ onUnmounted(() => {
             <!-- 2x1 Layout (Horizontal) -->
             <div v-else-if="shape === '2x1'" class="flex h-full p-4 gap-4">
                 <div class="flex min-w-0 flex-1 flex-col py-1 pl-1">
-                    <img v-if="faviconUrl && !faviconFailed" :src="faviconUrl" @error="handleFaviconError" alt=""
-                        class="mb-3 size-10 rounded-[10px] object-cover" draggable="false" />
-                    <div v-else
-                        class="mb-3 flex size-10 items-center justify-center rounded-[10px] bg-gray-100 text-gray-400">
-                        <LinkIcon class="size-5" />
+                    <div class="mb-3">
+                        <div class="relative w-fit shrink-0">
+                            <img v-if="faviconUrl && !faviconFailed" :src="faviconUrl" @error="handleFaviconError" alt=""
+                                class="size-8 rounded-lg object-cover shrink-0" draggable="false" />
+                            <div v-else
+                                class="flex size-8 items-center justify-center rounded-lg bg-gray-100 text-gray-400 shrink-0">
+                                <LinkIcon class="size-4" />
+                            </div>
+                        </div>
                     </div>
                     <div
                         v-if="isEditing"
@@ -973,6 +1073,7 @@ onUnmounted(() => {
                         aria-label="リンクタイトル"
                         :class="linkTitleEditorClasses"
                     @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
+                        @keydown.enter.prevent
                         @input="updateLinkTitleEditor"
                         @paste="pastePlainLinkTitle"
                         @focus="
@@ -992,30 +1093,34 @@ onUnmounted(() => {
                         "
                     ></div>
                     <p v-else :class="linkTitleDisplayClasses">{{ title || socialNetwork?.account }}</p>
-                    <div class="flex-1"></div>
                     <template v-if="socialNetwork && socialNetwork.account">
-                        <a :href="href" target="_blank" rel="noopener noreferrer"
-                            :class="['mt-auto w-fit rounded-full  px-4 py-1.5 text-xs font-semibold  cursor-pointer  transition-colors'.replace('  ', ' ').trim(), socialNetwork.color]"
-                            @click.stop>
-                            Follow
-                        </a>
+                        <span
+                            :class="[socialActionPillClasses, 'mt-2']">
+                            フォロー</span>
                     </template>
                     <template v-else-if="actionService">
                         <span
-                            :class="['mt-auto inline-flex w-fit items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors', actionService.color]"
-                        >
-                            <Play
-                                v-if="actionService.isMusic"
-                                class="size-3 fill-current"
-                            />
-                            {{ actionService.actionLabel }}
+                            :class="[actionServicePillClasses, 'mt-2']">
+                            {{ actionServiceLabel }}
                         </span>
                     </template>
-                    <template v-else>
+                    <div class="flex-1"></div>
+                    <template v-if="!socialNetwork && !actionService">
                         <p :class="['mt-auto', linkDomainClasses]">{{ domain }}</p>
                     </template>
                 </div>
-                <button v-if="isEditing" @click.stop="chooseOgpImage"
+                <div v-if="embedMode === 'link_embed' && musicEmbedInfo" class="relative flex-1 overflow-hidden rounded-2xl">
+                    <iframe
+                        :src="musicEmbedInfo.url"
+                        :title="`${musicEmbedInfo.service} player`"
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowfullscreen
+                        class="relative z-10 h-full w-full"
+                        :class="{ 'pointer-events-none': isEditing }"
+                    ></iframe>
+                </div>
+                <button v-else-if="isEditing" @click.stop="chooseOgpImage"
                     class="cursor-pointer group relative flex-1 overflow-hidden rounded-2xl">
                     <img v-if="image" :src="image" class="h-full w-full object-cover" draggable="false" />
                     <span
@@ -1035,11 +1140,15 @@ onUnmounted(() => {
             <!-- 1x2 Layout (Vertical) -->
             <div v-else-if="shape === '1x2'" class="flex h-full flex-col p-4 gap-4">
                 <div class="flex min-h-0 flex-1 flex-col pt-1 px-1">
-                    <img v-if="faviconUrl && !faviconFailed" :src="faviconUrl" @error="handleFaviconError" alt=""
-                        class="mb-3 size-10 rounded-[10px] object-cover" draggable="false" />
-                    <div v-else
-                        class="mb-3 flex size-10 items-center justify-center rounded-[10px] bg-gray-100 text-gray-400">
-                        <LinkIcon class="size-5" />
+                    <div class="mb-3">
+                        <div class="relative w-fit shrink-0">
+                            <img v-if="faviconUrl && !faviconFailed" :src="faviconUrl" @error="handleFaviconError" alt=""
+                                class="size-8 rounded-lg object-cover shrink-0" draggable="false" />
+                            <div v-else
+                                class="flex size-8 items-center justify-center rounded-lg bg-gray-100 text-gray-400 shrink-0">
+                                <LinkIcon class="size-4" />
+                            </div>
+                        </div>
                     </div>
                     <div
                         v-if="isEditing"
@@ -1049,6 +1158,7 @@ onUnmounted(() => {
                         aria-label="リンクタイトル"
                         :class="linkTitleEditorClasses"
                     @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
+                        @keydown.enter.prevent
                         @input="updateLinkTitleEditor"
                         @paste="pastePlainLinkTitle"
                         @focus="
@@ -1068,30 +1178,34 @@ onUnmounted(() => {
                         "
                     ></div>
                     <p v-else :class="linkTitleDisplayClasses">{{ title || socialNetwork?.account }}</p>
-                    <div class="flex-1"></div>
                     <template v-if="socialNetwork && socialNetwork.account">
-                        <a :href="href" target="_blank" rel="noopener noreferrer"
-                            :class="['w-fit rounded-full  px-4 py-1.5 text-xs font-semibold  cursor-pointer  transition-colors'.replace('  ', ' ').trim(), socialNetwork.color]"
-                            @click.stop>
-                            Follow
-                        </a>
+                        <span
+                            :class="[socialActionPillClasses, 'mt-2']">
+                            フォロー</span>
                     </template>
                     <template v-else-if="actionService">
                         <span
-                            :class="['inline-flex w-fit items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors', actionService.color]"
-                        >
-                            <Play
-                                v-if="actionService.isMusic"
-                                class="size-3 fill-current"
-                            />
-                            {{ actionService.actionLabel }}
+                            :class="[actionServicePillClasses, 'mt-2']">
+                            {{ actionServiceLabel }}
                         </span>
                     </template>
-                    <template v-else>
+                    <div class="flex-1"></div>
+                    <template v-if="!socialNetwork && !actionService">
                         <p :class="linkDomainClasses">{{ domain }}</p>
                     </template>
                 </div>
-                <button v-if="isEditing" @click.stop="chooseOgpImage"
+                <div v-if="embedMode === 'link_embed' && musicEmbedInfo" class="relative flex-1 overflow-hidden rounded-2xl">
+                    <iframe
+                        :src="musicEmbedInfo.url"
+                        :title="`${musicEmbedInfo.service} player`"
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowfullscreen
+                        class="relative z-10 h-full w-full"
+                        :class="{ 'pointer-events-none': isEditing }"
+                    ></iframe>
+                </div>
+                <button v-else-if="isEditing" @click.stop="chooseOgpImage"
                     class="cursor-pointer group relative flex-1 overflow-hidden rounded-2xl">
                     <img v-if="image" :src="image" class="h-full w-full object-cover" draggable="false" />
                     <span
@@ -1111,13 +1225,31 @@ onUnmounted(() => {
             <!-- 2x2 Layout (Large Square) -->
             <div v-else-if="shape === '2x2'" class="flex h-full flex-col p-4 justify-between">
                 <div class="flex min-h-0 flex-1 flex-col px-1 pt-1 pb-3">
-                    <img v-if="faviconUrl && !faviconFailed" :src="faviconUrl" @error="handleFaviconError" alt=""
-                        class="mb-3 size-10 rounded-[10px] object-cover shrink-0"
-                        draggable="false" />
-                    <div v-else
-                        class="mb-3 flex size-10 items-center justify-center rounded-[10px] bg-gray-100 text-gray-400 shrink-0">
-                        <LinkIcon class="size-5" />
+                    <div class="mb-3 flex items-start justify-between">
+                        <div class="relative w-fit shrink-0">
+                            <img v-if="faviconUrl && !faviconFailed" :src="faviconUrl" @error="handleFaviconError" alt=""
+                                class="size-8 rounded-lg object-cover shrink-0"
+                                draggable="false" />
+                            <div v-else
+                                class="flex size-8 items-center justify-center rounded-lg bg-gray-100 text-gray-400 shrink-0">
+                                <LinkIcon class="size-4" />
+                            </div>
+                        </div>
+
+                        <!-- Top Right Action Button -->
+                        <template v-if="socialNetwork && socialNetwork.account">
+                            <span
+                                :class="socialActionPillClasses">
+                                フォロー</span>
+                        </template>
+                        <template v-else-if="actionService">
+                            <span
+                                :class="actionServicePillClasses">
+                                {{ actionServiceLabel }}
+                            </span>
+                        </template>
                     </div>
+
                     <template v-if="socialNetwork && socialNetwork.account">
                         <div
                             v-if="isEditing"
@@ -1127,6 +1259,7 @@ onUnmounted(() => {
                             aria-label="リンクタイトル"
                             :class="linkTitleEditorClasses"
                     @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
+                            @keydown.enter.prevent
                             @input="updateLinkTitleEditor"
                             @paste="pastePlainLinkTitle"
                             @focus="
@@ -1147,12 +1280,6 @@ onUnmounted(() => {
                         ></div>
                         <p v-else :class="linkTitleDisplayClasses">{{
                             title || socialNetwork.account }}</p>
-                        <div class="flex-1"></div>
-                        <a :href="href" target="_blank" rel="noopener noreferrer"
-                            :class="['mt-2 w-fit rounded-full  px-4 py-1.5 text-sm font-semibold  cursor-pointer  transition-colors inline-block'.replace('  ', ' ').trim(), socialNetwork.color]"
-                            @click.stop>
-                            Follow
-                        </a>
                     </template>
                     <template v-else-if="actionService">
                         <div
@@ -1163,6 +1290,7 @@ onUnmounted(() => {
                             aria-label="リンクタイトル"
                             :class="linkTitleEditorClasses"
                     @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
+                            @keydown.enter.prevent
                             @input="updateLinkTitleEditor"
                             @paste="pastePlainLinkTitle"
                             @focus="
@@ -1183,16 +1311,6 @@ onUnmounted(() => {
                         ></div>
                         <p v-else :class="linkTitleDisplayClasses">{{
                             title }}</p>
-                        <div class="flex-1"></div>
-                        <span
-                            :class="['mt-2 inline-flex w-fit items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition-colors', actionService.color]"
-                        >
-                            <Play
-                                v-if="actionService.isMusic"
-                                class="size-3.5 fill-current"
-                            />
-                            {{ actionService.actionLabel }}
-                        </span>
                     </template>
                     <template v-else>
                         <div
@@ -1203,6 +1321,7 @@ onUnmounted(() => {
                             aria-label="リンクタイトル"
                             :class="linkTitleEditorClasses"
                     @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
+                            @keydown.enter.prevent
                             @input="updateLinkTitleEditor"
                             @paste="pastePlainLinkTitle"
                             @focus="
@@ -1227,7 +1346,18 @@ onUnmounted(() => {
                         <p :class="['mt-2 text-lg', linkDomainClasses]">{{ domain }}</p>
                     </template>
                 </div>
-                <button v-if="isEditing" @click.stop="chooseOgpImage"
+                <div v-if="embedMode === 'link_embed' && musicEmbedInfo" class="relative w-full shrink-0 overflow-hidden rounded-2xl" style="aspect-ratio: 1.91 / 1;">
+                    <iframe
+                        :src="musicEmbedInfo.url"
+                        :title="`${musicEmbedInfo.service} player`"
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowfullscreen
+                        class="relative z-10 h-full w-full"
+                        :class="{ 'pointer-events-none': isEditing }"
+                    ></iframe>
+                </div>
+                <button v-else-if="isEditing" @click.stop="chooseOgpImage"
                     class="cursor-pointer group relative w-full shrink-0 overflow-hidden rounded-2xl"
                     style="aspect-ratio: 1.91 / 1;">
                     <img v-if="image" :src="image" class="h-full w-full object-cover" draggable="false" />
@@ -1245,7 +1375,7 @@ onUnmounted(() => {
                     <img :src="image" class="h-full w-full object-cover" draggable="false" />
                 </div>
             </div>
-            <input ref="ogpInput" type="file" accept="image/*" class="hidden" @change="handleOgpUpdate" />
+            <input ref="ogpInput" type="file" accept="image/*,.apng" class="hidden" @change="handleOgpUpdate" />
         </div>
 
         <div v-else

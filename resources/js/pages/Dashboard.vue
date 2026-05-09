@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
@@ -22,6 +23,10 @@ import { ref } from 'vue';
 
 interface Props {
     linksCount: number;
+    titleOptions: Array<{
+        id: number;
+        name: string;
+    }>;
     userName: string;
 }
 
@@ -32,6 +37,7 @@ const isCreateDialogOpen = ref(false);
 const form = useForm({
     slug: '',
     display_name: props.linksCount === 0 ? props.userName : '',
+    title_id: '',
     bio: '',
 });
 
@@ -119,6 +125,28 @@ const submit = () => {
                                         />
                                         <InputError
                                             :message="form.errors.display_name"
+                                        />
+                                    </div>
+
+                                    <div class="grid gap-2">
+                                        <Label for="title_id">職業</Label>
+                                        <Select
+                                            id="title_id"
+                                            v-model="form.title_id"
+                                        >
+                                            <option value="">
+                                                職業を選択しない
+                                            </option>
+                                            <option
+                                                v-for="title in titleOptions"
+                                                :key="title.id"
+                                                :value="String(title.id)"
+                                            >
+                                                {{ title.name }}
+                                            </option>
+                                        </Select>
+                                        <InputError
+                                            :message="form.errors.title_id"
                                         />
                                     </div>
 
