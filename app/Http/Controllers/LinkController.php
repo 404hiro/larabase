@@ -59,11 +59,11 @@ class LinkController extends Controller
     }
 
     /**
-     * Display a mock support page for the link.
+     * Display a mock fan letter page for the link.
      */
-    public function support(Link $link): Response
+    public function letter(Link $link): Response
     {
-        return Inertia::render('LinkSupport', [
+        return Inertia::render('LinkLetter', [
             'link' => $link,
         ]);
     }

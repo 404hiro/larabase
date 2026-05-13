@@ -76,5 +76,5 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 // 設定ルート
 require __DIR__.'/settings.php';
 
-Route::get('/@{link:slug}/support', [LinkController::class, 'support'])->name('links.support');
+Route::get('/@{link:slug}/letter', [LinkController::class, 'letter'])->name('links.letter');
 Route::get('/@{link:slug}', [LinkController::class, 'show'])->name('links.show');

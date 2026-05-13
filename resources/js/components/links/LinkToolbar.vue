@@ -2,10 +2,13 @@
 import { Button } from '@/components/ui/button';
 import { Link as InertiaLink } from '@inertiajs/vue3';
 import {
-    Heart,
+    Check,
+    Copy,
     Image,
     Link as LinkIcon,
+    MessageCircleHeart,
     Monitor,
+    PartyPopper,
     Pencil,
     Save,
     Smartphone,
@@ -18,7 +21,10 @@ import { compressImage } from '@/utils/imageCompression';
 const props = defineProps<{
     isEditing: boolean;
     previewMode: 'desktop' | 'mobile';
-    supportUrl: string;
+    letterUrl: string;
+    isPublished?: boolean;
+    isShareCopied?: boolean;
+    hasWidgets?: boolean;
     mobileWidgetOperationActive?: boolean;
     mobileSizeOptions?: any[];
     activeMobileWidget?: any | null;
@@ -31,6 +37,8 @@ const emit = defineEmits<{
     addMedia: [file: File];
     addSection: [];
     addText: [];
+    publish: [];
+    share: [];
     resizeMobileWidget: [size: { w: number; h: number }];
     completeMobileWidgetOperation: [];
 }>();
@@ -102,6 +110,27 @@ const mobileSizeIconClass = (option: any) => {
         <!-- Desktop Toolbar -->
         <div
             class="hidden h-11 items-center gap-2 rounded-2xl border border-gray-200 bg-white/90 p-1.5 shadow-[0_8px_30px_rgb(0,0,0,0.08)] backdrop-blur-md min-[1025px]:flex">
+            <Button v-if="!isEditing && !isPublished && hasWidgets" variant="ghost"
+                class="h-8 gap-2 rounded-xl bg-black px-4 text-sm text-white hover:bg-neutral-800 hover:text-white cursor-pointer"
+                @click="emit('publish')">
+                <PartyPopper class="size-4" />
+                <span class="font-semibold">公開</span>
+            </Button>
+
+            <div v-if="!isEditing && isPublished" class="relative">
+                <div v-if="isShareCopied"
+                    class="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-black px-3 py-1.5 text-xs font-bold text-white shadow-lg">
+                    URLをコピーしました
+                </div>
+                <Button variant="ghost"
+                    class="h-8 gap-2 rounded-xl bg-black px-4 text-sm text-white cursor-pointer hover:bg-neutral-800 hover:text-white"
+                    @click="emit('share')">
+                    <Check v-if="isShareCopied" class="size-4 text-white" />
+                    <Copy v-else class="size-4" />
+                    <span class="font-semibold">シェア</span>
+                </Button>
+            </div>
+
             <Button :variant="isEditing ? 'default' : 'ghost'" class="h-8 gap-2 rounded-xl px-4 cursor-pointer" :class="isEditing
                     ? 'bg-emerald-500 text-white hover:bg-emerald-600'
                     : 'text-gray-900 hover:bg-gray-100'
@@ -163,9 +192,9 @@ const mobileSizeIconClass = (option: any) => {
                     <span class="font-semibold">セクション</span>
                 </Button>
                 <Button as-child variant="ghost" class="h-8 gap-2 rounded-xl px-4 text-sm text-gray-900 cursor-pointer">
-                    <InertiaLink :href="supportUrl">
-                        <Heart class="size-4" />
-                        <span class="font-semibold">サポート</span>
+                    <InertiaLink :href="letterUrl">
+                        <MessageCircleHeart class="size-4" />
+                        <span class="font-semibold">ファンレター</span>
                     </InertiaLink>
                 </Button>
             </template>
@@ -174,12 +203,34 @@ const mobileSizeIconClass = (option: any) => {
         <!-- Mobile Toolbar -->
         <div v-if="!mobileWidgetOperationActive"
             class="hidden h-11 items-center rounded-2xl border border-gray-200 bg-white px-2 text-slate-500 shadow-[0_12px_30px_rgb(15,23,42,0.14)] max-[1024px]:flex min-[1025px]:hidden">
+            <button v-if="!isEditing && !isPublished && hasWidgets" type="button" aria-label="公開" title="公開"
+                class="mr-1 flex h-8 items-center justify-center gap-1.5 rounded-xl bg-black px-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-neutral-800"
+                @click="emit('publish')">
+                <PartyPopper class="size-4" stroke-width="2.2" />
+                <span>公開</span>
+            </button>
+
+            <div v-if="!isEditing && isPublished" class="relative mr-1">
+                <div v-if="isShareCopied"
+                    class="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-black px-3 py-1.5 text-xs font-bold text-white shadow-lg">
+                    URLをコピーしました
+                </div>
+                <button type="button" aria-label="シェア" title="シェア"
+                    class="flex h-8 items-center justify-center gap-1.5 rounded-xl bg-black px-3 text-sm font-bold text-white transition-colors hover:bg-neutral-800"
+                    @click="emit('share')">
+                    <Check v-if="isShareCopied" class="size-4 text-white" stroke-width="2.2" />
+                    <Copy v-else class="size-4" stroke-width="2.2" />
+                    <span>シェア</span>
+                </button>
+            </div>
+
             <button @click="emit('toggleEdit')"
                 class="flex h-8 items-center justify-center rounded-xl transition-colors" :class="isEditing
                         ? 'min-w-16 gap-1.5 bg-emerald-500 px-3 text-sm font-bold text-white shadow-sm hover:bg-emerald-600'
-                        : 'w-8 hover:bg-slate-100 hover:text-slate-800'
+                        : 'gap-1.5 px-3 text-sm font-bold hover:bg-slate-100 hover:text-slate-800'
                     " :aria-label="isEditing ? '保存' : '編集'" :title="isEditing ? '保存' : '編集'">
-                <Pencil v-if="!isEditing" class="size-5" stroke-width="2.2" />
+                <Pencil v-if="!isEditing" class="size-4" stroke-width="2.2" />
+                <span v-if="!isEditing">編集</span>
                 <span v-if="isEditing">保存</span>
             </button>
 
@@ -238,14 +289,14 @@ const mobileSizeIconClass = (option: any) => {
                     </span>
                 </div>
                 <div class="hs-tooltip inline-block">
-                    <InertiaLink aria-label="サポートページを開く" :href="supportUrl"
+                    <InertiaLink aria-label="ファンレターページを開く" :href="letterUrl"
                         class="ml-2 flex size-8 items-center justify-center rounded-xl transition-colors hover:bg-slate-100 hover:text-slate-800 hs-tooltip-toggle">
-                        <Heart class="size-5" stroke-width="2.2" />
+                        <MessageCircleHeart class="size-5" stroke-width="2.2" />
                     </InertiaLink>
                     <span
                         class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap"
                         role="tooltip">
-                        サポートページを開く
+                        ファンレターページを開く
                     </span>
                 </div>
             </template>

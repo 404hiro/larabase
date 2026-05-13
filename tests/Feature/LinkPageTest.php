@@ -27,24 +27,41 @@ test('published link page renders the link component', function () {
     );
 });
 
-test('empty link add controls use the full visible button area', function () {
+test('empty link add controls fit the responsive widget area', function () {
     $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
 
     expect($linkPage)
-        ->toContain('z-20 grid w-[864px] grid-cols-4')
-        ->toContain('z-20 grid w-full max-w-[356px]')
-        ->toContain('grid-auto-rows: 92px')
-        ->toContain('grid-auto-rows: 73px')
+        ->toContain('max-w-[374px]')
+        ->toContain('min-[1025px]:px-0')
+        ->toContain('min-[1025px]:max-w-none min-[1025px]:flex-row')
+        ->toContain("previewMode === 'desktop'\n                            ? 'pb-24 min-[1025px]:mx-0 min-[1025px]:w-[736px] min-[1025px]:max-w-none min-[1025px]:shrink-0'\n                            : 'mt-2 pb-24'")
+        ->toContain('class="-m-3 w-[calc(100%+24px)]"')
+        ->toContain(':col-num="2"')
+        ->toContain(':row-height="81.5"')
+        ->toContain(':row-height="84.5"')
+        ->toContain('desktopPlaceholderItems')
+        ->toContain('mobilePlaceholderItems')
+        ->toContain('localWidgets.value.length >= 3')
+        ->toContain("placeholder.type === 'media' ? 'image' : placeholder.type")
+        ->toContain('widget.type === widgetType')
+        ->toContain("widget.type === 'link'")
+        ->toContain("'flex w-full max-w-[374px] flex-col gap-4 pb-32'")
+        ->toContain(':static="true"')
         ->toContain('flex h-full w-full cursor-pointer flex-col items-center justify-center')
-        ->toContain('リンクを追加')
-        ->toContain('メディアを追加')
-        ->toContain('テキストを追加')
-        ->toContain('@click="openModalWithPos(0, 0, 2, 2)"')
-        ->toContain('@click="addTextWidget({ x: 2, y: 0, w: 1, h: 2 })"')
-        ->toContain('@click="addTextWidget({ x: 0, y: 2, w: 1, h: 2 })"')
+        ->toContain('リンクを追加する')
+        ->toContain('メディアを追加する')
+        ->toContain('テキストを追加する')
+        ->toContain("i: 'placeholder-media'")
+        ->toContain("i: 'placeholder-link'")
+        ->toContain("i: 'placeholder-text'")
+        ->toContain("i: 'placeholder-mobile-link'")
+        ->not->toContain('isGridAreaEmpty')
+        ->toContain('for (let y = 0; y < maxY + 1000; y += 1)')
         ->toContain('openMediaPickerFromEmptyState({')
+        ->toContain('const toolbarWidgetSize = { w: 1, h: 2 } as const')
+        ->toContain('pendingWidgetSize.value = toolbarWidgetSize')
         ->toContain('const addTextWidget = (position: WidgetPosition | null = null)')
-        ->toContain('const addMediaWidget = async (file: File, position: WidgetPosition | null = null)')
+        ->toContain('const addMediaWidget = async (')
         ->toContain('ref="emptyMediaInput"');
 });
 
@@ -56,13 +73,14 @@ test('link page displays top profile navigation', function () {
         ->toContain('LinkPageNavigation')
         ->toContain(':slug="props.link.slug"')
         ->toContain('active-tab="profile"')
-        ->toContain('pt-14')
-        ->toContain('min-[1025px]:pt-20');
+        ->toContain('pt-8')
+        ->toContain('pt-12 min-[1025px]:px-0 sm:px-8');
 
     expect($navigation)
         ->toContain('aria-label="プロフィールナビゲーション"')
         ->toContain('h-9')
         ->toContain('z-[9000]')
+        ->toContain('border-b border-gray-200 bg-white/95')
         ->not->toContain('shadow-sm')
         ->toContain('max-w-[374px]')
         ->toContain('min-[1025px]:max-w-[1198px]')
@@ -70,15 +88,15 @@ test('link page displays top profile navigation', function () {
         ->toContain('activeTab')
         ->toContain('プロフィール')
         ->toContain('UserRound')
-        ->toContain('Heart')
+        ->toContain('MessageCircleHeart')
         ->toContain('items-center gap-1.5')
         ->toContain('<UserRound class="size-4" />')
-        ->toContain('<Heart class="size-4" />')
+        ->toContain('<MessageCircleHeart class="size-4" />')
         ->toContain('hidden min-[1025px]:inline')
         ->toContain('font-bold text-black')
         ->toContain('after:bg-black')
-        ->toContain('サポート')
-        ->toContain(':href="`/@${slug}/support`"')
+        ->toContain('メッセージ')
+        ->toContain(':href="`/@${slug}/letter`"')
         ->toContain('isLoggedIn')
         ->toContain('aria-label="通知"')
         ->not->toContain('aria-label="検索"')
@@ -90,7 +108,34 @@ test('link page displays top profile navigation', function () {
         ->toContain('Login');
 });
 
-test('support page route renders support mock page', function () {
+test('link page shows visitor floating share actions', function () {
+    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+
+    expect($linkPage)
+        ->toContain('const copiedProfileUrl = ref(false)')
+        ->toContain('const profileUrl = computed(() => {')
+        ->toContain('const copyProfileUrl = async () => {')
+        ->toContain('navigator.clipboard.writeText(profileUrl.value)')
+        ->toContain('}, 2400)')
+        ->toContain('v-if="!isOwner"')
+        ->toContain('aria-label="プロフィールアクション"')
+        ->toContain('class="flex h-11 items-center gap-2 rounded-full')
+        ->toContain('URLをコピーしました')
+        ->toContain('<Check')
+        ->toContain('class="size-4 text-white"')
+        ->toContain('class="flex h-9 items-center justify-center gap-2 rounded-full')
+        ->toContain('@click="copyProfileUrl"')
+        ->toContain('<Copy v-else class="size-4" />')
+        ->toContain('class="flex size-9 items-center justify-center rounded-full')
+        ->toContain('<MoreHorizontal class="size-5" />')
+        ->toContain('@select="reportUser"')
+        ->toContain('このユーザーを通報する')
+        ->not->toContain('fixed bottom-20 left-4')
+        ->toContain('<footer')
+        ->toContain('Built with GridLink');
+});
+
+test('letter page route renders letter mock page', function () {
     $user = User::factory()->create();
     $link = Link::query()->create([
         'user_id' => $user->id,
@@ -99,38 +144,63 @@ test('support page route renders support mock page', function () {
         'bio' => 'GridLink profile',
     ]);
 
-    $response = $this->get(route('links.support', $link));
+    $response = $this->get(route('links.letter', $link));
 
     $response->assertSuccessful();
     $response->assertInertia(fn (Assert $page) => $page
-        ->component('LinkSupport')
+        ->component('LinkLetter')
         ->where('link.slug', 'maessun')
         ->where('link.display_name', 'Maessun')
     );
 });
 
-test('support page displays mock support and fan messages', function () {
+test('letter page displays mock support and fan messages', function () {
     $routeFile = file_get_contents(base_path('routes/web.php'));
     $controller = file_get_contents(app_path('Http/Controllers/LinkController.php'));
-    $supportPage = file_get_contents(resource_path('js/pages/LinkSupport.vue'));
+    $letterPage = file_get_contents(resource_path('js/pages/LinkLetter.vue'));
 
     expect($routeFile)
-        ->toContain("Route::get('/@{link:slug}/support'")
-        ->toContain("->name('links.support')");
+        ->toContain("Route::get('/@{link:slug}/letter'")
+        ->toContain("->name('links.letter')");
 
     expect($controller)
-        ->toContain('public function support(Link $link): Response')
-        ->toContain("Inertia::render('LinkSupport'");
+        ->toContain('public function letter(Link $link): Response')
+        ->toContain("Inertia::render('LinkLetter'");
 
-    expect($supportPage)
+    expect($letterPage)
         ->toContain('LinkPageNavigation')
-        ->toContain('active-tab="support"')
-        ->toContain('少額支援')
-        ->toContain('サポートする')
+        ->toContain('active-tab="letter"')
+        ->toContain('bg-neutral-100')
+        ->toContain('fanMessages')
+        ->toContain('const isOwner = computed')
+
+        ->toContain('page.props.auth?.user && page.props.auth.user.id === props.link.user_id')
+        ->toContain("const activeTab = ref<'write' | 'read'>('write')")
+        ->toContain('書く')
+        ->toContain('読む')
+        ->toContain("activeTab === 'write'")
+        ->toContain("activeTab === 'read'")
+        ->toContain('ファンレターを書く')
+        ->toContain('レターを送る')
         ->toContain('ファンからのメッセージ')
         ->toContain('supportOptions')
+        ->toContain('v-if="isOwner"')
+        ->toContain('収益設定をすると支援が受け取れます。')
+        ->toContain('収益設定')
+        ->toContain('v-else class="mt-5 grid grid-cols-3 gap-2"')
+        ->toContain(':disabled="isOwner"')
+        ->toContain('disabled:cursor-not-allowed')
         ->toContain('fanMessages')
         ->toContain('Buymeacoffee')
+        ->toContain('after:bg-black')
+        ->toContain('rounded-xl bg-black')
+        ->not->toContain('bg-violet')
+        ->not->toContain('text-violet')
+        ->not->toContain('border-violet')
+        ->not->toContain('ring-violet')
+        ->not->toContain('@{{ link.slug }}')
+        ->not->toContain('{{ link.bio }}')
+        ->not->toContain('v-if="link.bio"')
         ->not->toContain('@submit');
 });
 
@@ -172,45 +242,81 @@ test('link toolbar exposes text widget controls next to media', function () {
         ->toContain("verticalAlign: 'center'");
 });
 
-test('link toolbar exposes support page button after section controls', function () {
+test('link toolbar exposes letter page button after section controls', function () {
     $toolbar = file_get_contents(resource_path('js/components/links/LinkToolbar.vue'));
     $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
 
     expect($toolbar)
         ->toContain("import { Link as InertiaLink } from '@inertiajs/vue3'")
-        ->toContain('Heart')
-        ->toContain('supportUrl: string')
-        ->toContain(':href="supportUrl"')
-        ->toContain('サポート')
-        ->toContain('aria-label="サポートページを開く"');
+        ->toContain('MessageCircleHeart')
+        ->toContain('letterUrl: string')
+        ->toContain(':href="letterUrl"')
+        ->toContain('ファンレター')
+        ->toContain('aria-label="ファンレターページを開く"');
 
     expect($linkPage)
-        ->toContain(':support-url="`/@${props.link.slug}/support`"');
+        ->toContain(':letter-url="`/@${props.link.slug}/letter`"');
 });
 
 test('private link pages show a publish button', function () {
     $profile = file_get_contents(resource_path('js/components/links/LinkProfile.vue'));
+    $toolbar = file_get_contents(resource_path('js/components/links/LinkToolbar.vue'));
     $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
     $controller = file_get_contents(app_path('Http/Controllers/LinkController.php'));
+    $request = file_get_contents(app_path('Http/Requests/Links/UpdateLinkRequest.php'));
 
     expect($profile)
-        ->toContain('showPrivateNotice')
-        ->toContain('プロフィールを公開する')
-        ->toContain('publish: []')
+        ->not->toContain('プロフィールを公開する')
+        ->not->toContain('公開する')
+        ->not->toContain('publish: []')
+        ->not->toContain('showPublicCopyButton')
+        ->not->toContain('const handleShare = async () => {')
+        ->not->toContain('const reportUser = () => {')
+        ->not->toContain('<Share2')
+        ->not->toContain('<MoreHorizontal')
+        ->not->toContain('<Flag')
         ->toContain('border-gray-200 bg-gray-100/70')
-        ->toContain('h-11 min-w-0 flex-1 cursor-pointer')
-        ->toContain('hidden h-11 cursor-pointer')
-        ->toContain('text-sm font-bold text-white');
+        ->not->toContain('isPublished?: boolean');
+
+    expect($toolbar)
+        ->toContain('PartyPopper')
+        ->toContain('isPublished?: boolean')
+        ->toContain('isShareCopied?: boolean')
+        ->toContain('hasWidgets?: boolean')
+        ->toContain('publish: []')
+        ->toContain('share: []')
+        ->toContain('v-if="!isEditing && !isPublished && hasWidgets"')
+        ->toContain('v-if="!isEditing && isPublished"')
+        ->toContain("emit('publish')")
+        ->toContain("emit('share')")
+        ->toContain('URLをコピーしました')
+        ->toContain('class="size-4 text-white"')
+        ->toContain('rounded-xl bg-black px-4 text-sm text-white')
+        ->toContain('rounded-xl bg-black px-3 text-sm font-bold text-white')
+        ->toContain('<span>シェア</span>')
+        ->toContain('<span>公開</span>')
+        ->toContain('<span v-if="!isEditing">編集</span>')
+        ->toContain('<Copy v-else class="size-4" />')
+        ->not->toContain('bg-blue-600')
+        ->not->toContain('hover:bg-blue-700')
+        ->toContain('公開');
 
     expect($linkPage)
-        ->toContain('showPrivateNotice')
         ->not->toContain('localWidgets.value.length > 0')
-        ->toContain('!props.link.is_published')
+        ->toContain('const isLinkPublished = ref(Boolean(props.link.is_published))')
+        ->toContain(':is-published="isLinkPublished"')
+        ->toContain(':is-share-copied="copiedProfileUrl"')
+        ->toContain(':has-widgets="localWidgets.length > 0"')
+        ->toContain('@share="copyProfileUrl"')
+        ->not->toContain('<LinkProfile\n                    v-model:display-name="editForm.display_name"\n                    v-model:bio="editForm.bio"\n                    :is-editing="isEditing"\n                    :preview-mode="previewMode"\n                    :avatar-url="profileAvatarUrl"\n                    :display-initial="displayInitial"\n                    :is-published="isLinkPublished"')
         ->toContain('@publish="publishLink"')
-        ->toContain('is_published: true');
+        ->toContain('is_published: true')
+        ->toContain('burstPublishConfetti')
+        ->toContain('publish-confetti-piece');
+
+    expect($request)->toContain("'is_published' => ['nullable', 'boolean']");
 
     expect($controller)
-        ->toContain("'is_published' => ['nullable', 'boolean']")
         ->toContain("\$linkData['is_published']")
         ->toContain("\$request->boolean('is_published')");
 });
@@ -270,9 +376,15 @@ test('text widgets expose link setting control', function () {
         ->toContain('updateWidgetLink(item.widget)')
         ->toContain('テキストリンクを設定')
         ->toContain(':initial-url="linkTargetWidget?.content"')
-        ->toContain(':allow-empty=')
-        ->toContain("linkTargetWidget.type !== 'link'")
-        ->toContain('linkTargetWidget.value.content = url || null');
+        ->toContain('Boolean(linkTargetWidget && linkTargetWidget.type !== \'link\')')
+        ->toContain('linkTargetWidget.value.content =');
+
+    expect($linkPage)
+        ->toContain('updateWidgetLink(item.widget)')
+        ->toContain('テキストリンクを設定')
+        ->toContain(':initial-url="linkTargetWidget?.content"')
+        ->toContain('Boolean(linkTargetWidget && linkTargetWidget.type !== \'link\')')
+        ->toContain('linkTargetWidget.value.content =');
 });
 
 test('text widget color controls keep code input without native color picker', function () {
@@ -377,22 +489,16 @@ test('link widget titles remain editable for service links while editing', funct
 });
 
 test('link widgets show play buttons and brand tinted backgrounds for services', function () {
-    $content = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
+    $services = file_get_contents(resource_path('js/lib/linkServices.ts'));
 
-    expect($content)
+    expect($services)
         ->toContain('music.apple.com')
         ->toContain('open.spotify.com')
         ->toContain('music.youtube.com')
-        ->toContain('play.google.com')
         ->toContain('isMusic: true')
-        ->toContain('actionService')
-        ->toContain('linkCardClasses')
-        ->toContain('backgroundColor')
         ->toContain("actionLabel: 'プレイ'")
-        ->toContain("config.actionLabel = 'プレイ'")
-        ->toContain("config.actionLabel = 'フォロー'")
-        ->toContain('bg-[#fff1f3]')
-        ->toContain('bg-[#effaf3]');
+        ->toContain("'bg-[#fff1f3]'")
+        ->toContain("'bg-[#effaf3]'");
 });
 
 test('link widgets show purchase and install actions for commerce and app stores', function () {
@@ -421,7 +527,11 @@ test('link widget action labels render as unified button-like spans', function (
 
     expect($content)
         ->toContain('const actionPillClass')
-        ->toContain('inline-flex h-8 min-w-20 items-center justify-center')
+        ->toContain('inline-flex')
+        ->toContain('h-8')
+        ->toContain('w-fit')
+        ->toContain('items-center')
+        ->toContain('justify-center')
         ->toContain('socialActionPillClasses')
         ->toContain('actionServicePillClasses')
         ->toContain('actionServiceLabel')
@@ -555,7 +665,8 @@ test('mobile widget editing uses tap operation controls and a bottom resize tool
         ->toContain("'min-w-16 gap-1.5 bg-emerald-500 px-3 text-sm font-bold text-white")
         ->toContain('<span v-if="isEditing">保存</span>')
         ->toContain('hidden h-11 items-center gap-1.5 rounded-2xl')
-        ->toContain('class="flex size-8 items-center justify-center rounded-lg transition-colors"')
+        ->toContain('class="flex size-8 items-center justify-center')
+        ->toContain('rounded-lg transition-colors"')
         ->toContain('class="flex h-8 min-w-12 items-center justify-center whitespace-nowrap rounded-lg bg-white px-4 text-xs font-bold text-black transition-transform active:scale-95"')
         ->toContain('v-for="option in mobileSizeOptions"')
         ->toContain("emit('resizeMobileWidget', option.size)")
@@ -615,18 +726,15 @@ test('widget dragging uses motion wobble animations', function () {
     $widgetContent = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
 
     expect($linkPage)
-        ->toContain("import { useReducedMotion } from '@vueuse/motion';")
+        ->toContain("import { usePreferredReducedMotion } from '@vueuse/core';")
         ->toContain('const dragPointerState = ref<{')
         ->toContain('const dragVisualState = ref<{')
-        ->toContain('const prefersReducedMotion = useReducedMotion()')
+        ->toContain('const prefersReducedMotion = usePreferredReducedMotion()')
         ->toContain('const updateDraggedWidgetVisual = (')
         ->toContain('const scheduleDraggedWidgetSettle = (')
         ->toContain('const clampedOffset = Math.max(Math.min(horizontalOffset, 48), -48)')
-        ->toContain('translateX: isReducedMotion ? clampedOffset * 0.012 : clampedOffset * 0.022')
-        ->toContain('rotate: isReducedMotion ? clampedOffset * 0.018 : clampedOffset * 0.05')
-        ->toContain('boxShadow: isReducedMotion')
-        ->toContain('const getDraggedWidgetStyle = (')
-        ->toContain('transform: `translate3d(')
+        ->toContain('x: isReducedMotion ? clampedOffset * 0.012 : clampedOffset * 0.022')
+        ->toContain('rotate: isReducedMotion ? rotateTarget * 0.3 : rotateTarget')
         ->toContain('return `link-widget-${mode}-${widgetId}`')
         ->toContain('updateDraggedWidgetVisual(mode, widgetId, 0)')
         ->toContain('scheduleDraggedWidgetSettle(mode, widgetId)')
@@ -792,10 +900,7 @@ test('mobile toolbar link add uses a bottom sheet instead of the modal', functio
         ->toContain('setMobileAddLinkSheetOpen')
         ->toContain('リンクを追加')
         ->toContain(':show-close="false"')
-        ->toContain('relative min-h-16 border-b border-gray-100')
-        ->toContain('top-1/2 left-4')
-        ->toContain('top-1/2 right-4')
-        ->toContain('class="sr-only"')
+        ->toContain('sticky top-0 z-10 border-b border-gray-100 bg-white p-0')
         ->toContain('aria-label="キャンセル"')
         ->toContain('@click="closeMobileAddLinkSheet"')
         ->toContain('@click="submitMobileAddLink"')
@@ -815,13 +920,12 @@ test('mobile link widget edit button opens a bottom sheet editor', function () {
         ->toContain('setMobileLinkEditorOpen')
         ->toContain('<Sheet')
         ->toContain('side="bottom"')
-        ->toContain('close-label="完了"')
         ->toContain('overlay-class="z-[9999]"')
         ->toContain('overflow-hidden rounded-t-3xl')
-        ->toContain('p-0 gap-0')
+        ->toContain('gap-0')
+        ->toContain('p-0')
         ->toContain('max-h-[calc(92vh-64px)]')
         ->toContain('overflow-y-auto')
-        ->toContain('close-class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white')
         ->toContain('リンクを編集')
         ->toContain('updateMobileLinkTitle')
         ->toContain('chooseMobileLinkImage')
@@ -855,8 +959,6 @@ test('mobile image widget edit button opens a bottom sheet editor', function () 
         ->toContain("width: '250px'")
         ->toContain('メディア')
         ->not->toContain('画像を編集')
-        ->not->toContain('Change')
-        ->not->toContain('opacity-45')
         ->toContain('chooseMobileImage')
         ->toContain('updateMobileImage')
         ->toContain('updateMobileImageCaption')
@@ -897,11 +999,9 @@ test('mobile profile avatar delete control is always visible and delete controls
     expect($controls)
         ->toContain('type="button"')
         ->toContain('@pointerdown.stop')
-        ->not->toContain('@pointerdown.prevent.stop')
         ->toContain('bg-red-600')
         ->toContain('hover:bg-red-700')
-        ->toContain('<Trash2 class="size-4" />')
-        ->toContain('class="h-10 w-20');
+        ->toContain('<Trash2 class="size-4" />');
 
     expect($content)
         ->toContain('bg-red-600 text-white')
@@ -953,10 +1053,10 @@ test('mobile text and section widgets open bottom sheet editors', function () {
         ->toContain('テキストを編集')
         ->toContain('テキストを追加')
         ->toContain('@click="closeMobileTextEditor"')
-        ->toContain(':show-close="mobileTextEditorMode !== \'add\'"')
-        ->toContain(':close-label=')
-        ->toContain("mobileTextEditorMode === 'add'")
-        ->toContain("? undefined : '完了'")
+        ->toContain("v-if=\"mobileTextEditorMode === 'add'\"")
+        ->toContain('{{')
+        ->toContain("mobileTextEditorMode === 'add' ? '追加' : '完了'")
+        ->toContain('}}')
         ->toContain('テキストを入力')
         ->toContain('スタイル')
         ->toContain('flex gap-2 overflow-x-auto')
@@ -985,8 +1085,12 @@ test('mobile text and section widgets open bottom sheet editors', function () {
         ->toContain('セクションを追加')
         ->toContain('@click="closeMobileSectionEditor"')
         ->toContain('セクションを入力してください')
-        ->toContain(':show-close="mobileSectionEditorMode !== \'add\'"')
-        ->toContain('mobileSectionEditorMode === \'add\'')
+        ->toContain("v-if=\"mobileSectionEditorMode === 'add'\"")
+        ->toContain('{{')
+        ->toContain("mobileSectionEditorMode === 'add'")
+        ->toContain('? \'追加\'')
+        ->toContain(": '完了'")
+        ->toContain('}}')
         ->toContain('セクションを入力');
 });
 

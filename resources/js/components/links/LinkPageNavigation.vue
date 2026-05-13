@@ -9,13 +9,13 @@ import {
 import UserMenuContent from '@/components/UserMenuContent.vue';
 import { getInitials } from '@/composables/useInitials';
 import { usePage } from '@inertiajs/vue3';
-import { Bell, Ellipsis, Heart, UserRound } from 'lucide-vue-next';
+import { Bell, Ellipsis, MessageCircleHeart, UserRound } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 const props = withDefaults(
     defineProps<{
         slug: string;
-        activeTab?: 'profile' | 'support';
+        activeTab?: 'profile' | 'letter';
     }>(),
     {
         activeTab: 'profile',
@@ -26,7 +26,7 @@ const page = usePage();
 const auth = computed(() => page.props.auth);
 const isLoggedIn = computed(() => Boolean(auth.value?.user));
 
-const tabClass = (tab: 'profile' | 'support') => {
+const tabClass = (tab: 'profile' | 'letter') => {
     return [
         'relative flex h-9 items-center gap-1.5 px-2 text-sm transition-colors',
         props.activeTab === tab
@@ -42,7 +42,7 @@ const tabClass = (tab: 'profile' | 'support') => {
         aria-label="プロフィールナビゲーション"
     >
         <div
-            class="mx-auto flex h-full w-full max-w-[374px] items-center min-[1025px]:max-w-[1198px]"
+            class="mx-auto flex h-full w-full max-w-[374px] items-center px-3 min-[1025px]:max-w-[1198px] sm:px-4"
         >
             <div class="min-w-0 flex-1 truncate text-base font-bold">
                 @{{ slug }}
@@ -59,13 +59,13 @@ const tabClass = (tab: 'profile' | 'support') => {
                     <span class="hidden min-[1025px]:inline">プロフィール</span>
                 </a>
                 <a
-                    :href="`/@${slug}/support`"
-                    :class="tabClass('support')"
-                    aria-label="サポート"
-                    title="サポート"
+                    :href="`/@${slug}/letter`"
+                    :class="tabClass('letter')"
+                    aria-label="メッセージ"
+                    title="メッセージ"
                 >
-                    <Heart class="size-4" />
-                    <span class="hidden min-[1025px]:inline">サポート</span>
+                    <MessageCircleHeart class="size-4" />
+                    <span class="hidden min-[1025px]:inline">メッセージ</span>
                 </a>
             </div>
 

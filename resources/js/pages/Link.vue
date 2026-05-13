@@ -6,6 +6,12 @@ import LinkToolbar from '@/components/links/LinkToolbar.vue';
 import LinkWidgetContent from '@/components/links/LinkWidgetContent.vue';
 import LinkWidgetControls from '@/components/links/LinkWidgetControls.vue';
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
     Sheet,
     SheetContent,
     SheetHeader,
@@ -24,10 +30,14 @@ import {
     AlignVerticalJustifyCenter,
     AlignVerticalJustifyEnd,
     AlignVerticalJustifyStart,
+    Check,
+    Copy,
     Crop,
+    Flag,
     Image as ImageIcon,
     LayoutGrid,
     Link as LinkIcon,
+    MoreHorizontal,
     Move,
     Pencil,
     Plus,
@@ -97,6 +107,9 @@ const isOwner = computed(() => {
 
 const previewMode = ref<'desktop' | 'mobile'>('desktop');
 const isEditing = ref(false);
+const isLinkPublished = ref(Boolean(props.link.is_published));
+const isPublishingLink = ref(false);
+const copiedProfileUrl = ref(false);
 
 const editForm = ref({
     display_name: props.link.display_name,
@@ -109,6 +122,19 @@ const avatarRemoved = ref(false);
 const localWidgets = ref<any[]>([]);
 const desktopLayout = ref<any[]>([]);
 const mobileLayout = ref<any[]>([]);
+type ConfettiPiece = {
+    id: number;
+    x: number;
+    y: number;
+    rotate: number;
+    delay: number;
+    duration: number;
+    color: string;
+    size: number;
+};
+
+const confettiPieces = ref<ConfettiPiece[]>([]);
+let confettiTimeout: number | null = null;
 
 const newlyAddedWidgetIds = ref<Set<string>>(new Set());
 const markWidgetAsNewlyAdded = (widget: any) => {
@@ -302,7 +328,6 @@ const findNextGridPosition = (
 ) => {
     const maxX = Math.max(columns - width, 0);
 
-    // Get current maximum Y to start searching from the bottom
     const maxY = widgets.reduce((max, widget) => {
         const widgetY = Number(widget[keys.y] ?? 0);
         const widgetH = Number(widget[keys.h] ?? 1);
@@ -310,7 +335,7 @@ const findNextGridPosition = (
         return Math.max(max, widgetY + widgetH);
     }, 0);
 
-    for (let y = maxY; y < maxY + 1000; y += 1) {
+    for (let y = 0; y < maxY + 1000; y += 1) {
         for (let x = 0; x <= maxX; x += 1) {
             const overlaps = widgets.some((widget) => {
                 const widgetX = Number(widget[keys.x] ?? 0);
@@ -334,6 +359,103 @@ const findNextGridPosition = (
 
     return { x: 0, y: maxY };
 };
+
+const desktopPlaceholderItems = computed(() => {
+    if (localWidgets.value.length >= 3) {
+        return [];
+    }
+
+    const sourceWidgets = localWidgets.value.map((widget) => ({ ...widget }));
+    const placeholders = [
+        {
+            i: 'placeholder-media',
+            type: 'media',
+            label: 'メディアを追加する',
+            icon: ImageIcon,
+            w: 2,
+            h: 4,
+        },
+        {
+            i: 'placeholder-link',
+            type: 'link',
+            label: 'リンクを追加する',
+            icon: LinkIcon,
+            w: 1,
+            h: 4,
+        },
+        {
+            i: 'placeholder-text',
+            type: 'text',
+            label: 'テキストを追加する',
+            icon: Type,
+            w: 1,
+            h: 2,
+        },
+    ];
+
+    return placeholders
+        .filter((placeholder) => {
+            const widgetType =
+                placeholder.type === 'media' ? 'image' : placeholder.type;
+
+            return !localWidgets.value.some(
+                (widget) => widget.type === widgetType,
+            );
+        })
+        .map((placeholder) => {
+            const position = findNextGridPosition(
+                sourceWidgets,
+                4,
+                placeholder.w,
+                placeholder.h,
+                desktopKeys,
+            );
+            const placedWidget = {
+                x: position.x,
+                y: position.y,
+                w: placeholder.w,
+                h: placeholder.h,
+            };
+
+            sourceWidgets.push(placedWidget);
+
+            return {
+                ...placeholder,
+                ...placedWidget,
+            };
+        });
+});
+
+const mobilePlaceholderItems = computed(() => {
+    if (localWidgets.value.length >= 3) {
+        return [];
+    }
+
+    if (localWidgets.value.some((widget) => widget.type === 'link')) {
+        return [];
+    }
+
+    const position = findNextGridPosition(
+        localWidgets.value,
+        2,
+        1,
+        4,
+        mobileKeys,
+    );
+
+    return [
+        {
+            i: 'placeholder-mobile-link',
+            type: 'link',
+            label: 'リンクを追加する',
+            icon: LinkIcon,
+            x: position.x,
+            y: position.y,
+            w: 1,
+            h: 4,
+        },
+    ];
+});
 
 const normalizeWidgetLayout = (widgets: any[]) => {
     return widgets.map((widget) => {
@@ -540,6 +662,10 @@ onUnmounted(() => {
         window.clearTimeout(dragSettleTimeout);
     }
 
+    if (confettiTimeout !== null) {
+        window.clearTimeout(confettiTimeout);
+    }
+
     window.removeEventListener('resize', updateViewportMode);
     window.removeEventListener('beforeunload', handleBeforeUnload);
     window.removeEventListener('pointermove', handleWindowPointerMove);
@@ -562,9 +688,20 @@ watch(
 );
 
 watch(
+    () => props.link.is_published,
+    (isPublished) => {
+        isLinkPublished.value = Boolean(isPublished);
+    },
+);
+
+watch(
     () => [editForm.value.display_name, editForm.value.bio],
     () => markDirty(),
 );
+
+watch([previewMode, isSmallViewport], () => {
+    updateLayoutsFromWidgets();
+});
 
 const toggleEdit = () => {
     if (isEditing.value) {
@@ -640,9 +777,42 @@ const profileAvatarUrl = computed(() => {
 
     return props.link.avatar_url ?? null;
 });
-const showPrivateNotice = computed(() => {
-    return Boolean(isOwner.value) && !props.link.is_published;
+
+const profileUrl = computed(() => {
+    if (typeof window === 'undefined') {
+        return `/@${props.link.slug}`;
+    }
+
+    return `${window.location.origin}/@${props.link.slug}`;
 });
+
+const copyProfileUrl = async () => {
+    try {
+        if (navigator.clipboard) {
+            await navigator.clipboard.writeText(profileUrl.value);
+        } else {
+            const textArea = document.createElement('textarea');
+            textArea.value = profileUrl.value;
+            textArea.setAttribute('readonly', 'true');
+            textArea.className = 'fixed -left-[9999px] top-0';
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+        }
+
+        copiedProfileUrl.value = true;
+        window.setTimeout(() => {
+            copiedProfileUrl.value = false;
+        }, 2400);
+    } catch (error) {
+        console.error('Failed to copy profile URL:', error);
+    }
+};
+
+const reportUser = () => {
+    alert('このユーザーを通報しました。ご協力ありがとうございます。');
+};
 
 const updateAvatar = (file: File | null) => {
     if (!file) return;
@@ -668,7 +838,53 @@ const removeAvatar = () => {
     markDirty();
 };
 
+const burstPublishConfetti = () => {
+    const colors = [
+        '#10B981',
+        '#34D399',
+        '#F59E0B',
+        '#F43F5E',
+        '#60A5FA',
+        '#A78BFA',
+    ];
+
+    confettiPieces.value = Array.from({ length: 34 }, (_, index) => {
+        const angle = (Math.PI * 2 * index) / 34 + (Math.random() - 0.5) * 0.4;
+        const distance = 80 + Math.random() * 180;
+
+        return {
+            id: Date.now() + index,
+            x: Math.cos(angle) * distance,
+            y: Math.sin(angle) * distance - 120 - Math.random() * 80,
+            rotate: Math.random() * 720 - 360,
+            delay: Math.random() * 80,
+            duration: 720 + Math.random() * 420,
+            color: colors[index % colors.length],
+            size: 7 + Math.random() * 8,
+        };
+    });
+
+    if (confettiTimeout !== null) {
+        window.clearTimeout(confettiTimeout);
+    }
+
+    confettiTimeout = window.setTimeout(() => {
+        confettiPieces.value = [];
+        confettiTimeout = null;
+    }, 1400);
+};
+
 const publishLink = () => {
+    if (isPublishingLink.value || isLinkPublished.value) {
+        return;
+    }
+
+    if (localWidgets.value.length === 0) {
+        return;
+    }
+
+    isPublishingLink.value = true;
+
     router.post(
         `/links/${props.link.slug}`,
         {
@@ -679,6 +895,13 @@ const publishLink = () => {
         },
         {
             preserveScroll: true,
+            onSuccess: () => {
+                isLinkPublished.value = true;
+                burstPublishConfetti();
+            },
+            onFinish: () => {
+                isPublishingLink.value = false;
+            },
         },
     );
 };
@@ -796,18 +1019,35 @@ const addSectionWidget = () => {
         return;
     }
 
-    const desktopPosition = findNextGridPosition(localWidgets.value, 4, 4, 1, {
-        x: 'x',
-        y: 'y',
-        w: 'w',
-        h: 'h',
-    });
-    const mobilePosition = findNextGridPosition(localWidgets.value, 2, 2, 1, {
-        x: 'x_mobile',
-        y: 'y_mobile',
-        w: 'w_mobile',
-        h: 'h_mobile',
-    });
+    const isToolbarSizedSection = pendingWidgetSize.value !== null;
+    const desktopWidth = isToolbarSizedSection ? 1 : 4;
+    const desktopHeight = 1;
+    const mobileWidth = isToolbarSizedSection ? 1 : 2;
+    const mobileHeight = 1;
+    const desktopPosition = findNextGridPosition(
+        localWidgets.value,
+        4,
+        desktopWidth,
+        desktopHeight,
+        {
+            x: 'x',
+            y: 'y',
+            w: 'w',
+            h: 'h',
+        },
+    );
+    const mobilePosition = findNextGridPosition(
+        localWidgets.value,
+        2,
+        mobileWidth,
+        mobileHeight,
+        {
+            x: 'x_mobile',
+            y: 'y_mobile',
+            w: 'w_mobile',
+            h: 'h_mobile',
+        },
+    );
     const newWidget = {
         id: `temp_section_${Date.now()}`,
         type: 'section',
@@ -815,18 +1055,19 @@ const addSectionWidget = () => {
         thumbnail_url: null,
         x: desktopPosition.x,
         y: desktopPosition.y,
-        w: 4,
-        h: 1,
+        w: desktopWidth,
+        h: desktopHeight,
         x_mobile: mobilePosition.x,
         y_mobile: mobilePosition.y,
-        w_mobile: 2,
-        h_mobile: 1,
+        w_mobile: mobileWidth,
+        h_mobile: mobileHeight,
         settings: {
             title: '',
         },
     };
 
     if (isSmallViewport.value) {
+        pendingWidgetSize.value = null;
         openMobileSectionEditor(newWidget, 'add');
 
         return;
@@ -836,6 +1077,7 @@ const addSectionWidget = () => {
     updateLayoutsFromWidgets();
     markDirty();
     scrollToWidgetBottom();
+    pendingWidgetSize.value = null;
 };
 
 const showAddLinkModal = ref(false);
@@ -851,16 +1093,24 @@ type WidgetPosition = {
     w: number;
     h: number;
 };
+type WidgetSize = {
+    w: number;
+    h: number;
+};
 const pendingWidgetPosition = ref<WidgetPosition | null>(null);
+const pendingWidgetSize = ref<WidgetSize | null>(null);
+const toolbarWidgetSize = { w: 1, h: 2 } as const;
 const openAddLinkModal = () => {
     linkTargetWidget.value = null;
     pendingWidgetPosition.value = null;
+    pendingWidgetSize.value = null;
     showAddLinkModal.value = true;
 };
 
 const openAddLinkFromToolbar = () => {
     linkTargetWidget.value = null;
     pendingWidgetPosition.value = null;
+    pendingWidgetSize.value = toolbarWidgetSize;
 
     if (isSmallViewport.value) {
         mobileAddLinkUrl.value = '';
@@ -876,6 +1126,7 @@ const openAddLinkFromToolbar = () => {
 
 const openMediaPickerFromEmptyState = (position: WidgetPosition) => {
     pendingWidgetPosition.value = position;
+    pendingWidgetSize.value = null;
     emptyMediaInput.value?.click();
 };
 
@@ -893,11 +1144,13 @@ const handleEmptyMediaChange = async (event: Event) => {
 
     input.value = '';
     pendingWidgetPosition.value = null;
+    pendingWidgetSize.value = null;
 };
 
 const openModalWithPos = (x: number, y: number, w: number, h: number) => {
     linkTargetWidget.value = null;
     pendingWidgetPosition.value = { x, y, w, h };
+    pendingWidgetSize.value = null;
     showAddLinkModal.value = true;
 };
 
@@ -905,6 +1158,7 @@ const closeAddLinkModal = () => {
     showAddLinkModal.value = false;
     linkTargetWidget.value = null;
     pendingWidgetPosition.value = null;
+    pendingWidgetSize.value = null;
 };
 
 const closeMobileAddLinkSheet = () => {
@@ -1645,8 +1899,8 @@ const addMediaWidget = async (
             },
         });
 
-        const w = position ? position.w : 1;
-        const h = position ? position.h : 2;
+        const w = position ? position.w : (pendingWidgetSize.value?.w ?? 2);
+        const h = position ? position.h : (pendingWidgetSize.value?.h ?? 4);
         const desktopPosition =
             position ??
             findNextGridPosition(localWidgets.value, 4, w, h, {
@@ -1688,6 +1942,7 @@ const addMediaWidget = async (
         updateLayoutsFromWidgets();
         markDirty();
         scrollToWidgetBottom();
+        pendingWidgetSize.value = null;
     } catch (error) {
         console.error('Failed to upload media:', error);
         alert('メディアのアップロードに失敗しました。');
@@ -1699,8 +1954,8 @@ const addTextWidget = (position: WidgetPosition | null = null) => {
         return;
     }
 
-    const w = position ? position.w : 1;
-    const h = position ? position.h : 2;
+    const w = position ? position.w : (pendingWidgetSize.value?.w ?? 1);
+    const h = position ? position.h : (pendingWidgetSize.value?.h ?? 2);
     const desktopPosition =
         position ??
         findNextGridPosition(localWidgets.value, 4, w, h, {
@@ -1739,6 +1994,7 @@ const addTextWidget = (position: WidgetPosition | null = null) => {
     };
 
     if (isSmallViewport.value) {
+        pendingWidgetSize.value = null;
         openMobileTextEditor(newWidget, 'add');
 
         return;
@@ -1748,6 +2004,7 @@ const addTextWidget = (position: WidgetPosition | null = null) => {
     updateLayoutsFromWidgets();
     markDirty();
     scrollToWidgetBottom();
+    pendingWidgetSize.value = null;
 };
 
 const addLinkWidget = async (url: string, isSensitive = false) => {
@@ -1773,8 +2030,8 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
     }
 
     const pos = pendingWidgetPosition.value;
-    const w = pos ? pos.w : 1;
-    const h = pos ? pos.h : 2;
+    const w = pos ? pos.w : (pendingWidgetSize.value?.w ?? 1);
+    const h = pos ? pos.h : (pendingWidgetSize.value?.h ?? 4);
 
     try {
         const { data } = await axios.post('/fetch-ogp', { url: limitedUrl });
@@ -1868,6 +2125,7 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
         scrollToWidgetBottom();
     } finally {
         pendingWidgetPosition.value = null;
+        pendingWidgetSize.value = null;
     }
 };
 
@@ -2405,6 +2663,44 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
     color: rgb(156 163 175);
     pointer-events: none;
 }
+
+.publish-confetti-piece {
+    position: absolute;
+    width: var(--confetti-size);
+    height: calc(var(--confetti-size) * 0.58);
+    border-radius: 2px;
+    background: var(--confetti-color);
+    animation: publishConfettiBurst var(--confetti-duration)
+        cubic-bezier(0.16, 1, 0.3, 1) var(--confetti-delay) both;
+    transform-origin: center;
+}
+
+@keyframes publishConfettiBurst {
+    0% {
+        opacity: 0;
+        transform: translate3d(0, 0, 0) scale(0.4) rotate(0deg);
+    }
+
+    14% {
+        opacity: 1;
+    }
+
+    72% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate3d(var(--confetti-x), var(--confetti-y), 0) scale(1)
+            rotate(var(--confetti-rotate));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .publish-confetti-piece {
+        animation-duration: 180ms;
+    }
+}
 </style>
 
 <template>
@@ -2427,20 +2723,73 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
     >
         <LinkPageNavigation :slug="props.link.slug" active-tab="profile" />
 
-        <a
+        <div
             v-if="!isOwner"
-            href="/"
-            class="fixed bottom-4 left-4 z-30 text-sm text-gray-400 transition-colors hover:text-gray-700"
+            class="fixed inset-x-0 bottom-4 z-[60] flex justify-center px-4"
+            aria-label="プロフィールアクション"
         >
-            Built with GridLink
-        </a>
+            <div
+                class="flex h-11 items-center gap-2 rounded-full border border-neutral-200 bg-white/95 p-1 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur-md"
+            >
+                <div class="relative">
+                    <div
+                        v-if="copiedProfileUrl"
+                        class="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-black px-3 py-1.5 text-xs font-bold text-white shadow-lg"
+                    >
+                        URLをコピーしました
+                    </div>
+                    <button
+                        type="button"
+                        class="flex h-9 items-center justify-center gap-2 rounded-full bg-black px-5 text-sm font-bold text-white transition-colors hover:bg-neutral-800"
+                        aria-label="シェア"
+                        @click="copyProfileUrl"
+                    >
+                        <Check
+                            v-if="copiedProfileUrl"
+                            class="size-4 text-white"
+                        />
+                        <Copy v-else class="size-4" />
+                        シェア
+                    </button>
+                </div>
+
+                <DropdownMenu>
+                    <DropdownMenuTrigger :as-child="true">
+                        <button
+                            type="button"
+                            class="flex size-9 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100"
+                            aria-label="メニュー"
+                            title="メニュー"
+                        >
+                            <MoreHorizontal class="size-5" />
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                        align="end"
+                        side="top"
+                        class="z-[9001] w-56"
+                    >
+                        <DropdownMenuItem
+                            class="text-red-600 focus:bg-red-50 focus:text-red-600"
+                            @select="reportUser"
+                        >
+                            <Flag class="size-4" />
+                            このユーザーを通報する
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+        </div>
 
         <!-- Floating Toolbar for Owner -->
         <LinkToolbar
             v-if="isOwner"
             :is-editing="isEditing"
             v-model:preview-mode="previewMode"
-            :support-url="`/@${props.link.slug}/support`"
+            :letter-url="`/@${props.link.slug}/letter`"
+            :is-published="isLinkPublished"
+            :is-share-copied="copiedProfileUrl"
+            :has-widgets="localWidgets.length > 0"
             :mobile-widget-operation-active="
                 Boolean(
                     activeMobileLayoutItem &&
@@ -2454,9 +2803,31 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
             @add-media="addMediaWidget"
             @add-text="addTextWidget"
             @add-section="addSectionWidget"
+            @publish="publishLink"
+            @share="copyProfileUrl"
             @resize-mobile-widget="resizeActiveMobileWidget"
             @complete-mobile-widget-operation="completeMobileWidgetOperation"
         />
+        <div
+            v-if="confettiPieces.length"
+            class="pointer-events-none fixed inset-x-0 bottom-8 z-[1100] flex justify-center"
+            aria-hidden="true"
+        >
+            <span
+                v-for="piece in confettiPieces"
+                :key="piece.id"
+                class="publish-confetti-piece"
+                :style="{
+                    '--confetti-x': `${piece.x}px`,
+                    '--confetti-y': `${piece.y}px`,
+                    '--confetti-rotate': `${piece.rotate}deg`,
+                    '--confetti-delay': `${piece.delay}ms`,
+                    '--confetti-duration': `${piece.duration}ms`,
+                    '--confetti-color': piece.color,
+                    '--confetti-size': `${piece.size}px`,
+                }"
+            ></span>
+        </div>
         <input
             ref="emptyMediaInput"
             type="file"
@@ -2475,7 +2846,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
             :class="[
                 previewMode === 'mobile'
                     ? 'min-h-screen px-5 pt-8'
-                    : 'min-h-screen px-5 pt-12 sm:px-8',
+                    : 'min-h-screen px-5 pt-12 min-[1025px]:px-0 sm:px-8',
             ]"
         >
             <div
@@ -2485,7 +2856,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                 :class="[
                     previewMode === 'mobile'
                         ? 'flex w-full max-w-[374px] flex-col gap-4 pb-32'
-                        : 'flex w-full flex-col pb-32 min-[1025px]:flex-row min-[1025px]:justify-center min-[1025px]:gap-4',
+                        : 'flex w-full flex-col gap-y-8 pb-32 min-[1025px]:max-w-none min-[1025px]:flex-row min-[1025px]:justify-center min-[1025px]:gap-x-4 min-[1025px]:gap-y-0',
                 ]"
             >
                 <LinkProfile
@@ -2495,142 +2866,88 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     :preview-mode="previewMode"
                     :avatar-url="profileAvatarUrl"
                     :display-initial="displayInitial"
-                    :is-published="Boolean(props.link.is_published)"
-                    :show-private-notice="showPrivateNotice"
-                    :slug="props.link.slug"
                     @update:avatar="updateAvatar"
                     @remove:avatar="removeAvatar"
-                    @publish="publishLink"
                 />
 
                 <section
                     id="grid"
-                    class="relative mx-auto w-full max-w-[374px] pt-0 transition-all duration-300 min-[1025px]:mx-0 min-[1025px]:max-w-none"
+                    class="relative mx-auto w-full max-w-[374px] pt-0 transition-all duration-300"
                     :class="
                         previewMode === 'desktop'
-                            ? 'pb-24 min-[1025px]:w-[864px] min-[1025px]:shrink-0'
-                            : 'w-full pb-24'
+                            ? 'pb-24 min-[1025px]:mx-0 min-[1025px]:w-[736px] min-[1025px]:max-w-none min-[1025px]:shrink-0'
+                            : 'mt-2 pb-24'
                     "
                 >
-                    <div
-                        v-if="localWidgets.length === 0 && isEditing"
-                        class="absolute top-0 left-0 z-20 grid w-[864px] grid-cols-4 gap-4 px-2 pt-2 max-[1024px]:hidden"
-                        style="grid-auto-rows: 92px"
-                        :class="previewMode === 'desktop' ? 'block' : 'hidden'"
-                    >
-                        <button
-                            @click="openModalWithPos(0, 0, 2, 2)"
-                            class="relative col-span-2 row-span-2 flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-[32px] border-2 border-dashed border-gray-200 text-slate-400 transition-colors hover:bg-gray-50"
-                        >
-                            <div class="absolute top-4 right-4 text-gray-300">
-                                <Plus class="size-4" />
-                            </div>
-                            <LinkIcon class="mb-2 size-6" />
-                            <span class="text-xs font-semibold">
-                                リンクを追加
-                            </span>
-                        </button>
-                        <button
-                            @click="addTextWidget({ x: 2, y: 0, w: 1, h: 2 })"
-                            class="relative col-span-1 row-span-2 flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-[32px] border-2 border-dashed border-gray-200 text-slate-400 transition-colors hover:bg-gray-50"
-                        >
-                            <div class="absolute top-4 right-4 text-gray-300">
-                                <Plus class="size-4" />
-                            </div>
-                            <Type class="mb-2 size-6" />
-                            <span class="text-xs font-semibold">
-                                テキストを追加
-                            </span>
-                        </button>
-                        <button
-                            @click="
-                                openMediaPickerFromEmptyState({
-                                    x: 0,
-                                    y: 2,
-                                    w: 2,
-                                    h: 4,
-                                })
-                            "
-                            class="relative col-span-2 row-span-4 flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-[32px] border-2 border-dashed border-gray-200 text-slate-400 transition-colors hover:bg-gray-50"
-                        >
-                            <div class="absolute top-4 right-4 text-gray-300">
-                                <Plus class="size-4" />
-                            </div>
-                            <ImageIcon class="mb-2 size-6" />
-                            <span class="text-xs font-semibold">
-                                メディアを追加
-                            </span>
-                        </button>
-                    </div>
-
-                    <div
-                        v-if="localWidgets.length === 0 && isEditing"
-                        class="absolute top-0 left-1/2 z-20 grid w-full max-w-[356px] -translate-x-1/2 grid-cols-2 gap-4 px-2 pt-2"
-                        style="grid-auto-rows: 73px"
-                        :class="
-                            previewMode === 'desktop'
-                                ? 'hidden max-[1024px]:grid'
-                                : 'grid'
-                        "
-                    >
-                        <button
-                            @click="openModalWithPos(0, 0, 2, 2)"
-                            class="relative col-span-2 row-span-2 flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-[32px] border-2 border-dashed border-gray-200 text-slate-400 transition-colors hover:bg-gray-50"
-                        >
-                            <div class="absolute top-4 right-4 text-gray-300">
-                                <Plus class="size-4" />
-                            </div>
-                            <LinkIcon class="mb-2 size-6" />
-                            <span class="text-xs font-semibold">
-                                リンクを追加
-                            </span>
-                        </button>
-                        <button
-                            @click="addTextWidget({ x: 0, y: 2, w: 1, h: 2 })"
-                            class="relative col-span-1 row-span-2 flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-[32px] border-2 border-dashed border-gray-200 text-slate-400 transition-colors hover:bg-gray-50"
-                        >
-                            <div class="absolute top-4 right-4 text-gray-300">
-                                <Plus class="size-4" />
-                            </div>
-                            <Type class="mb-2 size-6" />
-                            <span class="text-xs font-semibold">
-                                テキストを追加
-                            </span>
-                        </button>
-                        <button
-                            @click="
-                                openMediaPickerFromEmptyState({
-                                    x: 0,
-                                    y: 4,
-                                    w: 2,
-                                    h: 4,
-                                })
-                            "
-                            class="relative col-span-2 row-span-4 flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-[32px] border-2 border-dashed border-gray-200 text-slate-400 transition-colors hover:bg-gray-50"
-                        >
-                            <div class="absolute top-4 right-4 text-gray-300">
-                                <Plus class="size-4" />
-                            </div>
-                            <ImageIcon class="mb-2 size-6" />
-                            <span class="text-xs font-semibold">
-                                メディアを追加
-                            </span>
-                        </button>
-                    </div>
                     <!-- Desktop Grid -->
                     <GridLayout
+                        v-if="!isSmallViewport && previewMode === 'desktop'"
+                        :key="`desktop-${isSmallViewport}-${previewMode}`"
                         v-model:layout="desktopLayout"
                         :col-num="4"
-                        :row-height="99"
-                        :margin="[8, 8]"
+                        :row-height="81.5"
+                        :margin="[12, 12]"
                         :is-draggable="isEditing && !croppingWidgetId"
                         :is-resizable="false"
                         :vertical-compact="true"
                         :use-css-transforms="true"
                         @layout-updated="syncWidgetsFromDesktop"
-                        class="w-[864px] max-[1024px]:hidden"
-                        :class="previewMode === 'desktop' ? 'block' : 'hidden'"
+                        class="-m-3 w-[calc(100%+24px)]"
                     >
+                        <GridItem
+                            v-for="placeholder in isEditing
+                                ? desktopPlaceholderItems
+                                : []"
+                            :key="placeholder.i"
+                            :x="placeholder.x"
+                            :y="placeholder.y"
+                            :w="placeholder.w"
+                            :h="placeholder.h"
+                            :i="placeholder.i"
+                            :static="true"
+                            class="z-[1]"
+                        >
+                            <button
+                                type="button"
+                                class="relative flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-[32px] border-2 border-dashed border-gray-200 text-slate-400 transition-colors hover:bg-gray-50"
+                                @click="
+                                    placeholder.type === 'media'
+                                        ? openMediaPickerFromEmptyState({
+                                              x: placeholder.x,
+                                              y: placeholder.y,
+                                              w: placeholder.w,
+                                              h: placeholder.h,
+                                          })
+                                        : placeholder.type === 'link'
+                                          ? openModalWithPos(
+                                                placeholder.x,
+                                                placeholder.y,
+                                                placeholder.w,
+                                                placeholder.h,
+                                            )
+                                          : addTextWidget({
+                                                x: placeholder.x,
+                                                y: placeholder.y,
+                                                w: placeholder.w,
+                                                h: placeholder.h,
+                                            })
+                                "
+                            >
+                                <div
+                                    class="absolute top-4 right-4 text-gray-300"
+                                >
+                                    <Plus class="size-4" />
+                                </div>
+                                <component
+                                    :is="placeholder.icon"
+                                    class="mb-2 size-6"
+                                />
+                                <span class="text-xs font-semibold">
+                                    {{ placeholder.label }}
+                                </span>
+                            </button>
+                        </GridItem>
+
                         <GridItem
                             v-for="item in desktopLayout"
                             :key="`desktop-${item.i}`"
@@ -2835,22 +3152,59 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
 
                     <!-- Mobile Grid -->
                     <GridLayout
+                        v-if="isSmallViewport || previewMode === 'mobile'"
+                        :key="`mobile-${isSmallViewport}-${previewMode}`"
                         v-model:layout="mobileLayout"
                         :col-num="2"
-                        :row-height="79"
-                        :margin="[8, 8]"
+                        :row-height="84.5"
+                        :margin="[12, 12]"
                         :is-draggable="isEditing && !croppingWidgetId"
                         :is-resizable="false"
                         :vertical-compact="true"
                         :use-css-transforms="true"
                         @layout-updated="syncWidgetsFromMobile"
-                        class="mx-auto w-full max-w-[356px]"
-                        :class="
-                            previewMode === 'desktop'
-                                ? 'hidden max-[1024px]:block'
-                                : 'block'
-                        "
+                        class="-m-3 w-[calc(100%+24px)]"
                     >
+                        <GridItem
+                            v-for="placeholder in isEditing
+                                ? mobilePlaceholderItems
+                                : []"
+                            :key="placeholder.i"
+                            :x="placeholder.x"
+                            :y="placeholder.y"
+                            :w="placeholder.w"
+                            :h="placeholder.h"
+                            :i="placeholder.i"
+                            :static="true"
+                            class="z-[1]"
+                        >
+                            <button
+                                type="button"
+                                class="relative flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-[32px] border-2 border-dashed border-gray-200 text-slate-400 transition-colors hover:bg-gray-50"
+                                @click="
+                                    openModalWithPos(
+                                        placeholder.x,
+                                        placeholder.y,
+                                        placeholder.w,
+                                        placeholder.h,
+                                    )
+                                "
+                            >
+                                <div
+                                    class="absolute top-4 right-4 text-gray-300"
+                                >
+                                    <Plus class="size-4" />
+                                </div>
+                                <component
+                                    :is="placeholder.icon"
+                                    class="mb-2 size-6"
+                                />
+                                <span class="text-xs font-semibold">
+                                    {{ placeholder.label }}
+                                </span>
+                            </button>
+                        </GridItem>
+
                         <GridItem
                             v-for="item in mobileLayout"
                             :key="`mobile-${item.i}`"
@@ -3113,6 +3467,15 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                 </section>
             </div>
         </div>
+
+        <footer
+            v-if="!isOwner"
+            class="px-5 pt-2 pb-24 text-center text-xs font-semibold text-gray-400"
+        >
+            <a href="/" class="transition-colors hover:text-gray-700">
+                Built with GridLink
+            </a>
+        </footer>
 
         <Sheet
             :open="showMobileAddLinkSheet"
@@ -3552,7 +3915,9 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                             class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black"
                             @click="completeMobileTextEditor"
                         >
-                            {{ mobileTextEditorMode === 'add' ? '追加' : '完了' }}
+                            {{
+                                mobileTextEditorMode === 'add' ? '追加' : '完了'
+                            }}
                         </button>
                     </div>
                 </SheetHeader>
@@ -3872,7 +4237,11 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                             class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black"
                             @click="completeMobileSectionEditor"
                         >
-                            {{ mobileSectionEditorMode === 'add' ? '追加' : '完了' }}
+                            {{
+                                mobileSectionEditorMode === 'add'
+                                    ? '追加'
+                                    : '完了'
+                            }}
                         </button>
                     </div>
                 </SheetHeader>
