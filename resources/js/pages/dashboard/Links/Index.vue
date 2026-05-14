@@ -336,10 +336,10 @@ const submit = () => {
                                 variant="outline"
                                 class="w-full sm:w-auto"
                             >
-                                <a :href="`/@${link.slug}`" target="_blank">
+                                <Link :href="`/@${link.slug}`" target="_blank">
                                     <ExternalLink class="size-4" />
                                     表示
-                                </a>
+                                </Link>
                             </Button>
                         </div>
                     </CardContent>

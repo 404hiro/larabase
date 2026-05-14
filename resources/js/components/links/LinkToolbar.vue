@@ -132,7 +132,7 @@ const mobileSizeIconClass = (option: any) => {
             </div>
 
             <Button :variant="isEditing ? 'default' : 'ghost'" class="h-8 gap-2 rounded-xl px-4 cursor-pointer" :class="isEditing
-                    ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                    ? 'bg-black text-white hover:bg-neutral-800'
                     : 'text-gray-900 hover:bg-gray-100'
                 " @click="emit('toggleEdit')">
                 <Save v-if="isEditing" class="size-4" />
@@ -216,7 +216,7 @@ const mobileSizeIconClass = (option: any) => {
                     URLをコピーしました
                 </div>
                 <button type="button" aria-label="シェア" title="シェア"
-                    class="flex h-8 items-center justify-center gap-1.5 rounded-xl bg-black px-3 text-sm font-bold text-white transition-colors hover:bg-neutral-800"
+                    class="flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-black px-3 text-sm font-bold text-white transition-colors hover:bg-neutral-800"
                     @click="emit('share')">
                     <Check v-if="isShareCopied" class="size-4 text-white" stroke-width="2.2" />
                     <Copy v-else class="size-4" stroke-width="2.2" />
@@ -226,7 +226,7 @@ const mobileSizeIconClass = (option: any) => {
 
             <button @click="emit('toggleEdit')"
                 class="flex h-8 items-center justify-center rounded-xl transition-colors" :class="isEditing
-                        ? 'min-w-16 gap-1.5 bg-emerald-500 px-3 text-sm font-bold text-white shadow-sm hover:bg-emerald-600'
+                        ? 'min-w-16 gap-1.5 bg-black px-3 text-sm font-bold text-white shadow-sm hover:bg-neutral-800'
                         : 'gap-1.5 px-3 text-sm font-bold hover:bg-slate-100 hover:text-slate-800'
                     " :aria-label="isEditing ? '保存' : '編集'" :title="isEditing ? '保存' : '編集'">
                 <Pencil v-if="!isEditing" class="size-4" stroke-width="2.2" />

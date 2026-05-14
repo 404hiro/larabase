@@ -16,7 +16,7 @@ test('authenticated users can visit the dashboard', function () {
 });
 
 test('dashboard page links to the links management page', function () {
-    $dashboardPage = file_get_contents(resource_path('js/pages/Dashboard.vue'));
+    $dashboardPage = file_get_contents(resource_path('js/pages/dashboard/Dashboard.vue'));
 
     expect($dashboardPage)
         ->toContain('href="/links"')

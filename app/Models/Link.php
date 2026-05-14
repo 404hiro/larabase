@@ -34,6 +34,7 @@ class Link extends Model
         'avatar_url',
         'theme_config',
         'is_published',
+        'has_web_display',
     ];
 
     /**
@@ -70,6 +71,7 @@ class Link extends Model
         return [
             'theme_config' => 'array',
             'is_published' => 'boolean',
+            'has_web_display' => 'boolean',
         ];
     }
 }

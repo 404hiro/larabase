@@ -25,6 +25,7 @@ class LinkResource extends JsonResource
             'bio' => $this->resource->bio,
             'avatar_url' => $this->resource->avatar_url,
             'is_published' => $this->resource->is_published,
+            'has_web_display' => $this->resource->has_web_display,
             'widgets_count' => (int) $this->resource->widgets_count,
             'updated_at' => $this->resource->updated_at?->toISOString(),
         ];

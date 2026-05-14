@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import LinkWidgetControls from '@/components/links/LinkWidgetControls.vue';
 import { compressImage } from '@/utils/imageCompression';
-import { Image as ImageIcon } from 'lucide-vue-next';
+import { Link as InertiaLink } from '@inertiajs/vue3';
+import { Image as ImageIcon, MessageCircleHeart } from 'lucide-vue-next';
 import { nextTick, ref, watch } from 'vue';
 
 const props = defineProps<{
@@ -11,6 +12,7 @@ const props = defineProps<{
     bio: string;
     avatarUrl: string | null;
     displayInitial: string;
+    letterUrl: string;
 }>();
 
 const emit = defineEmits<{
@@ -140,17 +142,23 @@ const removeAvatar = () => {
                     :class="previewMode === 'mobile' ? 'mt-4' : 'mt-4'"
                 >
                     <div
-                        class="group relative size-[118px] shrink-0"
-                        :class="previewMode === 'desktop' ? 'lg:size-32' : ''"
+                        class="group relative shrink-0"
+                        :class="[
+                            previewMode === 'mobile'
+                                ? 'size-[120px]'
+                                : 'size-[120px] min-[1025px]:size-[184px]',
+                        ]"
                     >
                         <button
                             type="button"
-                            class="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full border-4 border-gray-300 bg-gray-100 text-4xl font-bold text-gray-700 shadow-sm transition-colors"
+                            class="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full border-4 border-gray-300 bg-gray-100 text-[32px] font-bold text-gray-700 shadow-sm transition-colors"
                             :class="[
-                                previewMode === 'desktop' ? 'lg:text-5xl' : '',
                                 isEditing
                                     ? 'cursor-pointer hover:border-gray-400'
                                     : '',
+                                previewMode === 'mobile'
+                                    ? 'text-[32px]'
+                                    : 'min-[1025px]:text-[44px]',
                             ]"
                             @click="chooseAvatar"
                         >
@@ -194,7 +202,6 @@ const removeAvatar = () => {
                             @change="updateAvatar"
                         />
                     </div>
-
                 </div>
 
                 <div
@@ -217,11 +224,11 @@ const removeAvatar = () => {
                         @paste="pastePlainText($event, true)"
                         @focus="isNameFocused = true"
                         @blur="isNameFocused = false"
-                        class="editor-placeholder w-full resize-none overflow-hidden rounded-xl border-2 border-gray-200 bg-gray-100/70 px-3 py-1 text-3xl font-bold tracking-tight transition-colors duration-200 outline-none hover:border-gray-300 hover:bg-gray-100 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/20"
+                        class="editor-placeholder w-full resize-none overflow-hidden rounded-xl border-2 border-gray-200 bg-gray-100/70 px-3 py-1 text-[30px] leading-tight font-bold tracking-tight transition-colors duration-200 outline-none hover:border-gray-300 hover:bg-gray-100 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/20"
                     ></div>
                     <h1
                         v-else
-                        class="w-full border-2 border-transparent px-3 py-1 text-3xl font-bold tracking-tight break-words"
+                        class="w-full border-2 border-transparent px-3 py-1 text-[30px] leading-tight font-bold tracking-tight break-words"
                     >
                         {{ displayName }}
                     </h1>
@@ -239,12 +246,12 @@ const removeAvatar = () => {
                     @paste="pastePlainText($event)"
                     @focus="isBioFocused = true"
                     @blur="isBioFocused = false"
-                    class="editor-placeholder w-full max-w-[374px] resize-none overflow-hidden rounded-xl border-2 border-gray-200 bg-gray-100/70 px-3 py-2 text-base text-gray-700 transition-colors duration-200 outline-none hover:border-gray-300 hover:bg-gray-100 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/20"
+                    class="editor-placeholder w-full max-w-[374px] resize-none overflow-hidden rounded-xl border-2 border-gray-200 bg-gray-100/70 px-3 py-2 text-[16px] leading-relaxed text-gray-700 transition-colors duration-200 outline-none hover:border-gray-300 hover:bg-gray-100 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/20"
                     :class="previewMode === 'desktop' ? 'lg:max-w-xl' : ''"
                 ></div>
                 <p
                     v-else
-                    class="w-full max-w-[374px] border-2 border-transparent px-3 py-2 text-base break-words whitespace-pre-wrap text-gray-700"
+                    class="w-full max-w-[374px] border-2 border-transparent px-3 py-2 text-[16px] leading-relaxed break-words whitespace-pre-wrap text-gray-700"
                     :class="
                         previewMode === 'desktop'
                             ? 'lg:line-clamp-[15] lg:max-w-xl'
@@ -253,6 +260,42 @@ const removeAvatar = () => {
                 >
                     {{ bio }}
                 </p>
+
+                <div class="mt-3 px-3">
+                    <button
+                        v-if="isEditing"
+                        type="button"
+                        disabled
+                        class="grid h-12 w-full max-w-[374px] cursor-not-allowed grid-cols-[40px_1fr_40px] items-center rounded-full border border-gray-300 bg-white px-1.5 text-gray-500 opacity-60"
+                        :class="previewMode === 'desktop' ? 'lg:max-w-xl' : ''"
+                    >
+                        <span
+                            class="flex size-9 items-center justify-center rounded-full bg-black text-white"
+                        >
+                            <MessageCircleHeart class="size-5" />
+                        </span>
+                        <span class="text-center text-sm font-bold">
+                            メッセージを送る
+                        </span>
+                        <span aria-hidden="true"></span>
+                    </button>
+                    <InertiaLink
+                        v-else
+                        :href="letterUrl"
+                        class="grid h-12 w-full max-w-[374px] grid-cols-[40px_1fr_40px] items-center rounded-full border border-gray-300 bg-white px-1.5 text-gray-950 transition-colors hover:border-gray-400 hover:bg-gray-50"
+                        :class="previewMode === 'desktop' ? 'lg:max-w-xl' : ''"
+                    >
+                        <span
+                            class="flex size-9 items-center justify-center rounded-full bg-black text-white"
+                        >
+                            <MessageCircleHeart class="size-5" />
+                        </span>
+                        <span class="text-center text-sm font-bold">
+                            メッセージを送る
+                        </span>
+                        <span aria-hidden="true"></span>
+                    </InertiaLink>
+                </div>
             </div>
         </div>
     </aside>

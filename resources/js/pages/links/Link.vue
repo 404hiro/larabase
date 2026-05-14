@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/sheet';
 import { Toaster } from '@/components/ui/toast';
 import { compressImage } from '@/utils/imageCompression';
-import { Head, router, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { usePreferredReducedMotion } from '@vueuse/core';
 import axios from 'axios';
 import { GridItem, GridLayout } from 'grid-layout-plus';
@@ -89,6 +89,7 @@ const props = defineProps<{
         bio?: string | null;
         avatar_url?: string | null;
         is_published?: boolean;
+        has_web_display?: boolean;
         widgets?: any[];
     };
 }>();
@@ -110,6 +111,27 @@ const isEditing = ref(false);
 const isLinkPublished = ref(Boolean(props.link.is_published));
 const isPublishingLink = ref(false);
 const copiedProfileUrl = ref(false);
+const hasWebDisplay = computed(() => Boolean(props.link.has_web_display));
+const shouldForceMobileForVisitor = computed(() => {
+    return !isOwner.value && !hasWebDisplay.value;
+});
+const activePreviewMode = computed<'desktop' | 'mobile'>(() => {
+    return shouldForceMobileForVisitor.value ? 'mobile' : previewMode.value;
+});
+const shouldShowDesktopGrid = computed(() => {
+    return (
+        !shouldForceMobileForVisitor.value &&
+        !isSmallViewport.value &&
+        activePreviewMode.value === 'desktop'
+    );
+});
+const shouldShowMobileGrid = computed(() => {
+    return (
+        shouldForceMobileForVisitor.value ||
+        isSmallViewport.value ||
+        activePreviewMode.value === 'mobile'
+    );
+});
 
 const editForm = ref({
     display_name: props.link.display_name,
@@ -717,6 +739,7 @@ const toggleEdit = () => {
                 _method: 'put',
                 display_name: editForm.value.display_name,
                 bio: editForm.value.bio,
+                has_web_display: !isSmallViewport.value,
                 avatar: avatarFile.value,
                 remove_avatar: avatarRemoved.value,
             },
@@ -2740,7 +2763,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     </div>
                     <button
                         type="button"
-                        class="flex h-9 items-center justify-center gap-2 rounded-full bg-black px-5 text-sm font-bold text-white transition-colors hover:bg-neutral-800"
+                        class="flex h-9 cursor-pointer items-center justify-center gap-2 rounded-full bg-black px-5 text-sm font-bold text-white transition-colors hover:bg-neutral-800"
                         aria-label="シェア"
                         @click="copyProfileUrl"
                     >
@@ -2844,7 +2867,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
         <div
             class="transition-all duration-300"
             :class="[
-                previewMode === 'mobile'
+                activePreviewMode === 'mobile'
                     ? 'min-h-screen px-5 pt-8'
                     : 'min-h-screen px-5 pt-12 min-[1025px]:px-0 sm:px-8',
             ]"
@@ -2854,7 +2877,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                 ref="pageScrollContainer"
                 class="relative mx-auto w-full max-w-[1198px] transition-all duration-300"
                 :class="[
-                    previewMode === 'mobile'
+                    activePreviewMode === 'mobile'
                         ? 'flex w-full max-w-[374px] flex-col gap-4 pb-32'
                         : 'flex w-full flex-col gap-y-8 pb-32 min-[1025px]:max-w-none min-[1025px]:flex-row min-[1025px]:justify-center min-[1025px]:gap-x-4 min-[1025px]:gap-y-0',
                 ]"
@@ -2863,9 +2886,10 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     v-model:display-name="editForm.display_name"
                     v-model:bio="editForm.bio"
                     :is-editing="isEditing"
-                    :preview-mode="previewMode"
+                    :preview-mode="activePreviewMode"
                     :avatar-url="profileAvatarUrl"
                     :display-initial="displayInitial"
+                    :letter-url="`/@${props.link.slug}/letter`"
                     @update:avatar="updateAvatar"
                     @remove:avatar="removeAvatar"
                 />
@@ -2874,14 +2898,14 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     id="grid"
                     class="relative mx-auto w-full max-w-[374px] pt-0 transition-all duration-300"
                     :class="
-                        previewMode === 'desktop'
+                        activePreviewMode === 'desktop'
                             ? 'pb-24 min-[1025px]:mx-0 min-[1025px]:w-[736px] min-[1025px]:max-w-none min-[1025px]:shrink-0'
                             : 'mt-2 pb-24'
                     "
                 >
                     <!-- Desktop Grid -->
                     <GridLayout
-                        v-if="!isSmallViewport && previewMode === 'desktop'"
+                        v-if="shouldShowDesktopGrid"
                         :key="`desktop-${isSmallViewport}-${previewMode}`"
                         v-model:layout="desktopLayout"
                         :col-num="4"
@@ -3152,7 +3176,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
 
                     <!-- Mobile Grid -->
                     <GridLayout
-                        v-if="isSmallViewport || previewMode === 'mobile'"
+                        v-if="shouldShowMobileGrid"
                         :key="`mobile-${isSmallViewport}-${previewMode}`"
                         v-model:layout="mobileLayout"
                         :col-num="2"
@@ -3472,9 +3496,9 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
             v-if="!isOwner"
             class="px-5 pt-2 pb-24 text-center text-xs font-semibold text-gray-400"
         >
-            <a href="/" class="transition-colors hover:text-gray-700">
+            <Link href="/" class="transition-colors hover:text-gray-700">
                 Built with GridLink
-            </a>
+            </Link>
         </footer>
 
         <Sheet

@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import UserMenuContent from '@/components/UserMenuContent.vue';
 import { getInitials } from '@/composables/useInitials';
-import { usePage } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 import { Bell, Ellipsis, MessageCircleHeart, UserRound } from 'lucide-vue-next';
 import { computed } from 'vue';
 
@@ -28,7 +28,7 @@ const isLoggedIn = computed(() => Boolean(auth.value?.user));
 
 const tabClass = (tab: 'profile' | 'letter') => {
     return [
-        'relative flex h-9 items-center gap-1.5 px-2 text-sm transition-colors',
+        'relative flex h-9 w-[31px] shrink-0 items-center justify-center gap-1.5 px-2 text-sm transition-colors min-[1025px]:w-[122px]',
         props.activeTab === tab
             ? 'font-bold text-black after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-black'
             : 'font-medium text-gray-800 hover:text-gray-950',
@@ -48,8 +48,8 @@ const tabClass = (tab: 'profile' | 'letter') => {
                 @{{ slug }}
             </div>
 
-            <div class="flex flex-1 items-center justify-center gap-7">
-                <a
+            <div class="flex flex-1 items-center justify-center">
+                <Link
                     :href="`/@${slug}`"
                     :class="tabClass('profile')"
                     aria-label="プロフィール"
@@ -57,8 +57,8 @@ const tabClass = (tab: 'profile' | 'letter') => {
                 >
                     <UserRound class="size-4" />
                     <span class="hidden min-[1025px]:inline">プロフィール</span>
-                </a>
-                <a
+                </Link>
+                <Link
                     :href="`/@${slug}/letter`"
                     :class="tabClass('letter')"
                     aria-label="メッセージ"
@@ -66,7 +66,7 @@ const tabClass = (tab: 'profile' | 'letter') => {
                 >
                     <MessageCircleHeart class="size-4" />
                     <span class="hidden min-[1025px]:inline">メッセージ</span>
-                </a>
+                </Link>
             </div>
 
             <div class="flex flex-1 items-center justify-end gap-2 text-sm font-semibold">
@@ -114,12 +114,12 @@ const tabClass = (tab: 'profile' | 'letter') => {
                     >
                         <Ellipsis class="size-5" />
                     </button>
-                    <a
+                    <Link
                         href="/login"
                         class="text-gray-800 transition-colors hover:text-gray-950"
                     >
                         Login
-                    </a>
+                    </Link>
                 </template>
             </div>
         </div>

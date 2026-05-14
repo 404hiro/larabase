@@ -31,6 +31,7 @@ class UpdateLinkRequest extends FormRequest
                 'max:2048',
             ],
             'is_published' => ['nullable', 'boolean'],
+            'has_web_display' => ['nullable', 'boolean'],
             'remove_avatar' => ['nullable', 'boolean'],
         ];
     }

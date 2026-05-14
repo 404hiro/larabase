@@ -14,7 +14,7 @@ class DashboardController extends Controller
      */
     public function __invoke(Request $request): Response
     {
-        return Inertia::render('Dashboard', [
+        return Inertia::render('dashboard/Dashboard', [
             'linksCount' => $request->user()->links()->count(),
             'titleOptions' => Title::query()
                 ->where('is_active', true)

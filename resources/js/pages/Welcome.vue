@@ -382,15 +382,15 @@ defineProps<{
                     <div class="flex gap-12 text-sm font-medium">
                         <div class="flex flex-col gap-3">
                             <span class="font-bold text-neutral-900">プロダクト</span>
-                            <a href="#" class="text-neutral-500 hover:text-neutral-900">サンプルを見る</a>
-                            <a href="#" class="text-neutral-500 hover:text-neutral-900">クリエイター一覧</a>
-                            <a href="#" class="text-neutral-500 hover:text-neutral-900">料金プラン</a>
+                            <Link href="#" class="text-neutral-500 hover:text-neutral-900">サンプルを見る</Link>
+                            <Link href="#" class="text-neutral-500 hover:text-neutral-900">クリエイター一覧</Link>
+                            <Link href="#" class="text-neutral-500 hover:text-neutral-900">料金プラン</Link>
                         </div>
                         <div class="flex flex-col gap-3">
                             <span class="font-bold text-neutral-900">サポート</span>
-                            <a href="#" class="text-neutral-500 hover:text-neutral-900">利用規約</a>
-                            <a href="#" class="text-neutral-500 hover:text-neutral-900">プライバシーポリシー</a>
-                            <a href="#" class="text-neutral-500 hover:text-neutral-900">お問い合わせ</a>
+                            <Link href="#" class="text-neutral-500 hover:text-neutral-900">利用規約</Link>
+                            <Link href="#" class="text-neutral-500 hover:text-neutral-900">プライバシーポリシー</Link>
+                            <Link href="#" class="text-neutral-500 hover:text-neutral-900">お問い合わせ</Link>
                         </div>
                     </div>
                 </div>

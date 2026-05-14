@@ -26,7 +26,7 @@ class LinkController extends Controller
             ->withCount('widgets')
             ->get();
 
-        return Inertia::render('Links/Index', [
+        return Inertia::render('dashboard/Links/Index', [
             'links' => \App\Http\Resources\LinkResource::collection($links),
             'titleOptions' => $this->titleOptions(),
             'userName' => $request->user()->name,
@@ -53,7 +53,7 @@ class LinkController extends Controller
      */
     public function show(Link $link): Response
     {
-        return Inertia::render('Link', [
+        return Inertia::render('links/Link', [
             'link' => $link->load(['widgets', 'title']),
         ]);
     }
@@ -63,7 +63,7 @@ class LinkController extends Controller
      */
     public function letter(Link $link): Response
     {
-        return Inertia::render('LinkLetter', [
+        return Inertia::render('links/Message', [
             'link' => $link,
         ]);
     }
@@ -82,6 +82,10 @@ class LinkController extends Controller
 
         if ($request->has('is_published')) {
             $linkData['is_published'] = $request->boolean('is_published');
+        }
+
+        if ($request->boolean('has_web_display')) {
+            $linkData['has_web_display'] = true;
         }
 
         if ($request->boolean('remove_avatar')) {

@@ -21,20 +21,20 @@ test('published link page renders the link component', function () {
 
     $response->assertSuccessful();
     $response->assertInertia(fn (Assert $page) => $page
-        ->component('Link')
+        ->component('links/Link')
         ->where('link.slug', 'maessun')
         ->where('link.display_name', 'Maessun')
     );
 });
 
 test('empty link add controls fit the responsive widget area', function () {
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
 
     expect($linkPage)
         ->toContain('max-w-[374px]')
         ->toContain('min-[1025px]:px-0')
         ->toContain('min-[1025px]:max-w-none min-[1025px]:flex-row')
-        ->toContain("previewMode === 'desktop'\n                            ? 'pb-24 min-[1025px]:mx-0 min-[1025px]:w-[736px] min-[1025px]:max-w-none min-[1025px]:shrink-0'\n                            : 'mt-2 pb-24'")
+        ->toContain("activePreviewMode === 'desktop'\n                            ? 'pb-24 min-[1025px]:mx-0 min-[1025px]:w-[736px] min-[1025px]:max-w-none min-[1025px]:shrink-0'\n                            : 'mt-2 pb-24'")
         ->toContain('class="-m-3 w-[calc(100%+24px)]"')
         ->toContain(':col-num="2"')
         ->toContain(':row-height="81.5"')
@@ -66,7 +66,7 @@ test('empty link add controls fit the responsive widget area', function () {
 });
 
 test('link page displays top profile navigation', function () {
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
     $navigation = file_get_contents(resource_path('js/components/links/LinkPageNavigation.vue'));
 
     expect($linkPage)
@@ -89,7 +89,7 @@ test('link page displays top profile navigation', function () {
         ->toContain('プロフィール')
         ->toContain('UserRound')
         ->toContain('MessageCircleHeart')
-        ->toContain('items-center gap-1.5')
+        ->toContain('items-center justify-center gap-1.5')
         ->toContain('<UserRound class="size-4" />')
         ->toContain('<MessageCircleHeart class="size-4" />')
         ->toContain('hidden min-[1025px]:inline')
@@ -97,6 +97,9 @@ test('link page displays top profile navigation', function () {
         ->toContain('after:bg-black')
         ->toContain('メッセージ')
         ->toContain(':href="`/@${slug}/letter`"')
+        ->toContain('w-[122px] shrink-0')
+        ->toContain('items-center justify-center')
+        ->not->toContain('gap-7')
         ->toContain('isLoggedIn')
         ->toContain('aria-label="通知"')
         ->not->toContain('aria-label="検索"')
@@ -109,7 +112,7 @@ test('link page displays top profile navigation', function () {
 });
 
 test('link page shows visitor floating share actions', function () {
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
 
     expect($linkPage)
         ->toContain('const copiedProfileUrl = ref(false)')
@@ -123,7 +126,7 @@ test('link page shows visitor floating share actions', function () {
         ->toContain('URLをコピーしました')
         ->toContain('<Check')
         ->toContain('class="size-4 text-white"')
-        ->toContain('class="flex h-9 items-center justify-center gap-2 rounded-full')
+        ->toContain('class="flex h-9 cursor-pointer items-center justify-center gap-2 rounded-full')
         ->toContain('@click="copyProfileUrl"')
         ->toContain('<Copy v-else class="size-4" />')
         ->toContain('class="flex size-9 items-center justify-center rounded-full')
@@ -148,7 +151,7 @@ test('letter page route renders letter mock page', function () {
 
     $response->assertSuccessful();
     $response->assertInertia(fn (Assert $page) => $page
-        ->component('LinkLetter')
+        ->component('links/Message')
         ->where('link.slug', 'maessun')
         ->where('link.display_name', 'Maessun')
     );
@@ -157,7 +160,7 @@ test('letter page route renders letter mock page', function () {
 test('letter page displays mock support and fan messages', function () {
     $routeFile = file_get_contents(base_path('routes/web.php'));
     $controller = file_get_contents(app_path('Http/Controllers/LinkController.php'));
-    $letterPage = file_get_contents(resource_path('js/pages/LinkLetter.vue'));
+    $messagePage = file_get_contents(resource_path('js/pages/links/Message.vue'));
 
     expect($routeFile)
         ->toContain("Route::get('/@{link:slug}/letter'")
@@ -165,9 +168,9 @@ test('letter page displays mock support and fan messages', function () {
 
     expect($controller)
         ->toContain('public function letter(Link $link): Response')
-        ->toContain("Inertia::render('LinkLetter'");
+        ->toContain("Inertia::render('links/Message'");
 
-    expect($letterPage)
+    expect($messagePage)
         ->toContain('LinkPageNavigation')
         ->toContain('active-tab="letter"')
         ->toContain('bg-neutral-100')
@@ -206,7 +209,7 @@ test('letter page displays mock support and fan messages', function () {
 
 test('link toolbar exposes media upload controls', function () {
     $toolbar = file_get_contents(resource_path('js/components/links/LinkToolbar.vue'));
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
 
     expect($toolbar)
         ->toContain('addMedia: [file: File]')
@@ -223,7 +226,7 @@ test('link toolbar exposes media upload controls', function () {
 
 test('link toolbar exposes text widget controls next to media', function () {
     $toolbar = file_get_contents(resource_path('js/components/links/LinkToolbar.vue'));
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
 
     expect($toolbar)
         ->toContain('addText: []')
@@ -244,7 +247,7 @@ test('link toolbar exposes text widget controls next to media', function () {
 
 test('link toolbar exposes letter page button after section controls', function () {
     $toolbar = file_get_contents(resource_path('js/components/links/LinkToolbar.vue'));
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
 
     expect($toolbar)
         ->toContain("import { Link as InertiaLink } from '@inertiajs/vue3'")
@@ -261,7 +264,7 @@ test('link toolbar exposes letter page button after section controls', function 
 test('private link pages show a publish button', function () {
     $profile = file_get_contents(resource_path('js/components/links/LinkProfile.vue'));
     $toolbar = file_get_contents(resource_path('js/components/links/LinkToolbar.vue'));
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
     $controller = file_get_contents(app_path('Http/Controllers/LinkController.php'));
     $request = file_get_contents(app_path('Http/Requests/Links/UpdateLinkRequest.php'));
 
@@ -291,6 +294,10 @@ test('private link pages show a publish button', function () {
         ->toContain("emit('share')")
         ->toContain('URLをコピーしました')
         ->toContain('class="size-4 text-white"')
+        ->toContain('bg-black text-white hover:bg-neutral-800')
+        ->toContain('bg-black px-3 text-sm font-bold text-white')
+        ->not->toContain('bg-emerald-500')
+        ->not->toContain('hover:bg-emerald-600')
         ->toContain('rounded-xl bg-black px-4 text-sm text-white')
         ->toContain('rounded-xl bg-black px-3 text-sm font-bold text-white')
         ->toContain('<span>シェア</span>')
@@ -311,20 +318,129 @@ test('private link pages show a publish button', function () {
         ->not->toContain('<LinkProfile\n                    v-model:display-name="editForm.display_name"\n                    v-model:bio="editForm.bio"\n                    :is-editing="isEditing"\n                    :preview-mode="previewMode"\n                    :avatar-url="profileAvatarUrl"\n                    :display-initial="displayInitial"\n                    :is-published="isLinkPublished"')
         ->toContain('@publish="publishLink"')
         ->toContain('is_published: true')
+        ->toContain('has_web_display: !isSmallViewport.value')
+        ->toContain('const hasWebDisplay = computed(() => Boolean(props.link.has_web_display))')
+        ->toContain('const shouldForceMobileForVisitor = computed')
+        ->toContain('const activePreviewMode = computed')
+        ->toContain('const shouldShowDesktopGrid = computed')
+        ->toContain('const shouldShowMobileGrid = computed')
+        ->toContain('v-if="shouldShowDesktopGrid"')
+        ->toContain('v-if="shouldShowMobileGrid"')
         ->toContain('burstPublishConfetti')
         ->toContain('publish-confetti-piece');
 
-    expect($request)->toContain("'is_published' => ['nullable', 'boolean']");
+    expect($request)
+        ->toContain("'is_published' => ['nullable', 'boolean']")
+        ->toContain("'has_web_display' => ['nullable', 'boolean']");
 
     expect($controller)
         ->toContain("\$linkData['is_published']")
-        ->toContain("\$request->boolean('is_published')");
+        ->toContain("\$request->boolean('is_published')")
+        ->toContain("\$request->boolean('has_web_display')")
+        ->toContain("\$linkData['has_web_display'] = true");
+});
+
+test('link profile shows a message link button under the bio', function () {
+    $profile = file_get_contents(resource_path('js/components/links/LinkProfile.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
+    $request = file_get_contents(app_path('Http/Requests/Links/UpdateLinkRequest.php'));
+    $controller = file_get_contents(app_path('Http/Controllers/LinkController.php'));
+    $model = file_get_contents(app_path('Models/Link.php'));
+    $dropContactsMigration = file_get_contents(database_path('migrations/2026_05_14_000001_drop_link_contacts_table.php'));
+
+    expect($profile)
+        ->toContain("import { Link as InertiaLink } from '@inertiajs/vue3'")
+        ->toContain('MessageCircleHeart')
+        ->toContain('letterUrl: string')
+        ->toContain('v-if="isEditing"')
+        ->toContain('disabled')
+        ->toContain('cursor-not-allowed')
+        ->toContain(':href="letterUrl"')
+        ->toContain('grid h-12 w-full max-w-[374px]')
+        ->toContain('rounded-full border border-gray-300 bg-white')
+        ->toContain('rounded-full bg-black text-white')
+        ->toContain('grid-cols-[40px_1fr_40px]')
+        ->toContain('メッセージを送る')
+        ->toContain('<MessageCircleHeart class="size-5" />')
+        ->not->toContain('contactSlots')
+        ->not->toContain('isContactModalOpen')
+        ->not->toContain('linkServicesConfig')
+        ->not->toContain('URLまたはメールアドレスを入力してください。');
+
+    expect($linkPage)
+        ->toContain(':letter-url="`/@${props.link.slug}/letter`"')
+        ->not->toContain('contacts?: LinkContact[]')
+        ->not->toContain('contacts: serializeContacts(),')
+        ->not->toContain('v-model:contacts="editForm.contacts"');
+
+    expect($request)
+        ->not->toContain("'contacts' => ['nullable', 'array', 'max:4']")
+        ->not->toContain('FILTER_VALIDATE_EMAIL');
+
+    expect($controller)
+        ->toContain("\$link->load(['widgets', 'title'])")
+        ->not->toContain("\$link->load(['contacts', 'widgets', 'title'])")
+        ->not->toContain('$link->contacts()->delete()');
+
+    expect($model)
+        ->not->toContain('public function contacts(): HasMany')
+        ->not->toContain('LinkContact::class');
+
+    expect($dropContactsMigration)
+        ->toContain("Schema::dropIfExists('link_contacts')");
+});
+
+test('link profile uses responsive avatar sizing and fixed name and bio sizing', function () {
+    $profile = file_get_contents(resource_path('js/components/links/LinkProfile.vue'));
+
+    expect($profile)
+        ->toContain('size-[120px]')
+        ->toContain('min-[1025px]:size-[184px]')
+        ->toContain('text-[30px] leading-tight font-bold tracking-tight')
+        ->toContain('text-[16px]')
+        ->not->toContain('min-[1025px]:text-[20px]');
+});
+
+test('link web display flag defaults false and only turns on', function () {
+    $user = User::factory()->create();
+    $link = Link::query()->create([
+        'user_id' => $user->id,
+        'slug' => 'maessun',
+        'display_name' => 'Maessun',
+        'bio' => 'GridLink profile',
+    ]);
+
+    expect($link->refresh()->has_web_display)->toBeFalse();
+
+    $this->actingAs($user)->put(route('links.update', $link), [
+        'display_name' => 'Maessun',
+        'bio' => 'Updated bio',
+        'has_web_display' => false,
+    ])->assertRedirect();
+
+    expect($link->refresh()->has_web_display)->toBeFalse();
+
+    $this->actingAs($user)->put(route('links.update', $link), [
+        'display_name' => 'Maessun',
+        'bio' => 'Updated bio',
+        'has_web_display' => true,
+    ])->assertRedirect();
+
+    expect($link->refresh()->has_web_display)->toBeTrue();
+
+    $this->actingAs($user)->put(route('links.update', $link), [
+        'display_name' => 'Maessun',
+        'bio' => 'Updated bio',
+        'has_web_display' => false,
+    ])->assertRedirect();
+
+    expect($link->refresh()->has_web_display)->toBeTrue();
 });
 
 test('text widgets support alignment controls and background colors', function () {
     $controls = file_get_contents(resource_path('js/components/links/LinkWidgetControls.vue'));
     $content = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
 
     expect($controls)
         ->toContain("widget.type === 'text'")
@@ -362,7 +478,7 @@ test('text widgets support alignment controls and background colors', function (
 
 test('text widgets expose link setting control', function () {
     $controls = file_get_contents(resource_path('js/components/links/LinkWidgetControls.vue'));
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
 
     expect($controls)
         ->toContain("widget.type === 'text'")
@@ -398,7 +514,7 @@ test('text widget color controls keep code input without native color picker', f
 
 test('link widgets expose sensitive content labels', function () {
     $controls = file_get_contents(resource_path('js/components/links/LinkWidgetControls.vue'));
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
     $modal = file_get_contents(resource_path('js/components/links/LinkAddModal.vue'));
 
     expect($controls)
@@ -438,7 +554,7 @@ test('link widgets expose sensitive content labels', function () {
 
 test('map widget controls and rendering are removed', function () {
     $toolbar = file_get_contents(resource_path('js/components/links/LinkToolbar.vue'));
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
     $content = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
 
     expect($toolbar)
@@ -457,7 +573,7 @@ test('map widget controls and rendering are removed', function () {
 });
 
 test('clicking outside widgets clears active crop mode', function () {
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
 
     expect($linkPage)
         ->toContain('handlePageClick')
@@ -585,7 +701,7 @@ test('image widgets show an editable hover title field', function () {
 test('image widgets expose link and crop controls', function () {
     $controls = file_get_contents(resource_path('js/components/links/LinkWidgetControls.vue'));
     $content = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
 
     expect($controls)
         ->toContain("widget.type === 'image'")
@@ -608,7 +724,7 @@ test('image widgets expose link and crop controls', function () {
 });
 
 test('grid resize handles are hidden because resizing is controlled by the widget toolbar', function () {
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
 
     expect($linkPage)
         ->toContain(':is-resizable="false"')
@@ -617,7 +733,7 @@ test('grid resize handles are hidden because resizing is controlled by the widge
 });
 
 test('mobile widget editing uses tap operation controls and a bottom resize toolbar', function () {
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
     $toolbar = file_get_contents(resource_path('js/components/links/LinkToolbar.vue'));
 
     expect($linkPage)
@@ -679,7 +795,7 @@ test('mobile widget editing uses tap operation controls and a bottom resize tool
 });
 
 test('mobile widget move handle allows grid drag events to bubble', function () {
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
     $handleStart = strpos($linkPage, 'aria-label="ウィジェットを移動"');
 
     expect($handleStart)->not->toBeFalse();
@@ -695,7 +811,7 @@ test('mobile widget move handle allows grid drag events to bubble', function () 
 });
 
 test('widget drag end suppresses the follow up click selection', function () {
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
 
     expect($linkPage)
         ->toContain('const suppressWidgetClickUntil = ref(0)')
@@ -722,7 +838,7 @@ test('widget drag end suppresses the follow up click selection', function () {
 });
 
 test('widget dragging uses motion wobble animations', function () {
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
     $widgetContent = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
 
     expect($linkPage)
@@ -748,7 +864,7 @@ test('widget dragging uses motion wobble animations', function () {
 });
 
 test('newly added widgets briefly bounce into place', function () {
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
 
     expect($linkPage)
         ->toContain('const newlyAddedWidgetIds = ref<Set<string>>(new Set())')
@@ -772,7 +888,7 @@ test('toasts render above sheets and modals', function () {
 });
 
 test('editing warns before leaving with unsaved changes', function () {
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
 
     expect($linkPage)
         ->toContain('hasUnsavedChanges')
@@ -792,7 +908,7 @@ test('editing warns before leaving with unsaved changes', function () {
 });
 
 test('widget editing enforces content limits in the interface', function () {
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
     $content = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
     $modal = file_get_contents(resource_path('js/components/links/LinkAddModal.vue'));
 
@@ -885,7 +1001,7 @@ test('widget sync rejects invalid widget limits', function () {
 });
 
 test('mobile toolbar link add uses a bottom sheet instead of the modal', function () {
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
 
     expect($linkPage)
         ->toContain('openAddLinkFromToolbar')
@@ -911,7 +1027,7 @@ test('mobile toolbar link add uses a bottom sheet instead of the modal', functio
 });
 
 test('mobile link widget edit button opens a bottom sheet editor', function () {
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
 
     expect($linkPage)
         ->toContain("widget.type === 'link'")
@@ -944,7 +1060,7 @@ test('mobile link widget edit button opens a bottom sheet editor', function () {
 });
 
 test('mobile image widget edit button opens a bottom sheet editor', function () {
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
     $sheetContent = file_get_contents(resource_path('js/components/ui/sheet/SheetContent.vue'));
 
     expect($linkPage)
@@ -1009,7 +1125,7 @@ test('mobile profile avatar delete control is always visible and delete controls
 });
 
 test('mobile text and section widgets open bottom sheet editors', function () {
-    $linkPage = file_get_contents(resource_path('js/pages/Link.vue'));
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
     $sheetHeader = file_get_contents(resource_path('js/components/ui/sheet/SheetHeader.vue'));
 
     expect($sheetHeader)
@@ -1137,7 +1253,7 @@ test('links index renders the management page without links', function () {
 
     $response->assertSuccessful();
     $response->assertInertia(fn (Assert $page) => $page
-        ->component('Links/Index')
+        ->component('dashboard/Links/Index')
         ->has('links', 0)
         ->where('userName', $user->name)
     );
@@ -1168,7 +1284,7 @@ test('links index renders only the authenticated users links', function () {
 
     $response->assertSuccessful();
     $response->assertInertia(fn (Assert $page) => $page
-        ->component('Links/Index')
+        ->component('dashboard/Links/Index')
         ->has('links', 1)
         ->where('links.0.slug', 'maessun')
         ->where('links.0.display_name', 'Maessun')
@@ -1217,8 +1333,8 @@ test('link creation stores the selected title', function () {
 });
 
 test('link creation modals expose title selection', function () {
-    $linksIndexPage = file_get_contents(resource_path('js/pages/Links/Index.vue'));
-    $dashboardPage = file_get_contents(resource_path('js/pages/Dashboard.vue'));
+    $linksIndexPage = file_get_contents(resource_path('js/pages/dashboard/Links/Index.vue'));
+    $dashboardPage = file_get_contents(resource_path('js/pages/dashboard/Dashboard.vue'));
 
     expect($linksIndexPage)
         ->toContain('titleOptions')
