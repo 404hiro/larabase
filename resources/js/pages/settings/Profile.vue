@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AppearanceTabs from '@/components/AppearanceTabs.vue';
-import { edit, update } from '@/routes/profile';
+import { update } from '@/routes/profile';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
@@ -11,24 +11,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getInitials } from '@/composables/useInitials';
-import AppLayout from '@/layouts/AppLayout.vue';
+import DashboardLayout from '@/layouts/DashboardLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
-import { type BreadcrumbItem } from '@/types';
-import { Image as ImageIcon, Trash2 } from 'lucide-vue-next';
 import { compressImage } from '@/utils/imageCompression';
+import { Image as ImageIcon, Trash2 } from 'lucide-vue-next';
 
 interface Props {
     status?: string;
 }
 
 defineProps<Props>();
-
-const breadcrumbItems: BreadcrumbItem[] = [
-    {
-        title: 'ユーザ設定',
-        href: edit().url,
-    },
-];
 
 const page = usePage();
 const user = computed(() => page.props.auth.user);
@@ -110,14 +102,14 @@ function submit() {
 </script>
 
 <template>
-    <AppLayout :breadcrumbs="breadcrumbItems">
+    <DashboardLayout>
         <Head title="ユーザ設定" />
 
         <SettingsLayout>
             <div class="flex flex-col space-y-6">
                 <HeadingSmall
                     title="プロフィール情報"
-                    description="このプロフィール情報はサポートコメントをする時に表示されます。"
+                    description="このプロフィール情報はメッセージを送る際に使用されます。"
                 />
 
                 <form @submit.prevent="submit" class="space-y-6">
@@ -221,5 +213,5 @@ function submit() {
 
             <DeleteUser />
         </SettingsLayout>
-    </AppLayout>
+    </DashboardLayout>
 </template>

@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Links;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateLinkRequest extends FormRequest
 {
@@ -23,6 +24,11 @@ class UpdateLinkRequest extends FormRequest
     {
         return [
             'display_name' => ['required', 'string', 'max:100'],
+            'title_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('titles', 'id')->where('is_active', true),
+            ],
             'bio' => ['nullable', 'string', 'max:280'],
             'avatar' => [
                 'nullable',
@@ -33,6 +39,7 @@ class UpdateLinkRequest extends FormRequest
             'is_published' => ['nullable', 'boolean'],
             'has_web_display' => ['nullable', 'boolean'],
             'remove_avatar' => ['nullable', 'boolean'],
+            'message_one_liner' => ['nullable', 'string', 'max:100'],
         ];
     }
 }

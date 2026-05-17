@@ -9,31 +9,18 @@ import {
 import UserMenuContent from '@/components/UserMenuContent.vue';
 import { getInitials } from '@/composables/useInitials';
 import { Link, usePage } from '@inertiajs/vue3';
-import { Bell, Ellipsis, MessageCircleHeart, UserRound } from 'lucide-vue-next';
+import { Bell, Ellipsis } from 'lucide-vue-next';
 import { computed } from 'vue';
 
-const props = withDefaults(
-    defineProps<{
-        slug: string;
-        activeTab?: 'profile' | 'letter';
-    }>(),
-    {
-        activeTab: 'profile',
-    },
-);
+defineProps<{
+    slug: string;
+    activeTab?: 'profile' | 'message';
+}>();
 
 const page = usePage();
 const auth = computed(() => page.props.auth);
 const isLoggedIn = computed(() => Boolean(auth.value?.user));
 
-const tabClass = (tab: 'profile' | 'letter') => {
-    return [
-        'relative flex h-9 w-[31px] shrink-0 items-center justify-center gap-1.5 px-2 text-sm transition-colors min-[1025px]:w-[122px]',
-        props.activeTab === tab
-            ? 'font-bold text-black after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-black'
-            : 'font-medium text-gray-800 hover:text-gray-950',
-    ];
-};
 </script>
 
 <template>
@@ -44,30 +31,22 @@ const tabClass = (tab: 'profile' | 'letter') => {
         <div
             class="mx-auto flex h-full w-full max-w-[374px] items-center px-3 min-[1025px]:max-w-[1198px] sm:px-4"
         >
-            <div class="min-w-0 flex-1 truncate text-base font-bold">
+            <Link
+                v-if="isLoggedIn"
+                :href="`/@${slug}`"
+                class="min-w-0 flex-1 truncate text-base font-bold transition-colors hover:text-gray-700"
+            >
                 @{{ slug }}
-            </div>
+            </Link>
+            <Link
+                v-else
+                href="/"
+                class="min-w-0 flex-1 truncate text-base font-bold transition-colors hover:text-gray-700"
+            >
+                @{{ slug }}
+            </Link>
 
-            <div class="flex flex-1 items-center justify-center">
-                <Link
-                    :href="`/@${slug}`"
-                    :class="tabClass('profile')"
-                    aria-label="プロフィール"
-                    title="プロフィール"
-                >
-                    <UserRound class="size-4" />
-                    <span class="hidden min-[1025px]:inline">プロフィール</span>
-                </Link>
-                <Link
-                    :href="`/@${slug}/letter`"
-                    :class="tabClass('letter')"
-                    aria-label="メッセージ"
-                    title="メッセージ"
-                >
-                    <MessageCircleHeart class="size-4" />
-                    <span class="hidden min-[1025px]:inline">メッセージ</span>
-                </Link>
-            </div>
+            <div class="flex flex-1 items-center justify-center"></div>
 
             <div class="flex flex-1 items-center justify-end gap-2 text-sm font-semibold">
                 <template v-if="isLoggedIn && auth.user">

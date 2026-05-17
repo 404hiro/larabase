@@ -16,20 +16,45 @@ use Inertia\Response;
 class LinkController extends Controller
 {
     /**
-     * Display the current user's link management page.
+     * Display the current user's links dashboard.
      */
     public function index(Request $request): Response
     {
-        $links = $request->user()
+        $user = $request->user();
+        $links = $user
             ->links()
             ->with('title')
             ->withCount('widgets')
+            ->orderByDesc('updated_at')
             ->get();
 
+        $linkIds = $links->pluck('id');
+
+        $totalAccessesLast30Days = \App\Models\LinkViewDailyStat::query()
+            ->whereIn('link_id', $linkIds)
+            ->where('date', '>=', now()->subDays(29)->toDateString())
+            ->sum('view_count');
+
+        $totalClicksLast30Days = \App\Models\WidgetClickDailyStat::query()
+            ->whereIn('link_id', $linkIds)
+            ->where('date', '>=', now()->subDays(29)->toDateString())
+            ->sum('click_count');
+
         return Inertia::render('dashboard/Links/Index', [
-            'links' => \App\Http\Resources\LinkResource::collection($links),
-            'titleOptions' => $this->titleOptions(),
-            'userName' => $request->user()->name,
+            'links' => $links->map(fn (Link $link): array => [
+                'id' => $link->id,
+                'slug' => $link->slug,
+                'display_name' => $link->display_name,
+                'title' => $link->title?->only(['id', 'name']),
+                'bio' => $link->bio,
+                'avatar_url' => $link->avatar_url,
+                'is_published' => $link->is_published,
+                'widgets_count' => (int) $link->widgets_count,
+                'updated_at' => $link->updated_at?->toIso8601String(),
+            ]),
+            'linksCount' => $links->count(),
+            'totalAccessesLast30Days' => (int) $totalAccessesLast30Days,
+            'totalClicksLast30Days' => (int) $totalClicksLast30Days,
         ]);
     }
 
@@ -45,26 +70,118 @@ class LinkController extends Controller
 
         $link = $request->user()->links()->create($validated);
 
-        return redirect()->route('links.show', $link);
+        return redirect()->route('dashboard.links.show', $link->id);
+    }
+
+    /**
+     * Display a link management page for the current user.
+     */
+    public function manage(Request $request, Link $link): Response
+    {
+        abort_unless($request->user()->id === $link->user_id, 403);
+
+        $link->load(['title']);
+
+        return Inertia::render('dashboard/Links/Show', [
+            'link' => [
+                'id' => $link->id,
+                'slug' => $link->slug,
+                'display_name' => $link->display_name,
+                'title' => $link->title?->only(['id', 'name']),
+                'bio' => $link->bio,
+                'avatar_url' => $link->avatar_url,
+                'is_published' => $link->is_published,
+                'has_web_display' => $link->has_web_display,
+                'updated_at' => $link->updated_at?->toISOString(),
+            ],
+            'titleOptions' => $this->titleOptions(),
+        ]);
     }
 
     /**
      * Display a published link page.
      */
-    public function show(Link $link): Response
+    public function show(Request $request, Link $link): Response
     {
+        if (! $this->shouldExclude($request, $link)) {
+            \Illuminate\Support\Facades\DB::statement('
+                INSERT INTO link_view_daily_stats (
+                    link_id,
+                    date,
+                    view_count,
+                    created_at,
+                    updated_at
+                )
+                VALUES (?, CURRENT_DATE, 1, NOW(), NOW())
+                ON CONFLICT (link_id, date)
+                DO UPDATE SET
+                    view_count = link_view_daily_stats.view_count + 1,
+                    updated_at = NOW()
+            ', [$link->id]);
+        }
+
         return Inertia::render('links/Link', [
             'link' => $link->load(['widgets', 'title']),
         ]);
     }
 
     /**
-     * Display a mock fan letter page for the link.
+     * Determine if the request should be excluded from tracking.
      */
-    public function letter(Link $link): Response
+    private function shouldExclude(Request $request, Link $link): bool
     {
+        // Exclude owner
+        if ($request->user()?->id === $link->user_id) {
+            return true;
+        }
+
+        // Exclude bots
+        $userAgent = $request->userAgent();
+        if (empty($userAgent)) {
+            return true;
+        }
+
+        $bots = [
+            'bot', 'crawler', 'spider', 'slurp', 'search', 'fetch', 'mediapartners',
+            'lighthouse', 'google', 'bing', 'yandex', 'baidu', 'duckduckbot',
+        ];
+
+        foreach ($bots as $bot) {
+            if (str_contains(strtolower($userAgent), $bot)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Display the message page for the link.
+     */
+    public function message(Request $request, Link $link): Response
+    {
+        $isOwner = $request->user()?->id === $link->user_id;
+
+        $query = $link->messages()->with('publication')->latest();
+
+        if ($isOwner) {
+            $link->messages()
+                ->where('is_read', false)
+                ->update([
+                    'is_read' => true,
+                    'read_at' => now(),
+                ]);
+        }
+
+        $query
+            ->where('is_public', true)
+            ->where('is_read', true);
+
+        $messages = $query->get();
+
         return Inertia::render('links/Message', [
             'link' => $link,
+            'messages' => \App\Http\Resources\MessageResource::collection($messages),
         ]);
     }
 
@@ -77,6 +194,7 @@ class LinkController extends Controller
 
         $linkData = [
             'display_name' => $validated['display_name'],
+            'title_id' => $validated['title_id'] ?? null,
             'bio' => filled($validated['bio'] ?? null) ? $validated['bio'] : null,
         ];
 
@@ -98,6 +216,12 @@ class LinkController extends Controller
 
             $path = $request->file('avatar')->store('link-avatars', 'public');
             $linkData['avatar_url'] = Storage::disk('public')->url($path);
+        }
+
+        if ($request->has('message_one_liner')) {
+            $settings = $link->message_settings ?? [];
+            $settings['one_liner'] = $request->input('message_one_liner');
+            $linkData['message_settings'] = $settings;
         }
 
         $link->update($linkData);

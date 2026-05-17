@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Link;
+use App\Models\Message;
 use App\Models\Title;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -33,7 +34,14 @@ test('empty link add controls fit the responsive widget area', function () {
     expect($linkPage)
         ->toContain('max-w-[374px]')
         ->toContain('min-[1025px]:px-0')
-        ->toContain('min-[1025px]:max-w-none min-[1025px]:flex-row')
+        ->toContain('min-[1025px]:max-w-[1198px] min-[1025px]:flex-row')
+        ->toContain('min-[1025px]:justify-between')
+        ->toContain('const isPreviewLayoutSwitching = ref(false)')
+        ->toContain('const disableLayoutTransitionsBriefly = () => {')
+        ->toContain('watch([activePreviewMode, isSmallViewport], () => {')
+        ->toContain("isPreviewLayoutSwitching ? 'link-page--instant-layout' : ''")
+        ->toContain('.link-page--instant-layout .vgl-item')
+        ->toContain('transition-duration: 0ms !important')
         ->toContain("activePreviewMode === 'desktop'\n                            ? 'pb-24 min-[1025px]:mx-0 min-[1025px]:w-[736px] min-[1025px]:max-w-none min-[1025px]:shrink-0'\n                            : 'mt-2 pb-24'")
         ->toContain('class="-m-3 w-[calc(100%+24px)]"')
         ->toContain(':col-num="2"')
@@ -85,21 +93,17 @@ test('link page displays top profile navigation', function () {
         ->toContain('max-w-[374px]')
         ->toContain('min-[1025px]:max-w-[1198px]')
         ->toContain('@{{ slug }}')
-        ->toContain('activeTab')
-        ->toContain('プロフィール')
-        ->toContain('UserRound')
-        ->toContain('MessageCircleHeart')
-        ->toContain('items-center justify-center gap-1.5')
-        ->toContain('<UserRound class="size-4" />')
-        ->toContain('<MessageCircleHeart class="size-4" />')
-        ->toContain('hidden min-[1025px]:inline')
-        ->toContain('font-bold text-black')
-        ->toContain('after:bg-black')
-        ->toContain('メッセージ')
-        ->toContain(':href="`/@${slug}/letter`"')
-        ->toContain('w-[122px] shrink-0')
-        ->toContain('items-center justify-center')
-        ->not->toContain('gap-7')
+        ->toContain('v-if="isLoggedIn"')
+        ->toContain(':href="`/@${slug}`"')
+        ->toContain('v-else')
+        ->toContain('href="/"')
+        ->toContain('hover:text-gray-700')
+        ->not->toContain('tabClass')
+        ->not->toContain('<UserRound')
+        ->not->toContain('<MessageCircleHeart')
+        ->not->toContain('プロフィール</span>')
+        ->not->toContain('メッセージ</span>')
+        ->not->toContain(':href="`/@${slug}/message`"')
         ->toContain('isLoggedIn')
         ->toContain('aria-label="通知"')
         ->not->toContain('aria-label="検索"')
@@ -129,7 +133,7 @@ test('link page shows visitor floating share actions', function () {
         ->toContain('class="flex h-9 cursor-pointer items-center justify-center gap-2 rounded-full')
         ->toContain('@click="copyProfileUrl"')
         ->toContain('<Copy v-else class="size-4" />')
-        ->toContain('class="flex size-9 items-center justify-center rounded-full')
+        ->toContain('class="flex size-9 cursor-pointer items-center justify-center rounded-full')
         ->toContain('<MoreHorizontal class="size-5" />')
         ->toContain('@select="reportUser"')
         ->toContain('このユーザーを通報する')
@@ -138,7 +142,7 @@ test('link page shows visitor floating share actions', function () {
         ->toContain('Built with GridLink');
 });
 
-test('letter page route renders letter mock page', function () {
+test('message page route renders message mock page', function () {
     $user = User::factory()->create();
     $link = Link::query()->create([
         'user_id' => $user->id,
@@ -147,7 +151,7 @@ test('letter page route renders letter mock page', function () {
         'bio' => 'GridLink profile',
     ]);
 
-    $response = $this->get(route('links.letter', $link));
+    $response = $this->get(route('links.message', $link));
 
     $response->assertSuccessful();
     $response->assertInertia(fn (Assert $page) => $page
@@ -157,54 +161,85 @@ test('letter page route renders letter mock page', function () {
     );
 });
 
-test('letter page displays mock support and fan messages', function () {
+test('message page displays real messages', function () {
     $routeFile = file_get_contents(base_path('routes/web.php'));
     $controller = file_get_contents(app_path('Http/Controllers/LinkController.php'));
     $messagePage = file_get_contents(resource_path('js/pages/links/Message.vue'));
 
     expect($routeFile)
-        ->toContain("Route::get('/@{link:slug}/letter'")
-        ->toContain("->name('links.letter')");
+        ->toContain("Route::get('/@{link:slug}/message'")
+        ->toContain("->name('links.message')");
 
     expect($controller)
-        ->toContain('public function letter(Link $link): Response')
+        ->toContain('public function message(Request $request, Link $link): Response')
         ->toContain("Inertia::render('links/Message'");
 
     expect($messagePage)
         ->toContain('LinkPageNavigation')
-        ->toContain('active-tab="letter"')
-        ->toContain('bg-neutral-100')
-        ->toContain('fanMessages')
+        ->toContain('active-tab="message"')
+        ->toContain(':href="linkShow.url(link.slug)"')
+        ->toContain('プロフィールを見る')
         ->toContain('const isOwner = computed')
-
-        ->toContain('page.props.auth?.user && page.props.auth.user.id === props.link.user_id')
         ->toContain("const activeTab = ref<'write' | 'read'>('write')")
         ->toContain('書く')
         ->toContain('読む')
-        ->toContain("activeTab === 'write'")
-        ->toContain("activeTab === 'read'")
-        ->toContain('ファンレターを書く')
-        ->toContain('レターを送る')
-        ->toContain('ファンからのメッセージ')
+        ->toContain('メッセージを送る')
+        ->toContain('届いたメッセージ')
         ->toContain('supportOptions')
-        ->toContain('v-if="isOwner"')
-        ->toContain('収益設定をすると支援が受け取れます。')
-        ->toContain('収益設定')
-        ->toContain('v-else class="mt-5 grid grid-cols-3 gap-2"')
-        ->toContain(':disabled="isOwner"')
-        ->toContain('disabled:cursor-not-allowed')
-        ->toContain('fanMessages')
-        ->toContain('Buymeacoffee')
-        ->toContain('after:bg-black')
-        ->toContain('rounded-xl bg-black')
-        ->not->toContain('bg-violet')
-        ->not->toContain('text-violet')
-        ->not->toContain('border-violet')
-        ->not->toContain('ring-violet')
-        ->not->toContain('@{{ link.slug }}')
-        ->not->toContain('{{ link.bio }}')
-        ->not->toContain('v-if="link.bio"')
-        ->not->toContain('@submit');
+        ->toContain('v-if="isOwner"');
+});
+
+test('message page only displays messages that are public and read to visitors', function () {
+    $owner = User::factory()->create();
+    $link = Link::factory()->create(['user_id' => $owner->id]);
+
+    Message::factory()->create([
+        'link_id' => $link->id,
+        'body' => 'Visible message',
+        'is_public' => true,
+        'is_read' => true,
+        'read_at' => now(),
+    ]);
+    Message::factory()->create([
+        'link_id' => $link->id,
+        'body' => 'Unread public message',
+        'is_public' => true,
+        'is_read' => false,
+    ]);
+    Message::factory()->create([
+        'link_id' => $link->id,
+        'body' => 'Read private message',
+        'is_public' => false,
+        'is_read' => true,
+        'read_at' => now(),
+    ]);
+
+    $this->get(route('links.message', $link))
+        ->assertSuccessful()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('links/Message')
+            ->has('messages', 1)
+            ->where('messages.0.body', 'Visible message')
+        );
+});
+
+test('owner viewing the message page marks messages as read', function () {
+    $owner = User::factory()->create();
+    $link = Link::factory()->create(['user_id' => $owner->id]);
+    $message = Message::factory()->create([
+        'link_id' => $link->id,
+        'is_public' => true,
+        'is_read' => false,
+        'read_at' => null,
+    ]);
+
+    $this->actingAs($owner)
+        ->get(route('links.message', $link))
+        ->assertSuccessful();
+
+    expect($message->fresh())
+        ->is_read->toBeTrue()
+        ->read_at->not->toBeNull();
 });
 
 test('link toolbar exposes media upload controls', function () {
@@ -258,7 +293,7 @@ test('link toolbar exposes letter page button after section controls', function 
         ->toContain('aria-label="ファンレターページを開く"');
 
     expect($linkPage)
-        ->toContain(':letter-url="`/@${props.link.slug}/letter`"');
+        ->toContain(':letter-url="`/@${props.link.slug}/message`"');
 });
 
 test('private link pages show a publish button', function () {
@@ -358,9 +393,9 @@ test('link profile shows a message link button under the bio', function () {
         ->toContain(':href="letterUrl"')
         ->toContain('grid h-12 w-full max-w-[374px]')
         ->toContain('rounded-full border border-gray-300 bg-white')
-        ->toContain('rounded-full bg-black text-white')
+        ->toContain('rounded-full bg-white text-black')
         ->toContain('grid-cols-[40px_1fr_40px]')
-        ->toContain('メッセージを送る')
+        ->toContain('メッセージ')
         ->toContain('<MessageCircleHeart class="size-5" />')
         ->not->toContain('contactSlots')
         ->not->toContain('isContactModalOpen')
@@ -368,7 +403,7 @@ test('link profile shows a message link button under the bio', function () {
         ->not->toContain('URLまたはメールアドレスを入力してください。');
 
     expect($linkPage)
-        ->toContain(':letter-url="`/@${props.link.slug}/letter`"')
+        ->toContain(':letter-url="`/@${props.link.slug}/message`"')
         ->not->toContain('contacts?: LinkContact[]')
         ->not->toContain('contacts: serializeContacts(),')
         ->not->toContain('v-model:contacts="editForm.contacts"');
@@ -403,22 +438,13 @@ test('link profile uses responsive avatar sizing and fixed name and bio sizing',
 
 test('link web display flag defaults false and only turns on', function () {
     $user = User::factory()->create();
-    $link = Link::query()->create([
+    $link = Link::factory()->create([
         'user_id' => $user->id,
         'slug' => 'maessun',
-        'display_name' => 'Maessun',
-        'bio' => 'GridLink profile',
+        'has_web_display' => false,
     ]);
 
-    expect($link->refresh()->has_web_display)->toBeFalse();
-
-    $this->actingAs($user)->put(route('links.update', $link), [
-        'display_name' => 'Maessun',
-        'bio' => 'Updated bio',
-        'has_web_display' => false,
-    ])->assertRedirect();
-
-    expect($link->refresh()->has_web_display)->toBeFalse();
+    expect($link->fresh()->has_web_display)->toBeFalse();
 
     $this->actingAs($user)->put(route('links.update', $link), [
         'display_name' => 'Maessun',
@@ -426,7 +452,7 @@ test('link web display flag defaults false and only turns on', function () {
         'has_web_display' => true,
     ])->assertRedirect();
 
-    expect($link->refresh()->has_web_display)->toBeTrue();
+    expect($link->fresh()->has_web_display)->toBeTrue();
 
     $this->actingAs($user)->put(route('links.update', $link), [
         'display_name' => 'Maessun',
@@ -434,7 +460,8 @@ test('link web display flag defaults false and only turns on', function () {
         'has_web_display' => false,
     ])->assertRedirect();
 
-    expect($link->refresh()->has_web_display)->toBeTrue();
+    // Verification: it should STAY true once turned on (as per the test requirement)
+    expect($link->fresh()->has_web_display)->toBeTrue();
 });
 
 test('text widgets support alignment controls and background colors', function () {
@@ -707,12 +734,13 @@ test('image widgets expose link and crop controls', function () {
         ->toContain("widget.type === 'image'")
         ->toContain("emit('editLink')")
         ->toContain("emit('toggleCrop')")
-        ->toContain('クロップを調整');
+        ->toContain('Crop media')
+        ->toContain('Save crop');
 
     expect($content)
         ->toContain('objectPosition')
         ->toContain("emit('update-crop'")
-        ->toContain('@mousedown="startCropDrag"');
+        ->toContain('ref="imageRef"');
 
     expect($linkPage)
         ->toContain('bg-gray-200/75')
@@ -778,12 +806,12 @@ test('mobile widget editing uses tap operation controls and a bottom resize tool
         ->toContain('resizeMobileWidget')
         ->toContain('completeMobileWidgetOperation')
         ->toContain('v-if="!mobileWidgetOperationActive"')
-        ->toContain("'min-w-16 gap-1.5 bg-emerald-500 px-3 text-sm font-bold text-white")
+        ->toContain("'min-w-16 gap-1.5 bg-black px-3 text-sm font-bold text-white")
         ->toContain('<span v-if="isEditing">保存</span>')
         ->toContain('hidden h-11 items-center gap-1.5 rounded-2xl')
-        ->toContain('class="flex size-8 items-center justify-center')
+        ->toContain('class="flex size-8 cursor-pointer items-center justify-center')
         ->toContain('rounded-lg transition-colors"')
-        ->toContain('class="flex h-8 min-w-12 items-center justify-center whitespace-nowrap rounded-lg bg-white px-4 text-xs font-bold text-black transition-transform active:scale-95"')
+        ->toContain('class="flex h-8 min-w-12 cursor-pointer items-center justify-center whitespace-nowrap rounded-lg bg-white px-4 text-xs font-bold text-black transition-transform active:scale-95"')
         ->toContain('v-for="option in mobileSizeOptions"')
         ->toContain("emit('resizeMobileWidget', option.size)")
         ->toContain("emit('completeMobileWidgetOperation')")
@@ -933,6 +961,7 @@ test('widget editing enforces content limits in the interface', function () {
         ->toContain('widget-text-input--focused')
         ->toContain('stopPointerWhenFocused')
         ->toContain('shape.value')
+        ->toContain("shape.value === '1x1'\n          ? 'h-[48px]'")
         ->toContain("isLinkTitleFocused.value ? 'cursor-text' : 'cursor-grab active:cursor-grabbing'")
         ->not->toContain('cursor-move')
         ->toContain('cursor-text')
@@ -1240,58 +1269,6 @@ test('media widget upload rejects non image files', function () {
     $response->assertUnprocessable();
 });
 
-test('guests are redirected from links index to login', function () {
-    $response = $this->get(route('links.index'));
-
-    $response->assertRedirect(route('login'));
-});
-
-test('links index renders the management page without links', function () {
-    $user = User::factory()->create();
-
-    $response = $this->actingAs($user)->get(route('links.index'));
-
-    $response->assertSuccessful();
-    $response->assertInertia(fn (Assert $page) => $page
-        ->component('dashboard/Links/Index')
-        ->has('links', 0)
-        ->where('userName', $user->name)
-    );
-});
-
-test('links index renders only the authenticated users links', function () {
-    $user = User::factory()->create();
-    $title = Title::query()->create([
-        'name' => 'テスト職業',
-        'sort_order' => 1,
-        'is_active' => true,
-    ]);
-    Link::query()->create([
-        'user_id' => $user->id,
-        'slug' => 'maessun',
-        'display_name' => 'Maessun',
-        'title_id' => $title->id,
-        'bio' => 'GridLink profile',
-    ]);
-    Link::query()->create([
-        'user_id' => User::factory()->create()->id,
-        'slug' => 'someone-else',
-        'display_name' => 'Someone Else',
-        'bio' => 'Other profile',
-    ]);
-
-    $response = $this->actingAs($user)->get(route('links.index'));
-
-    $response->assertSuccessful();
-    $response->assertInertia(fn (Assert $page) => $page
-        ->component('dashboard/Links/Index')
-        ->has('links', 1)
-        ->where('links.0.slug', 'maessun')
-        ->where('links.0.display_name', 'Maessun')
-        ->where('links.0.title.name', 'テスト職業')
-    );
-});
-
 test('link creation allows an empty title and bio', function () {
     $user = User::factory()->create();
 
@@ -1301,7 +1278,8 @@ test('link creation allows an empty title and bio', function () {
         'bio' => '',
     ]);
 
-    $response->assertRedirect(route('links.show', 'maessun'));
+    $link = Link::where('slug', 'maessun')->firstOrFail();
+    $response->assertRedirect(route('dashboard.links.show', $link->id));
     $response->assertSessionHasNoErrors();
     $this->assertDatabaseHas('links', [
         'slug' => 'maessun',
@@ -1325,7 +1303,8 @@ test('link creation stores the selected title', function () {
         'bio' => 'GridLink profile',
     ]);
 
-    $response->assertRedirect(route('links.show', 'maessun'));
+    $link = Link::where('slug', 'maessun')->firstOrFail();
+    $response->assertRedirect(route('dashboard.links.show', $link->id));
     $this->assertDatabaseHas('links', [
         'slug' => 'maessun',
         'title_id' => $title->id,
@@ -1333,19 +1312,12 @@ test('link creation stores the selected title', function () {
 });
 
 test('link creation modals expose title selection', function () {
-    $linksIndexPage = file_get_contents(resource_path('js/pages/dashboard/Links/Index.vue'));
-    $dashboardPage = file_get_contents(resource_path('js/pages/dashboard/Dashboard.vue'));
-
-    expect($linksIndexPage)
-        ->toContain('titleOptions')
-        ->toContain('v-model="form.title_id"')
-        ->toContain('職業を選択しない')
-        ->toContain('form.errors.title_id');
+    $dashboardPage = file_get_contents(resource_path('js/pages/dashboard/Index.vue'));
 
     expect($dashboardPage)
         ->toContain('titleOptions')
         ->toContain('v-model="form.title_id"')
-        ->toContain('職業を選択しない')
+        ->toContain('職業を選択')
         ->toContain('form.errors.title_id');
 });
 

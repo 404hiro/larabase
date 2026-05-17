@@ -3,23 +3,12 @@ import { Head } from '@inertiajs/vue3';
 
 import AppearanceTabs from '@/components/AppearanceTabs.vue';
 import HeadingSmall from '@/components/HeadingSmall.vue';
-import { type BreadcrumbItem } from '@/types';
-
-import AppLayout from '@/layouts/AppLayout.vue';
+import DashboardLayout from '@/layouts/DashboardLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
-import { edit } from '@/routes/appearance';
-
-const breadcrumbItems: BreadcrumbItem[] = [
-    {
-        // 💡 ブレッドクラムのタイトルを日本語に
-        title: '外観設定',
-        href: edit().url,
-    },
-];
 </script>
 
 <template>
-    <AppLayout :breadcrumbs="breadcrumbItems">
+    <DashboardLayout>
         <Head title="外観設定" />
         <SettingsLayout>
             <div class="space-y-6">
@@ -30,5 +19,5 @@ const breadcrumbItems: BreadcrumbItem[] = [
                 <AppearanceTabs />
             </div>
         </SettingsLayout>
-    </AppLayout>
+    </DashboardLayout>
 </template>

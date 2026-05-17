@@ -45,6 +45,17 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            'dashboardLinks' => fn () => $request->user()
+                ? $request->user()
+                    ->links()
+                    ->orderBy('display_name')
+                    ->get(['id', 'slug', 'display_name'])
+                    ->map(fn ($link): array => [
+                        'id' => $link->id,
+                        'slug' => $link->slug,
+                        'display_name' => $link->display_name,
+                    ])
+                : [],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'flash' => [
                 'success' => $request->session()->get('success'),

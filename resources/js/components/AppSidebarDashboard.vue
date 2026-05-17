@@ -18,7 +18,7 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'リンク',
-        href: '/links',
+        href: '/dashboard/links',
         icon: LinkIcon,
     },
     {

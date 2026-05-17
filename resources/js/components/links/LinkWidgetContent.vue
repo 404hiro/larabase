@@ -9,6 +9,8 @@ import {
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import { type LinkService, linkServicesConfig } from '@/lib/linkServices';
 import { compressImage } from '@/utils/imageCompression';
+import Cropper from 'cropperjs';
+import 'cropperjs/dist/cropper.css';
 
 const props = defineProps<{
     widget: any;
@@ -515,6 +517,9 @@ const cardFrameClasses = computed(() => {
 
     return 'rounded-2xl border border-gray-200 bg-white';
 });
+const cardClipClasses = computed(() =>
+    props.isCropping ? 'overflow-visible' : 'overflow-hidden',
+);
 const cardFrameStyle = computed(() => {
     if (props.widget.type === 'text') {
         return {
@@ -571,6 +576,8 @@ const linkTitleEditorClasses = computed(() => [
     'block w-full overflow-auto whitespace-pre-wrap break-words rounded bg-gray-600/10 text-base leading-6 text-gray-800 outline-none focus:ring-2 focus:ring-blue-500',
     shape.value === 'inline'
         ? 'h-6'
+        : shape.value === '1x1'
+          ? 'h-[48px]'
         : props.mode === 'mobile'
           ? 'h-[48px]'
           : 'h-[72px]',
@@ -710,75 +717,129 @@ watch(
     { immediate: true },
 );
 
-const isDraggingCrop = ref(false);
-const lastCropPointer = ref<{ x: number; y: number } | null>(null);
-let cropAnimationFrame: number | null = null;
-let pendingCrop: { x: number; y: number } | null = null;
+const imageRef = ref<HTMLImageElement | null>(null);
+const cropper = ref<Cropper | null>(null);
+const isInitializingCropper = ref(false);
 
-const clampCrop = (value: number) => Math.min(100, Math.max(0, value));
+const initCropper = () => {
+    if (!imageRef.value) return;
 
-const stopCropDrag = () => {
-    isDraggingCrop.value = false;
-    lastCropPointer.value = null;
-    if (cropAnimationFrame) {
-        cancelAnimationFrame(cropAnimationFrame);
-        cropAnimationFrame = null;
-    }
-    if (pendingCrop) {
-        emit('update-crop', pendingCrop);
-        pendingCrop = null;
-    }
-    window.removeEventListener('mousemove', dragCrop);
-    window.removeEventListener('mouseup', stopCropDrag);
-};
+    isInitializingCropper.value = true;
 
-const dragCrop = (event: MouseEvent) => {
-    if (!isDraggingCrop.value || !lastCropPointer.value) return;
+    cropper.value = new Cropper(imageRef.value, {
+        viewMode: 1,
+        dragMode: 'move',
+        autoCropArea: 1,
+        restore: false,
+        guides: false,
+        center: false,
+        highlight: false,
+        cropBoxMovable: false,
+        cropBoxResizable: false,
+        zoomable: false,
+        toggleDragModeOnDblclick: false,
+        modal: true, // Show the semi-transparent overlay outside the crop box
+        ready() {
+            if (!cropper.value) return;
 
-    const deltaX = event.clientX - lastCropPointer.value.x;
-    const deltaY = event.clientY - lastCropPointer.value.y;
+            const containerData = cropper.value.getContainerData();
+            const imageData = cropper.value.getImageData();
+            const cropBoxData = {
+                left: 0,
+                top: 0,
+                width: containerData.width,
+                height: containerData.height,
+            };
 
-    const currentCrop = pendingCrop ?? cropPosition.value;
-    pendingCrop = {
-        x: clampCrop(currentCrop.x - deltaX * 0.35),
-        y: clampCrop(currentCrop.y - deltaY * 0.35),
-    };
+            cropper.value.setCropBoxData(cropBoxData);
 
-    if (!cropAnimationFrame) {
-        cropAnimationFrame = requestAnimationFrame(() => {
-            cropAnimationFrame = null;
+            // Auto-fit logic: Fill the container with the image
+            const scale = Math.max(
+                containerData.width / imageData.naturalWidth,
+                containerData.height / imageData.naturalHeight,
+            );
 
-            if (pendingCrop) {
-                emit('update-crop', pendingCrop);
-                pendingCrop = null;
+            cropper.value.setCanvasData({
+                width: imageData.naturalWidth * scale,
+                height: imageData.naturalHeight * scale,
+            });
+
+            // Set initial position based on existing cropX/Y
+            const canvasData = cropper.value.getCanvasData();
+            const xPercent = Number(settings.value.cropX ?? 50);
+            const yPercent = Number(settings.value.cropY ?? 50);
+
+            const xRange = containerData.width - canvasData.width;
+            const yRange = containerData.height - canvasData.height;
+
+            cropper.value.setCanvasData({
+                left: xRange * (xPercent / 100),
+                top: yRange * (yPercent / 100),
+            });
+
+            nextTick(() => {
+                cropper.value?.setCropBoxData(cropBoxData);
+                isInitializingCropper.value = false;
+            });
+        },
+        crop() {
+            if (isInitializingCropper.value) return;
+
+            const canvasData = cropper.value?.getCanvasData();
+            const containerData = cropper.value?.getContainerData();
+
+            if (canvasData && containerData) {
+                const xRange = containerData.width - canvasData.width;
+                const yRange = containerData.height - canvasData.height;
+
+                // Avoid division by zero
+                const x =
+                    Math.abs(xRange) < 0.1
+                        ? 50
+                        : (canvasData.left / xRange) * 100;
+                const y =
+                    Math.abs(yRange) < 0.1
+                        ? 50
+                        : (canvasData.top / yRange) * 100;
+
+                emit('update-crop', {
+                    x: Math.min(100, Math.max(0, x)),
+                    y: Math.min(100, Math.max(0, y)),
+                });
             }
-        });
+        },
+    });
+};
+
+const destroyCropper = () => {
+    if (cropper.value) {
+        cropper.value.destroy();
+        cropper.value = null;
     }
 
-    lastCropPointer.value = { x: event.clientX, y: event.clientY };
+    isInitializingCropper.value = false;
 };
 
-const startCropDrag = (event: MouseEvent) => {
-    if (!props.isEditing || !props.isCropping) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-    activate();
-    isDraggingCrop.value = true;
-    lastCropPointer.value = { x: event.clientX, y: event.clientY };
-    window.addEventListener('mousemove', dragCrop);
-    window.addEventListener('mouseup', stopCropDrag);
-};
+watch(
+    () => props.isCropping,
+    (isCropping) => {
+        if (isCropping) {
+            nextTick(() => initCropper());
+        } else {
+            destroyCropper();
+        }
+    },
+);
 
 onUnmounted(() => {
-    stopCropDrag();
+    destroyCropper();
 });
 </script>
 
 <template>
     <div
-        class="relative h-full w-full overflow-hidden"
-        :class="cardFrameClasses"
+        class="relative h-full w-full"
+        :class="[cardFrameClasses, cardClipClasses]"
         :style="cardFrameStyle"
     >
         <div
@@ -872,25 +933,24 @@ onUnmounted(() => {
 
         <div
             v-else-if="widget.type === 'image'"
-            class="relative h-full w-full overflow-hidden"
+            class="relative h-full w-full"
+            :class="[
+                isCropping
+                    ? 'is-cropping-active overflow-visible'
+                    : 'overflow-hidden',
+            ]"
         >
             <img
+                ref="imageRef"
                 :src="image"
                 :alt="title"
-                :style="imageStyle"
+                :style="!isCropping ? imageStyle : undefined"
                 class="relative z-10 h-full w-full rounded-2xl object-cover transition-[filter,transform] duration-150"
-                :class="[
-                    isCropping
-                        ? 'cursor-grab brightness-90 active:cursor-grabbing'
-                        : '',
-                    isDraggingCrop ? 'scale-[1.04]' : '',
-                ]"
                 draggable="false"
-                @mousedown="startCropDrag"
             />
             <div
                 v-if="isCropping"
-                class="pointer-events-none absolute inset-0 z-20 rounded-2xl ring-2 ring-white/80 ring-inset"
+                class="pointer-events-none absolute inset-0 z-20 rounded-2xl"
             ></div>
             <div
                 v-if="isEditing"
@@ -1395,5 +1455,48 @@ onUnmounted(() => {
     content: attr(data-placeholder);
     color: rgb(107 114 128 / 0.72);
     pointer-events: none;
+}
+
+/* Cropper customization */
+.is-cropping-active .cropper-container {
+    background-color: transparent !important;
+    overflow: visible !important;
+}
+
+.is-cropping-active .cropper-wrap-box {
+    overflow: visible !important;
+}
+
+.is-cropping-active .cropper-bg {
+    background-image: none !important;
+}
+
+.is-cropping-active .cropper-canvas {
+    outline: 1px solid #000 !important; /* Border for the entire image */
+}
+
+.is-cropping-active .cropper-view-box {
+    outline: 3px solid #000 !important;
+    outline-color: #000 !important;
+    border-radius: 1rem;
+    box-shadow: 0 0 0 1000px rgba(229, 231, 235, 0.45); /* Manual overlay if modal is not enough */
+}
+
+.is-cropping-active .cropper-face {
+    background-color: transparent !important;
+}
+
+.is-cropping-active .cropper-modal {
+    background-color: rgba(229, 231, 235, 0.45) !important;
+    opacity: 1 !important;
+}
+
+.is-cropping-active .cropper-move {
+    cursor: grab !important;
+}
+
+.is-cropping-active .cropper-move:active,
+.is-cropping-active:active .cropper-move {
+    cursor: grabbing !important;
 }
 </style>

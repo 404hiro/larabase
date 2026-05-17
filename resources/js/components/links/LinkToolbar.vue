@@ -204,7 +204,7 @@ const mobileSizeIconClass = (option: any) => {
         <div v-if="!mobileWidgetOperationActive"
             class="hidden h-11 items-center rounded-2xl border border-gray-200 bg-white px-2 text-slate-500 shadow-[0_12px_30px_rgb(15,23,42,0.14)] max-[1024px]:flex min-[1025px]:hidden">
             <button v-if="!isEditing && !isPublished && hasWidgets" type="button" aria-label="公開" title="公開"
-                class="mr-1 flex h-8 items-center justify-center gap-1.5 rounded-xl bg-black px-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-neutral-800"
+                class="mr-1 flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-black px-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-neutral-800"
                 @click="emit('publish')">
                 <PartyPopper class="size-4" stroke-width="2.2" />
                 <span>公開</span>
@@ -225,7 +225,7 @@ const mobileSizeIconClass = (option: any) => {
             </div>
 
             <button @click="emit('toggleEdit')"
-                class="flex h-8 items-center justify-center rounded-xl transition-colors" :class="isEditing
+                class="flex h-8 cursor-pointer items-center justify-center rounded-xl transition-colors" :class="isEditing
                         ? 'min-w-16 gap-1.5 bg-black px-3 text-sm font-bold text-white shadow-sm hover:bg-neutral-800'
                         : 'gap-1.5 px-3 text-sm font-bold hover:bg-slate-100 hover:text-slate-800'
                     " :aria-label="isEditing ? '保存' : '編集'" :title="isEditing ? '保存' : '編集'">
@@ -238,7 +238,7 @@ const mobileSizeIconClass = (option: any) => {
                 <div class="mx-3 h-7 w-px bg-gray-200"></div>
                 <div class="hs-tooltip inline-block">
                     <button aria-label="リンクを追加" @click="emit('addLink')"
-                        class="flex size-8 items-center justify-center rounded-xl transition-colors hover:bg-slate-100 hover:text-slate-800 hs-tooltip-toggle">
+                        class="flex size-8 cursor-pointer items-center justify-center rounded-xl transition-colors hover:bg-slate-100 hover:text-slate-800 hs-tooltip-toggle">
                         <LinkIcon class="size-5" stroke-width="2.2" />
                     </button>
                     <span
@@ -249,7 +249,7 @@ const mobileSizeIconClass = (option: any) => {
                 </div>
                 <div class="hs-tooltip inline-block">
                     <button aria-label="メディアを追加" @click="chooseMedia"
-                        class="ml-2 flex size-8 items-center justify-center rounded-xl transition-colors hover:bg-slate-100 hover:text-slate-800 hs-tooltip-toggle">
+                        class="ml-2 flex size-8 cursor-pointer items-center justify-center rounded-xl transition-colors hover:bg-slate-100 hover:text-slate-800 hs-tooltip-toggle">
                         <Image class="size-5" stroke-width="2.2" />
                     </button>
                     <span
@@ -260,7 +260,7 @@ const mobileSizeIconClass = (option: any) => {
                 </div>
                 <div class="hs-tooltip inline-block">
                     <button aria-label="テキストを追加" @click="emit('addText')"
-                        class="ml-2 flex size-8 items-center justify-center rounded-xl transition-colors hover:bg-slate-100 hover:text-slate-800 hs-tooltip-toggle">
+                        class="ml-2 flex size-8 cursor-pointer items-center justify-center rounded-xl transition-colors hover:bg-slate-100 hover:text-slate-800 hs-tooltip-toggle">
                         <Type class="size-5" stroke-width="2.2" />
                     </button>
                     <span
@@ -271,7 +271,7 @@ const mobileSizeIconClass = (option: any) => {
                 </div>
                 <div class="hs-tooltip inline-block">
                     <button aria-label="セクションを追加" @click="emit('addSection')"
-                        class="ml-2 flex size-8 items-center justify-center rounded-xl transition-colors hover:bg-slate-100 hover:text-slate-800 hs-tooltip-toggle">
+                        class="ml-2 flex size-8 cursor-pointer items-center justify-center rounded-xl transition-colors hover:bg-slate-100 hover:text-slate-800 hs-tooltip-toggle">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
                             class="size-5">
                             <path
@@ -290,7 +290,7 @@ const mobileSizeIconClass = (option: any) => {
                 </div>
                 <div class="hs-tooltip inline-block">
                     <InertiaLink aria-label="ファンレターページを開く" :href="letterUrl"
-                        class="ml-2 flex size-8 items-center justify-center rounded-xl transition-colors hover:bg-slate-100 hover:text-slate-800 hs-tooltip-toggle">
+                        class="ml-2 flex size-8 cursor-pointer items-center justify-center rounded-xl transition-colors hover:bg-slate-100 hover:text-slate-800 hs-tooltip-toggle">
                         <MessageCircleHeart class="size-5" stroke-width="2.2" />
                     </InertiaLink>
                     <span
@@ -307,7 +307,7 @@ const mobileSizeIconClass = (option: any) => {
             @click.stop>
             <div v-for="option in mobileSizeOptions" :key="option.key" class="hs-tooltip inline-block">
                 <button type="button" :aria-label="option.label"
-                    class="flex size-8 items-center justify-center rounded-lg transition-colors hs-tooltip-toggle"
+                    class="flex size-8 cursor-pointer items-center justify-center rounded-lg transition-colors hs-tooltip-toggle"
                     :class="isActiveMobileSize(option.size)
                             ? 'bg-white text-gray-950 shadow-sm'
                             : 'text-white/70 hover:bg-white/10 hover:text-white'
@@ -326,7 +326,7 @@ const mobileSizeIconClass = (option: any) => {
             <div class="mx-1 h-7 w-px bg-white/20"></div>
 
             <button type="button"
-                class="flex h-8 min-w-12 items-center justify-center whitespace-nowrap rounded-lg bg-white px-4 text-xs font-bold text-black transition-transform active:scale-95"
+                class="flex h-8 min-w-12 cursor-pointer items-center justify-center whitespace-nowrap rounded-lg bg-white px-4 text-xs font-bold text-black transition-transform active:scale-95"
                 @click.stop="emit('completeMobileWidgetOperation')">
                 完了
             </button>

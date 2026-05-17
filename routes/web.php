@@ -22,11 +22,23 @@ Route::get('dashboard', \App\Http\Controllers\DashboardController::class)
     ->middleware(['auth'])
     ->name('dashboard');
 
-Route::get('links', [LinkController::class, 'index'])
+Route::redirect('dashboard/messages', '/dashboard/messages/inbox')
+    ->middleware(['auth']);
+
+Route::get('dashboard/messages/{mailbox}', [\App\Http\Controllers\DashboardController::class, 'messages'])
+    ->middleware(['auth'])
+    ->whereIn('mailbox', ['inbox', 'sent'])
+    ->name('dashboard.messages');
+
+Route::get('dashboard/links/{link:id}', [LinkController::class, 'manage'])
+    ->middleware(['auth'])
+    ->name('dashboard.links.show');
+
+Route::get('dashboard/links', [LinkController::class, 'index'])
     ->middleware(['auth'])
     ->name('links.index');
 
-Route::post('links', [LinkController::class, 'store'])
+Route::post('dashboard/links', [LinkController::class, 'store'])
     ->middleware(['auth'])
     ->name('links.store');
 
@@ -76,5 +88,20 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 // 設定ルート
 require __DIR__.'/settings.php';
 
-Route::get('/@{link:slug}/letter', [LinkController::class, 'letter'])->name('links.letter');
+Route::get('/@{link:slug}/message', [LinkController::class, 'message'])->name('links.message');
+Route::post('/@{link:slug}/messages', [\App\Http\Controllers\MessageController::class, 'store'])
+    ->middleware(['auth'])
+    ->name('messages.store');
+
+Route::patch('/messages/{message}', [\App\Http\Controllers\MessageController::class, 'update'])
+    ->middleware(['auth'])
+    ->name('messages.update');
+
+Route::delete('/messages/{message}', [\App\Http\Controllers\MessageController::class, 'destroy'])
+    ->middleware(['auth'])
+    ->name('messages.destroy');
+
+Route::get('/@{link:slug}/widgets/{widget}/click', [\App\Http\Controllers\WidgetClickController::class, 'click'])
+    ->name('widgets.click');
+
 Route::get('/@{link:slug}', [LinkController::class, 'show'])->name('links.show');

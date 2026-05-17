@@ -320,7 +320,8 @@ onUnmounted(() => emit('lockOpen', false));
                 <button
                     :aria-label="option.label"
                     @click.prevent.stop="emit('resize', option.size)"
-                    :class="[...sizeButtonClass(option.size), 'hs-tooltip-toggle']"
+                    :disabled="isCropping"
+                    :class="[...sizeButtonClass(option.size), isCropping ? 'opacity-50 !cursor-not-allowed' : '', 'hs-tooltip-toggle']"
                 >
                     <span
                         v-if="widget.type !== 'section' && option.key !== 'inline'"
@@ -369,15 +370,15 @@ onUnmounted(() => emit('lockOpen', false));
                 </button>
             </div>
                 <div class="hs-tooltip inline-block">
-                <button aria-label="クロップを調整"
+                <button :aria-label="isCropping ? '完了' : 'トリミング'"
                     
                     @click.prevent.stop="emit('toggleCrop')"
-                    :class="[...toolButtonClass(isCropping), 'hs-tooltip-toggle']"
+                    :class="[...toolButtonClass(isCropping), 'hs-tooltip-toggle', isCropping ? '!bg-white !text-gray-950' : '']"
                 >
                     <Crop :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
                 
                     <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
-                        クロップを調整
+                        {{ isCropping ? '完了' : 'トリミング' }}
                     </span>
                 </button>
             </div>

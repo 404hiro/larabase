@@ -270,12 +270,12 @@ const removeAvatar = () => {
                         :class="previewMode === 'desktop' ? 'lg:max-w-xl' : ''"
                     >
                         <span
-                            class="flex size-9 items-center justify-center rounded-full bg-black text-white"
+                            class="flex size-9 items-center justify-center rounded-full bg-white text-black"
                         >
                             <MessageCircleHeart class="size-5" />
                         </span>
                         <span class="text-center text-sm font-bold">
-                            メッセージを送る
+                            メッセージ
                         </span>
                         <span aria-hidden="true"></span>
                     </button>
@@ -286,12 +286,12 @@ const removeAvatar = () => {
                         :class="previewMode === 'desktop' ? 'lg:max-w-xl' : ''"
                     >
                         <span
-                            class="flex size-9 items-center justify-center rounded-full bg-black text-white"
+                            class="flex size-9 items-center justify-center rounded-full bg-white text-black"
                         >
                             <MessageCircleHeart class="size-5" />
                         </span>
                         <span class="text-center text-sm font-bold">
-                            メッセージを送る
+                            メッセージ
                         </span>
                         <span aria-hidden="true"></span>
                     </InertiaLink>

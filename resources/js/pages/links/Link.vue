@@ -20,8 +20,11 @@ import {
 import { Toaster } from '@/components/ui/toast';
 import { compressImage } from '@/utils/imageCompression';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { click as widgetClick } from '@/routes/widgets';
 import { usePreferredReducedMotion } from '@vueuse/core';
 import axios from 'axios';
+import Cropper from 'cropperjs';
+import 'cropperjs/dist/cropper.css';
 import { GridItem, GridLayout } from 'grid-layout-plus';
 import {
     AlignCenter,
@@ -93,6 +96,17 @@ const props = defineProps<{
         widgets?: any[];
     };
 }>();
+
+const getWidgetHref = (widget: any) => {
+    if (!widget.content || widget.type === 'section' || isEditing.value) {
+        return undefined;
+    }
+
+    return widgetClick.url({
+        link: props.link.slug,
+        widget: widget.id,
+    });
+};
 
 const MAX_WIDGETS = 50;
 const MAX_URL_LENGTH = 2000;
@@ -189,8 +203,10 @@ const draggingWidgetMode = ref<'desktop' | 'mobile' | null>(null);
 const suppressWidgetClickUntil = ref(0);
 const croppingWidgetId = ref<string | number | null>(null);
 const isSmallViewport = ref(false);
+const isPreviewLayoutSwitching = ref(false);
 let suppressWidgetClickTimeout: number | null = null;
 let dragSettleTimeout: number | null = null;
+let previewLayoutSwitchTimeout: number | null = null;
 const prefersReducedMotion = usePreferredReducedMotion();
 const dragPointerState = ref<{
     widgetId: string | number;
@@ -653,6 +669,23 @@ const updateViewportMode = () => {
     isSmallViewport.value = window.matchMedia('(max-width: 1024px)').matches;
 };
 
+const disableLayoutTransitionsBriefly = () => {
+    isPreviewLayoutSwitching.value = true;
+
+    if (previewLayoutSwitchTimeout !== null) {
+        window.clearTimeout(previewLayoutSwitchTimeout);
+    }
+
+    nextTick(() => {
+        requestAnimationFrame(() => {
+            previewLayoutSwitchTimeout = window.setTimeout(() => {
+                isPreviewLayoutSwitching.value = false;
+                previewLayoutSwitchTimeout = null;
+            }, 120);
+        });
+    });
+};
+
 onMounted(() => {
     updateViewportMode();
     window.addEventListener('resize', updateViewportMode);
@@ -688,6 +721,10 @@ onUnmounted(() => {
         window.clearTimeout(confettiTimeout);
     }
 
+    if (previewLayoutSwitchTimeout !== null) {
+        window.clearTimeout(previewLayoutSwitchTimeout);
+    }
+
     window.removeEventListener('resize', updateViewportMode);
     window.removeEventListener('beforeunload', handleBeforeUnload);
     window.removeEventListener('pointermove', handleWindowPointerMove);
@@ -721,7 +758,8 @@ watch(
     () => markDirty(),
 );
 
-watch([previewMode, isSmallViewport], () => {
+watch([activePreviewMode, isSmallViewport], () => {
+    disableLayoutTransitionsBriefly();
     updateLayoutsFromWidgets();
 });
 
@@ -1264,8 +1302,9 @@ const mobileImageEditorWidget = ref<any | null>(null);
 const mobileImageInput = ref<HTMLInputElement | null>(null);
 const isMobileImageCropping = ref(false);
 const mobileImageCropPreview = ref<HTMLElement | null>(null);
-const isDraggingMobileImageCrop = ref(false);
-const lastMobileImageCropPointer = ref<{ x: number; y: number } | null>(null);
+const mobileImageRef = ref<HTMLImageElement | null>(null);
+const mobileCropper = ref<Cropper | null>(null);
+const isInitializingMobileCropper = ref(false);
 const mobileTextEditorWidget = ref<any | null>(null);
 const mobileTextEditorInput = ref<HTMLElement | null>(null);
 const isMobileTextEditorFocused = ref(false);
@@ -1462,8 +1501,6 @@ const updateMobileLinkSensitive = () => {
 const closeMobileImageEditor = () => {
     mobileImageEditorWidget.value = null;
     isMobileImageCropping.value = false;
-    isDraggingMobileImageCrop.value = false;
-    lastMobileImageCropPointer.value = null;
 };
 
 const setMobileImageEditorOpen = (open: boolean) => {
@@ -1582,55 +1619,108 @@ const updateMobileImageCrop = (crop: { x: number; y: number }) => {
     updateImageWidgetCrop(mobileImageEditorWidget.value, crop);
 };
 
-const startMobileImageCrop = (event: PointerEvent) => {
-    if (!isMobileImageCropping.value || !mobileImageEditorWidget.value) {
-        return;
-    }
+const initMobileCropper = () => {
+    if (!mobileImageRef.value || !mobileImageEditorWidget.value) return;
 
-    event.preventDefault();
-    event.stopPropagation();
-    isDraggingMobileImageCrop.value = true;
-    lastMobileImageCropPointer.value = { x: event.clientX, y: event.clientY };
-    mobileImageCropPreview.value?.setPointerCapture(event.pointerId);
-};
+    isInitializingMobileCropper.value = true;
 
-const dragMobileImageCrop = (event: PointerEvent) => {
-    if (
-        !isDraggingMobileImageCrop.value ||
-        !lastMobileImageCropPointer.value ||
-        !mobileImageEditorWidget.value
-    ) {
-        return;
-    }
+    mobileCropper.value = new Cropper(mobileImageRef.value, {
+        viewMode: 1,
+        dragMode: 'move',
+        autoCropArea: 1,
+        restore: false,
+        guides: false,
+        center: false,
+        highlight: false,
+        cropBoxMovable: false,
+        cropBoxResizable: false,
+        zoomable: false,
+        toggleDragModeOnDblclick: false,
+        modal: true,
+        ready() {
+            if (!mobileCropper.value) return;
 
-    event.preventDefault();
-    event.stopPropagation();
+            const containerData = mobileCropper.value.getContainerData();
+            const imageData = mobileCropper.value.getImageData();
+            const cropBoxData = {
+                left: 0,
+                top: 0,
+                width: containerData.width,
+                height: containerData.height,
+            };
 
-    const deltaX = event.clientX - lastMobileImageCropPointer.value.x;
-    const deltaY = event.clientY - lastMobileImageCropPointer.value.y;
-    const currentCrop = {
-        x: Number(mobileImageEditorWidget.value.settings?.cropX ?? 50),
-        y: Number(mobileImageEditorWidget.value.settings?.cropY ?? 50),
-    };
+            mobileCropper.value.setCropBoxData(cropBoxData);
 
-    updateMobileImageCrop({
-        x: Math.min(100, Math.max(0, currentCrop.x - deltaX * 0.35)),
-        y: Math.min(100, Math.max(0, currentCrop.y - deltaY * 0.35)),
+            const scale = Math.max(
+                containerData.width / imageData.naturalWidth,
+                containerData.height / imageData.naturalHeight,
+            );
+
+            mobileCropper.value.setCanvasData({
+                width: imageData.naturalWidth * scale,
+                height: imageData.naturalHeight * scale,
+            });
+
+            const canvasData = mobileCropper.value.getCanvasData();
+            const xPercent = Number(mobileImageEditorWidget.value?.settings?.cropX ?? 50);
+            const yPercent = Number(mobileImageEditorWidget.value?.settings?.cropY ?? 50);
+
+            const xRange = containerData.width - canvasData.width;
+            const yRange = containerData.height - canvasData.height;
+
+            mobileCropper.value.setCanvasData({
+                left: xRange * (xPercent / 100),
+                top: yRange * (yPercent / 100),
+            });
+
+            nextTick(() => {
+                mobileCropper.value?.setCropBoxData(cropBoxData);
+                isInitializingMobileCropper.value = false;
+            });
+        },
+        crop() {
+            if (isInitializingMobileCropper.value) return;
+
+            const canvasData = mobileCropper.value?.getCanvasData();
+            const containerData = mobileCropper.value?.getContainerData();
+
+            if (canvasData && containerData) {
+                const xRange = containerData.width - canvasData.width;
+                const yRange = containerData.height - canvasData.height;
+
+                const x =
+                    Math.abs(xRange) < 0.1
+                        ? 50
+                        : (canvasData.left / xRange) * 100;
+                const y =
+                    Math.abs(yRange) < 0.1
+                        ? 50
+                        : (canvasData.top / yRange) * 100;
+
+                updateMobileImageCrop({
+                    x: Math.min(100, Math.max(0, x)),
+                    y: Math.min(100, Math.max(0, y)),
+                });
+            }
+        },
     });
-
-    lastMobileImageCropPointer.value = { x: event.clientX, y: event.clientY };
 };
 
-const stopMobileImageCrop = (event?: PointerEvent) => {
-    if (event) {
-        event.preventDefault();
-        event.stopPropagation();
-        mobileImageCropPreview.value?.releasePointerCapture(event.pointerId);
+const destroyMobileCropper = () => {
+    if (mobileCropper.value) {
+        mobileCropper.value.destroy();
+        mobileCropper.value = null;
     }
-
-    isDraggingMobileImageCrop.value = false;
-    lastMobileImageCropPointer.value = null;
+    isInitializingMobileCropper.value = false;
 };
+
+watch(isMobileImageCropping, (isCropping) => {
+    if (isCropping) {
+        nextTick(() => initMobileCropper());
+    } else {
+        destroyMobileCropper();
+    }
+});
 
 const closeMobileTextEditor = () => {
     mobileTextEditorWidget.value = null;
@@ -2058,6 +2148,7 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
 
     try {
         const { data } = await axios.post('/fetch-ogp', { url: limitedUrl });
+        const xMatch = limitedUrl.match(/https?:\/\/(?:www\.)?(?:x|twitter)\.com\/([a-zA-Z0-9_]{1,15})(?:\/|\?|$)/i);
 
         const desktopPosition = pos
             ? pos
@@ -2091,7 +2182,9 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
             h_mobile: h,
 
             settings: {
-                title: trimToLength(data.title ?? '', MAX_LINK_TITLE_LENGTH),
+                title: xMatch
+                    ? `@${xMatch[1]}`
+                    : trimToLength(data.title ?? '', MAX_LINK_TITLE_LENGTH),
                 aspectClass: 'aspect-video',
                 sensitive: isSensitive,
             },
@@ -2104,6 +2197,7 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
         scrollToWidgetBottom();
     } catch (e) {
         console.error('Failed to fetch OGP', e);
+        const xMatch = limitedUrl.match(/https?:\/\/(?:www\.)?(?:x|twitter)\.com\/([a-zA-Z0-9_]{1,15})(?:\/|\?|$)/i);
 
         const desktopPosition = pos
             ? pos
@@ -2136,7 +2230,9 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
             h_mobile: h,
 
             settings: {
-                title: trimToLength(limitedUrl, MAX_LINK_TITLE_LENGTH),
+                title: xMatch
+                    ? `@${xMatch[1]}`
+                    : trimToLength(limitedUrl, MAX_LINK_TITLE_LENGTH),
                 aspectClass: 'aspect-video',
                 sensitive: isSensitive,
             },
@@ -2570,7 +2666,11 @@ const closeSensitiveWarning = () => {
 };
 
 const continueToSensitiveLink = () => {
-    const url = sensitiveTargetWidget.value?.content;
+    const widget = sensitiveTargetWidget.value;
+
+    if (!widget || !widget.content) return;
+
+    const url = getWidgetHref(widget);
 
     if (!url) return;
 
@@ -2647,6 +2747,10 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
     z-index: 150 !important;
 }
 
+.link-page--editing .vgl-item.is-cropping {
+    z-index: 9003 !important;
+}
+
 .link-page:not(.link-page--editing) .vgl-item,
 .link-page:not(.link-page--editing) .vgl-item * {
     cursor: default !important;
@@ -2679,6 +2783,16 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
         transform 0.2s ease,
         width 0.2s ease,
         height 0.2s ease !important;
+}
+
+.link-page--instant-layout,
+.link-page--instant-layout *,
+.link-page--instant-layout .vgl-item,
+.link-page--instant-layout .vgl-item:not(.vgl-item--dragging):not(.vgl-item--resizing) {
+    transition-duration: 0ms !important;
+    transition-delay: 0ms !important;
+    animation-duration: 0ms !important;
+    animation-delay: 0ms !important;
 }
 
 .mobile-text-editor.is-empty::before {
@@ -2742,6 +2856,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
         :class="[
             'min-h-screen bg-white',
             isEditing ? 'link-page--editing' : '',
+            isPreviewLayoutSwitching ? 'link-page--instant-layout' : '',
         ]"
     >
         <LinkPageNavigation :slug="props.link.slug" active-tab="profile" />
@@ -2780,7 +2895,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     <DropdownMenuTrigger :as-child="true">
                         <button
                             type="button"
-                            class="flex size-9 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100"
+                            class="flex size-9 cursor-pointer items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100"
                             aria-label="メニュー"
                             title="メニュー"
                         >
@@ -2809,7 +2924,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
             v-if="isOwner"
             :is-editing="isEditing"
             v-model:preview-mode="previewMode"
-            :letter-url="`/@${props.link.slug}/letter`"
+            :letter-url="`/@${props.link.slug}/message`"
             :is-published="isLinkPublished"
             :is-share-copied="copiedProfileUrl"
             :has-widgets="localWidgets.length > 0"
@@ -2879,7 +2994,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                 :class="[
                     activePreviewMode === 'mobile'
                         ? 'flex w-full max-w-[374px] flex-col gap-4 pb-32'
-                        : 'flex w-full flex-col gap-y-8 pb-32 min-[1025px]:max-w-none min-[1025px]:flex-row min-[1025px]:justify-center min-[1025px]:gap-x-4 min-[1025px]:gap-y-0',
+                        : 'flex w-full flex-col gap-y-8 pb-32 min-[1025px]:max-w-[1198px] min-[1025px]:flex-row min-[1025px]:justify-between min-[1025px]:gap-x-4 min-[1025px]:gap-y-0',
                 ]"
             >
                 <LinkProfile
@@ -2889,7 +3004,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     :preview-mode="activePreviewMode"
                     :avatar-url="profileAvatarUrl"
                     :display-initial="displayInitial"
-                    :letter-url="`/@${props.link.slug}/letter`"
+                    :letter-url="`/@${props.link.slug}/message`"
                     @update:avatar="updateAvatar"
                     @remove:avatar="removeAvatar"
                 />
@@ -2903,6 +3018,11 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                             : 'mt-2 pb-24'
                     "
                 >
+                    <div
+                        v-if="croppingWidgetId !== null"
+                        class="fixed inset-0 z-[9002] hidden bg-black/40 backdrop-blur-sm transition-opacity duration-300 min-[1025px]:block"
+                    ></div>
+
                     <!-- Desktop Grid -->
                     <GridLayout
                         v-if="shouldShowDesktopGrid"
@@ -2989,14 +3109,14 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                             @mouseleave="hoveredWidgetId = null"
                             class="group"
                             :class="[
-                                croppingWidgetId === item.i ? 'z-[90]' : '',
-                                draggingWidgetId === item.i
-                                    ? 'z-[130]'
-                                    : hoveredWidgetId === item.i ||
-                                        croppingWidgetId === item.i ||
-                                        lockedControlsWidgetId === item.i
-                                      ? 'z-[120]'
-                                      : 'z-10',
+                                croppingWidgetId === item.i
+                                    ? 'z-[9003] is-cropping'
+                                    : draggingWidgetId === item.i
+                                      ? 'z-[130]'
+                                      : hoveredWidgetId === item.i ||
+                                          lockedControlsWidgetId === item.i
+                                        ? 'z-[120]'
+                                        : 'z-10',
                             ]"
                         >
                             <div
@@ -3015,15 +3135,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                             ? 'a'
                                             : 'div'
                                     "
-                                    :href="
-                                        item.widget.content &&
-                                        item.widget.type !== 'section' &&
-                                        !isSensitiveWidget(item.widget) &&
-                                        !isYouTubeEmbedMode(item.widget) &&
-                                        !isEditing
-                                            ? item.widget.content
-                                            : undefined
-                                    "
+                                    :href="getWidgetHref(item.widget)"
                                     :target="
                                         item.widget.content &&
                                         item.widget.type !== 'section' &&
@@ -3251,14 +3363,14 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                             @mouseleave="hoveredWidgetId = null"
                             class="group"
                             :class="[
-                                croppingWidgetId === item.i ? 'z-[120]' : '',
-                                draggingWidgetId === item.i
-                                    ? 'z-[130] cursor-grabbing'
-                                    : hoveredWidgetId === item.i ||
-                                        croppingWidgetId === item.i ||
-                                        lockedControlsWidgetId === item.i
-                                      ? 'z-[120] cursor-grab'
-                                      : 'z-10',
+                                croppingWidgetId === item.i
+                                    ? 'z-[9003] is-cropping'
+                                    : draggingWidgetId === item.i
+                                      ? 'z-[130] cursor-grabbing'
+                                      : hoveredWidgetId === item.i ||
+                                          lockedControlsWidgetId === item.i
+                                        ? 'z-[120] cursor-grab'
+                                        : 'z-10',
                                 isEditing && activeWidgetId === item.i
                                     ? 'cursor-default'
                                     : '',
@@ -3283,15 +3395,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                             ? 'a'
                                             : 'div'
                                     "
-                                    :href="
-                                        item.widget.content &&
-                                        item.widget.type !== 'section' &&
-                                        !isSensitiveWidget(item.widget) &&
-                                        !isYouTubeEmbedMode(item.widget) &&
-                                        !isEditing
-                                            ? item.widget.content
-                                            : undefined
-                                    "
+                                    :href="getWidgetHref(item.widget)"
                                     :target="
                                         item.widget.content &&
                                         item.widget.type !== 'section' &&
@@ -3342,7 +3446,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                         v-if="
                                             isEditing &&
                                             isSmallViewport &&
-                                            activeWidgetId === item.i
+                                            (activeWidgetId === item.i || croppingWidgetId === item.i)
                                         "
                                         class="pointer-events-none absolute inset-0 z-[150]"
                                     >
@@ -3356,6 +3460,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                         >
                                             <Trash2 class="size-4" />
                                         </button>
+
                                         <button
                                             type="button"
                                             aria-label="ウィジェットを編集"
@@ -3771,29 +3876,19 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                         >
                             <div
                                 ref="mobileImageCropPreview"
-                                class="relative touch-none overflow-hidden rounded-2xl"
+                                class="relative touch-none rounded-2xl"
+                                :class="isMobileImageCropping ? 'is-cropping-active overflow-visible' : 'overflow-hidden'"
                                 :style="mobileImageEditorPreviewStyle"
-                                @pointerdown.stop="startMobileImageCrop"
-                                @pointermove.stop="dragMobileImageCrop"
-                                @pointerup.stop="stopMobileImageCrop"
-                                @pointercancel.stop="stopMobileImageCrop"
-                                @click="
-                                    !isMobileImageCropping
-                                        ? chooseMobileImage()
-                                        : null
-                                "
                             >
                                 <img
+                                    ref="mobileImageRef"
                                     :src="mobileImageEditorWidget.thumbnail_url"
                                     alt=""
                                     class="h-full w-full object-cover"
-                                    :style="mobileImageEditorCropStyle"
+                                    :style="isMobileImageCropping ? {} : mobileImageEditorCropStyle"
                                     draggable="false"
                                 />
-                                <div
-                                    v-if="isMobileImageCropping"
-                                    class="pointer-events-none absolute inset-0 rounded-2xl ring-2 ring-black ring-inset"
-                                ></div>
+
                             </div>
 
                             <button
@@ -3811,6 +3906,21 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                 "
                             >
                                 <Crop class="size-5" />
+                            </button>
+
+                            <button
+                                type="button"
+                                aria-label="画像を変更"
+                                :disabled="isMobileImageCropping"
+                                class="absolute left-8 bottom-8 flex h-10 items-center justify-center rounded-xl bg-white px-4 text-sm font-bold text-black shadow-md transition-transform"
+                                :class="[
+                                    isMobileImageCropping
+                                        ? 'cursor-not-allowed opacity-50'
+                                        : 'active:scale-95',
+                                ]"
+                                @click.stop="chooseMobileImage"
+                            >
+                                変更
                             </button>
 
                             <input
