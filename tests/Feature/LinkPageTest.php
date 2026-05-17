@@ -107,7 +107,7 @@ test('link page displays top profile navigation', function () {
         ->toContain('isLoggedIn')
         ->toContain('aria-label="通知"')
         ->not->toContain('aria-label="検索"')
-        ->toContain('aria-label="ユーザーメニュー"')
+        ->toContain('aria-label="アカウントメニュー"')
         ->toContain('UserMenuContent')
         ->toContain('DropdownMenuContent align="end" class="z-[9001] w-56"')
         ->toContain('getInitials(auth.user?.name)')

@@ -30,9 +30,9 @@ it('allows the owner to reply to a message', function () {
         ])
         ->assertRedirect();
 
-    $this->assertDatabaseHas('message_publications', [
+    $this->assertDatabaseHas('message_replies', [
         'message_id' => $message->id,
-        'reply_body' => 'Thank you for your message!',
+        'body' => 'Thank you for your message!',
     ]);
 });
 

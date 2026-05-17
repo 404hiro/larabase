@@ -6,6 +6,8 @@ use App\Http\Requests\Messages\StoreMessageRequest;
 use App\Http\Requests\Messages\UpdateMessageRequest;
 use App\Models\Link;
 use App\Models\Message;
+use App\Notifications\MessageReadNotification;
+use App\Notifications\MessageReceivedNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -33,6 +35,8 @@ class MessageController extends Controller
                 'user_agent' => $request->userAgent(),
             ],
         ]);
+
+        $link->user->notify(new MessageReceivedNotification($message));
 
         return back()->with('success', 'メッセージを送りました');
     }
@@ -62,16 +66,21 @@ class MessageController extends Controller
         }
 
         if (isset($validated['is_read'])) {
+            $wasRead = $message->is_read;
             $message->is_read = $validated['is_read'];
             $message->read_at = $message->is_read ? ($message->read_at ?? now()) : null;
+
+            if (! $wasRead && $message->is_read && $message->sender) {
+                $message->sender->notify(new MessageReadNotification($message));
+            }
         }
 
         $message->save();
 
         if (isset($validated['reply_body'])) {
-            $message->publication()->updateOrCreate(
-                ['link_id' => $link->id],
-                ['reply_body' => $validated['reply_body']]
+            $message->reply()->updateOrCreate(
+                ['message_id' => $message->id],
+                ['body' => $validated['reply_body']]
             );
         }
 

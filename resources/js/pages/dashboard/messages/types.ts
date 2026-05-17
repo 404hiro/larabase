@@ -5,6 +5,7 @@ export type DashboardMessage = {
     sender_display_name: string | null;
     is_public: boolean;
     is_read: boolean;
+    amount: number;
     created_at: string;
     reply_body: string | null;
     sender: {

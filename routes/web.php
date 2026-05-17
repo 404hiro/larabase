@@ -30,9 +30,23 @@ Route::get('dashboard/messages/{mailbox}', [\App\Http\Controllers\DashboardContr
     ->whereIn('mailbox', ['inbox', 'sent'])
     ->name('dashboard.messages');
 
+Route::get('dashboard/notifications', [\App\Http\Controllers\NotificationController::class, 'index'])
+    ->middleware(['auth'])
+    ->name('notifications.index');
+Route::patch('dashboard/notifications/mark-all-as-read', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead'])
+    ->middleware(['auth'])
+    ->name('notifications.markAllAsRead');
+Route::patch('dashboard/notifications/{id}/mark-as-read', [\App\Http\Controllers\NotificationController::class, 'markAsRead'])
+    ->middleware(['auth'])
+    ->name('notifications.markAsRead');
+
 Route::get('dashboard/links/{link:id}', [LinkController::class, 'manage'])
     ->middleware(['auth'])
     ->name('dashboard.links.show');
+
+Route::delete('dashboard/links/{link:id}', [LinkController::class, 'destroy'])
+    ->middleware(['auth'])
+    ->name('dashboard.links.destroy');
 
 Route::get('dashboard/links', [LinkController::class, 'index'])
     ->middleware(['auth'])

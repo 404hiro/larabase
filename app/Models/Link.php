@@ -99,10 +99,7 @@ class Link extends Model
     /**
      * Get the publications related to the link.
      */
-    public function messagePublications(): HasMany
-    {
-        return $this->hasMany(MessagePublication::class);
-    }
+
 
     /**
      * Get the blocks related to the link.

@@ -103,7 +103,7 @@ function submit() {
 
 <template>
     <DashboardLayout>
-        <Head title="ユーザ設定" />
+        <Head title="アカウント設定" />
 
         <SettingsLayout>
             <div class="flex flex-col space-y-6">

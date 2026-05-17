@@ -34,7 +34,7 @@ defineProps<Props>();
         <DropdownMenuItem :as-child="true">
             <Link class="block w-full cursor-pointer" :href="edit()" prefetch as="button">
                 <UserCog class="mr-2 h-4 w-4" />
-                ユーザ設定
+                アカウント設定
             </Link>
         </DropdownMenuItem>
     </DropdownMenuGroup>

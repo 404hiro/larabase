@@ -22,7 +22,7 @@ const mainNavItems: NavItem[] = [
         icon: LinkIcon,
     },
     {
-        title: 'ユーザ設定',
+        title: 'アカウント設定',
         href: '/settings',
         icon: UserCog,
     },

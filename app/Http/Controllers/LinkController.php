@@ -229,6 +229,19 @@ class LinkController extends Controller
         return back()->with('success', '保存しました');
     }
 
+    /**
+     * Remove the specified link.
+     */
+    public function destroy(Request $request, Link $link): RedirectResponse
+    {
+        abort_unless($request->user()->id === $link->user_id, 403);
+
+        $this->deleteStoredAvatar($link);
+        $link->delete();
+
+        return redirect()->route('links.index')->with('success', 'リンクを削除しました');
+    }
+
     private function deleteStoredAvatar(Link $link): void
     {
         if (! $link->avatar_url) {

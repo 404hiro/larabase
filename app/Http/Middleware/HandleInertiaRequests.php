@@ -63,6 +63,23 @@ class HandleInertiaRequests extends Middleware
                 'warning' => $request->session()->get('warning'),
                 'info' => $request->session()->get('info'),
             ],
+            'unreadMessagesCount' => fn () => $request->user()
+                ? \App\Models\Message::whereHas('link', fn ($q) => $q->where('user_id', $request->user()->id))
+                    ->where('is_read', false)
+                    ->count()
+                : 0,
+            'unreadNotificationsCount' => fn () => $request->user()
+                ? $request->user()->unreadNotifications()->count()
+                : 0,
+            'recentNotifications' => fn () => $request->user()
+                ? $request->user()->notifications()->latest()->take(3)->get()->map(fn ($notification) => [
+                    'id' => $notification->id,
+                    'type' => $notification->type,
+                    'data' => $notification->data,
+                    'read_at' => $notification->read_at,
+                    'created_at' => $notification->created_at->toIso8601String(),
+                ])
+                : [],
         ];
     }
 }

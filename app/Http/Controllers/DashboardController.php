@@ -18,7 +18,7 @@ class DashboardController extends Controller
         $user = $request->user();
 
         $messages = Message::query()
-            ->with(['link:id,slug,display_name', 'publication', 'sender:id,name,avatar'])
+            ->with(['link:id,slug,display_name', 'reply', 'sender:id,name,avatar'])
             ->whereHas('link', function ($query) use ($user): void {
                 $query->where('user_id', $user->id);
             })
@@ -52,8 +52,9 @@ class DashboardController extends Controller
                 'sender_display_name' => $message->sender_display_name,
                 'is_public' => $message->is_public,
                 'is_read' => $message->is_read,
+                'amount' => $message->amount,
                 'created_at' => $message->created_at->toIso8601String(),
-                'reply_body' => $message->publication?->reply_body,
+                'reply_body' => $message->reply?->body,
                 'sender' => [
                     'id' => $message->sender->id,
                     'name' => $message->sender->name,
@@ -76,7 +77,7 @@ class DashboardController extends Controller
         $selectedMessageId = $request->query('message');
 
         $mailboxMessagesQuery = Message::query()
-            ->with(['link:id,slug,display_name,user_id,avatar_url', 'publication', 'sender:id,name,avatar'])
+            ->with(['link:id,slug,display_name,user_id,avatar_url', 'reply', 'sender:id,name,avatar'])
             ->when($mailbox === 'sent',
                 fn ($query) => $query->where('sender_user_id', $user->id),
                 fn ($query) => $query->whereHas('link', function ($query) use ($user): void {
@@ -106,8 +107,9 @@ class DashboardController extends Controller
                 'sender_display_name' => $message->sender_display_name,
                 'is_public' => $message->is_public,
                 'is_read' => $message->is_read,
+                'amount' => $message->amount,
                 'created_at' => $message->created_at->toIso8601String(),
-                'reply_body' => $message->publication?->reply_body,
+                'reply_body' => $message->reply?->body,
                 'sender' => [
                     'id' => $message->sender->id,
                     'name' => $message->sender->name,

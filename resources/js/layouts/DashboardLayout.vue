@@ -39,6 +39,9 @@ type DashboardLink = {
 
 const page = usePage();
 const auth = computed(() => page.props.auth);
+const unreadMessagesCount = computed(() => (page.props.unreadMessagesCount ?? 0) as number);
+const unreadNotificationsCount = computed(() => (page.props.unreadNotificationsCount ?? 0) as number);
+const recentNotifications = computed(() => (page.props.recentNotifications ?? []) as any[]);
 const currentPath = computed(() => page.url.split('?')[0]);
 const currentSearchParams = computed(() => {
     return new URLSearchParams(page.url.split('?')[1] ?? '');
@@ -46,8 +49,8 @@ const currentSearchParams = computed(() => {
 const dashboardLinks = computed(() => {
     return (page.props.dashboardLinks ?? []) as DashboardLink[];
 });
-const isLinksOpen = ref(true);
-const isMessagesOpen = ref(true);
+const isLinksOpen = ref(false);
+const isMessagesOpen = ref(false);
 const isMobileSidebarOpen = ref(false);
 
 const navigationItems = [
@@ -86,12 +89,17 @@ const isActiveLinksOverview = () => {
 watch(
     () => currentPath.value,
     (path) => {
-        if (path.startsWith('/dashboard/links')) {
-            isLinksOpen.value = true;
-        }
+        if (path === '/dashboard') {
+            isLinksOpen.value = false;
+            isMessagesOpen.value = false;
+        } else {
+            if (path.startsWith('/dashboard/links')) {
+                isLinksOpen.value = true;
+            }
 
-        if (path.startsWith('/dashboard/messages')) {
-            isMessagesOpen.value = true;
+            if (path.startsWith('/dashboard/messages')) {
+                isMessagesOpen.value = true;
+            }
         }
 
         isMobileSidebarOpen.value = false;
@@ -189,8 +197,16 @@ const isActiveMessages = (linkId: string) => {
                             aria-controls="dashboard-messages-accordion-sub"
                             @click="toggleMessagesSection"
                         >
-                            <Inbox class="size-4" />
-                            <span>メッセージ</span>
+                            <div class="flex flex-1 items-center gap-3">
+                                <Inbox class="size-4" />
+                                <span>メッセージ</span>
+                            </div>
+                            <div
+                                v-if="unreadMessagesCount > 0"
+                                class="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white"
+                            >
+                                {{ unreadMessagesCount }}
+                            </div>
                             <ChevronDown
                                 class="ms-auto size-4 transition-transform duration-200"
                                 :class="isMessagesOpen ? 'rotate-180' : ''"
@@ -206,7 +222,7 @@ const isActiveMessages = (linkId: string) => {
                         >
                             <Link
                                 href="/dashboard/messages/inbox"
-                                class="flex w-full items-center gap-2 truncate rounded-lg px-3 py-1.5 text-sm font-medium transition"
+                                class="flex w-full items-center justify-between truncate rounded-lg px-3 py-1.5 text-sm font-medium transition"
                                 :class="
                                     isActiveMessageInbox()
                                         ? 'bg-white text-black'
@@ -214,8 +230,16 @@ const isActiveMessages = (linkId: string) => {
                                 "
                                 @click="closeMobileSidebar"
                             >
-                                <Inbox class="size-3.5" />
-                                受信箱
+                                <div class="flex items-center gap-2">
+                                    <Inbox class="size-3.5" />
+                                    受信箱
+                                </div>
+                                <div
+                                    v-if="unreadMessagesCount > 0"
+                                    class="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white"
+                                >
+                                    {{ unreadMessagesCount }}
+                                </div>
                             </Link>
                             <Link
                                 href="/dashboard/messages/sent"
@@ -295,6 +319,28 @@ const isActiveMessages = (linkId: string) => {
                     <div class="my-2 border-t border-white/10"></div>
 
                     <Link
+                        href="/dashboard/notifications"
+                        class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition"
+                        :class="
+                            currentPath === '/dashboard/notifications'
+                                ? 'bg-white text-black'
+                                : 'text-white/65 hover:bg-white/10 hover:text-white'
+                        "
+                        @click="closeMobileSidebar"
+                    >
+                        <div class="flex items-center gap-3">
+                            <Bell class="size-4" />
+                            お知らせ
+                        </div>
+                        <div
+                            v-if="unreadNotificationsCount > 0"
+                            class="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white"
+                        >
+                            {{ unreadNotificationsCount }}
+                        </div>
+                    </Link>
+
+                    <Link
                         href="/settings"
                         class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition"
                         :class="
@@ -305,7 +351,7 @@ const isActiveMessages = (linkId: string) => {
                         @click="closeMobileSidebar"
                     >
                         <Settings class="size-4" />
-                        ユーザ設定
+                        アカウント設定
                     </Link>
                 </div>
             </nav>
@@ -335,9 +381,37 @@ const isActiveMessages = (linkId: string) => {
                 </div>
 
                 <div class="flex items-center gap-2">
-                    <Button variant="outline" size="icon">
-                        <Bell class="size-4" />
-                    </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger as-child>
+                            <Button variant="outline" size="icon" class="relative">
+                                <Bell class="size-4" />
+                                <span v-if="unreadNotificationsCount > 0" class="absolute top-1 right-1 flex size-2.5 rounded-full bg-red-500"></span>
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" class="w-80 p-0">
+                            <div class="px-4 py-3 border-b border-gray-100 dark:border-neutral-800">
+                                <p class="text-sm font-semibold text-gray-900 dark:text-white">お知らせ</p>
+                            </div>
+                            <div class="py-2 max-h-80 overflow-y-auto">
+                                <template v-if="recentNotifications.length > 0">
+                                    <div v-for="notification in recentNotifications" :key="notification.id" class="px-4 py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 border-b border-gray-50 last:border-0 dark:border-neutral-800/50">
+                                        <Link :href="notification.data.url" class="block">
+                                            <p class="text-sm text-gray-800 dark:text-neutral-200" :class="{ 'font-bold': !notification.read_at }">{{ notification.data.title }}</p>
+                                            <p class="text-xs text-gray-500 dark:text-neutral-400 mt-1">{{ notification.data.body }}</p>
+                                        </Link>
+                                    </div>
+                                </template>
+                                <div v-else class="px-4 py-6 text-center text-sm text-gray-500">
+                                    お知らせはありません
+                                </div>
+                            </div>
+                            <div class="border-t border-gray-100 px-4 py-3 dark:border-neutral-800 text-center">
+                                <Link href="/dashboard/notifications" class="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                                    すべてのお知らせ
+                                </Link>
+                            </div>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
 
                     <DropdownMenu>
                         <DropdownMenuTrigger as-child>

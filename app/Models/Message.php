@@ -49,8 +49,8 @@ class Message extends Model
         return $this->belongsTo(User::class, 'sender_user_id');
     }
 
-    public function publication(): HasOne
+    public function reply(): HasOne
     {
-        return $this->hasOne(MessagePublication::class);
+        return $this->hasOne(MessageReply::class);
     }
 }

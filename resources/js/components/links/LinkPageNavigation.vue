@@ -64,8 +64,9 @@ const isLoggedIn = computed(() => Boolean(auth.value?.user));
                                 variant="ghost"
                                 size="icon"
                                 class="relative size-8 w-auto rounded-full p-1 focus-within:ring-2 focus-within:ring-primary"
-                                aria-label="ユーザーメニュー"
-                                title="ユーザーメニュー"
+                                aria-label="アカウントメニュー"
+                                title="アカウントメニュー"
+
                             >
                                 <Avatar class="size-6 overflow-hidden rounded-full">
                                     <AvatarImage
