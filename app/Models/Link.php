@@ -100,7 +100,6 @@ class Link extends Model
      * Get the publications related to the link.
      */
 
-
     /**
      * Get the blocks related to the link.
      */
