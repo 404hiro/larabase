@@ -1550,7 +1550,7 @@ onUnmounted(() => {
                     :class="widgetCornerClass"
                 >
                     <div :class="githubCommitGlassClasses">
-                        <div class="grid grid-cols-6 gap-1.5">
+                        <div :class="githubCommitGridClasses">
                             <span
                                 v-for="(level, index) in githubCommitCells"
                                 :key="index"
@@ -1700,7 +1700,7 @@ onUnmounted(() => {
                     :class="widgetCornerClass"
                 >
                     <div :class="githubCommitGlassClasses">
-                        <div class="grid grid-cols-6 gap-1.5">
+                        <div :class="githubCommitGridClasses">
                             <span
                                 v-for="(level, index) in githubCommitCells"
                                 :key="index"
@@ -1958,7 +1958,7 @@ onUnmounted(() => {
                     style="aspect-ratio: 1.91 / 1"
                 >
                     <div :class="githubCommitGlassClasses">
-                        <div class="grid grid-cols-6 gap-1.5">
+                        <div :class="githubCommitGridClasses">
                             <span
                                 v-for="(level, index) in githubCommitCells"
                                 :key="index"
