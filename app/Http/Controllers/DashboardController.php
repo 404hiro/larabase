@@ -13,9 +13,13 @@ class DashboardController extends Controller
     /**
      * Display the user dashboard.
      */
-    public function __invoke(Request $request): Response
+    public function __invoke(Request $request): Response|\Illuminate\Http\RedirectResponse
     {
         $user = $request->user();
+
+        if ($user->links()->count() === 0) {
+            return redirect()->route('walkthrough.index');
+        }
 
         $messages = Message::query()
             ->with(['link:id,slug,display_name', 'reply', 'sender:id,name,avatar'])

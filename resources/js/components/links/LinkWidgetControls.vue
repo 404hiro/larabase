@@ -12,6 +12,10 @@ import {
     Link,
     ListVideo,
     LockKeyhole,
+    Minus,
+    Move,
+    Plus,
+    Search,
     Trash2,
 } from 'lucide-vue-next';
 import { HSStaticMethods } from 'preline';
@@ -23,6 +27,7 @@ const props = defineProps<{
     mode: 'desktop' | 'mobile';
     sizeOptions: any[];
     isCropping?: boolean;
+    isMapMoving?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -30,6 +35,18 @@ const emit = defineEmits<{
     editLink: [];
     lockOpen: [isOpen: boolean];
     toggleCrop: [];
+    toggleMapMove: [];
+    closeMapMove: [];
+    updateMapZoom: [delta: number];
+    updateMapLocation: [
+        location: {
+            title: string;
+            address: string;
+            lat: number;
+            lng: number;
+            zoom: number;
+        },
+    ];
     updateBackgroundColor: [color: string];
     updateSensitive: [isSensitive: boolean];
     updateTextAlign: [align: 'left' | 'center' | 'right'];
@@ -44,12 +61,28 @@ onMounted(() => {
 
 const showColorPicker = ref(false);
 const showContentLabels = ref(false);
+const showMapSearch = ref(false);
+const mapSearchQuery = ref('');
+const mapSearchResults = ref<
+    Array<{
+        place_id: number;
+        display_name: string;
+        lat: string;
+        lon: string;
+        name?: string;
+    }>
+>([]);
+const isSearchingMap = ref(false);
+const mapSearchError = ref('');
 const customColorValue = ref('');
 const controlsRef = ref<HTMLElement | null>(null);
+let mapSearchTimeout: number | null = null;
+let mapSearchAbortController: AbortController | null = null;
 
 onClickOutside(controlsRef, () => {
     showColorPicker.value = false;
     showContentLabels.value = false;
+    showMapSearch.value = false;
 });
 
 const colorSwatches = [
@@ -203,20 +236,58 @@ const normalizeColor = (color: string) => {
 };
 
 const toggleColorPicker = () => {
+    closeMapMoveIfActive();
     customColorValue.value = backgroundColor.value.toUpperCase();
     showColorPicker.value = !showColorPicker.value;
 };
 
 const openLinkSettings = () => {
+    closeMapMoveIfActive();
     showColorPicker.value = false;
+    showMapSearch.value = false;
     emit('editLink');
 };
 
 const toggleContentLabels = () => {
+    closeMapMoveIfActive();
+    showMapSearch.value = false;
     showContentLabels.value = !showContentLabels.value;
 };
 
+const toggleMapSearch = () => {
+    closeMapMoveIfActive();
+    showColorPicker.value = false;
+    showContentLabels.value = false;
+    mapSearchError.value = '';
+    mapSearchQuery.value =
+        props.widget.settings?.address || props.widget.settings?.title || '';
+    showMapSearch.value = !showMapSearch.value;
+
+    if (showMapSearch.value) {
+        searchMapLocations(mapSearchQuery.value);
+    }
+};
+
+const toggleMapMove = () => {
+    showColorPicker.value = false;
+    showContentLabels.value = false;
+    showMapSearch.value = false;
+    emit('toggleMapMove');
+};
+
+const closeMapMoveIfActive = () => {
+    if (props.isMapMoving) {
+        emit('closeMapMove');
+    }
+};
+
+const resizeWidget = (size: { w: number; h: number }) => {
+    closeMapMoveIfActive();
+    emit('resize', size);
+};
+
 const toggleSensitive = () => {
+    closeMapMoveIfActive();
     emit('updateSensitive', !isSensitive.value);
 };
 
@@ -235,9 +306,104 @@ const updateCustomColor = (event: Event) => {
     }
 };
 
-watch([showColorPicker, showContentLabels], ([isColorOpen, isLabelsOpen]) =>
-    emit('lockOpen', isColorOpen || isLabelsOpen),
+const extractMapLocationTitle = (displayName: string, name?: string) => {
+    const title = (name || displayName.split(',')[0] || '').trim();
+
+    return title || displayName;
+};
+
+const searchMapLocations = async (query: string) => {
+    const trimmedQuery = query.trim();
+
+    if (mapSearchAbortController) {
+        mapSearchAbortController.abort();
+    }
+
+    if (trimmedQuery.length < 2) {
+        mapSearchResults.value = [];
+        mapSearchError.value = '';
+        isSearchingMap.value = false;
+
+        return;
+    }
+
+    mapSearchAbortController = new AbortController();
+    isSearchingMap.value = true;
+    mapSearchError.value = '';
+
+    try {
+        const params = new URLSearchParams({
+            q: trimmedQuery,
+            format: 'jsonv2',
+            limit: '5',
+            addressdetails: '1',
+            'accept-language': 'ja,en',
+        });
+        const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+            {
+                signal: mapSearchAbortController.signal,
+                headers: {
+                    Accept: 'application/json',
+                },
+            },
+        );
+
+        if (!response.ok) {
+            throw new Error('Failed to search map locations.');
+        }
+
+        mapSearchResults.value = await response.json();
+    } catch (error) {
+        if ((error as DOMException).name === 'AbortError') {
+            return;
+        }
+
+        mapSearchError.value = '候補を取得できませんでした';
+        mapSearchResults.value = [];
+    } finally {
+        isSearchingMap.value = false;
+    }
+};
+
+const selectMapLocation = (result: {
+    display_name: string;
+    lat: string;
+    lon: string;
+    name?: string;
+}) => {
+    emit('updateMapLocation', {
+        title: extractMapLocationTitle(result.display_name, result.name),
+        address: result.display_name,
+        lat: Number(result.lat),
+        lng: Number(result.lon),
+        zoom: 15,
+    });
+
+    showMapSearch.value = false;
+    mapSearchQuery.value = result.display_name;
+    mapSearchResults.value = [];
+};
+
+watch(
+    [showColorPicker, showContentLabels, showMapSearch],
+    ([isColorOpen, isLabelsOpen, isMapSearchOpen]) =>
+        emit('lockOpen', isColorOpen || isLabelsOpen || isMapSearchOpen),
 );
+
+watch(mapSearchQuery, (query) => {
+    if (!showMapSearch.value) {
+        return;
+    }
+
+    if (mapSearchTimeout !== null) {
+        window.clearTimeout(mapSearchTimeout);
+    }
+
+    mapSearchTimeout = window.setTimeout(() => {
+        searchMapLocations(query);
+    }, 300);
+});
 
 watch(backgroundColor, (color) => {
     if (!showColorPicker.value) {
@@ -245,13 +411,20 @@ watch(backgroundColor, (color) => {
     }
 });
 
-onUnmounted(() => emit('lockOpen', false));
+onUnmounted(() => {
+    if (mapSearchTimeout !== null) {
+        window.clearTimeout(mapSearchTimeout);
+    }
+
+    mapSearchAbortController?.abort();
+    emit('lockOpen', false);
+});
 </script>
 
 <template>
     <div
         ref="controlsRef"
-        class="link-widget-controls pointer-events-none absolute inset-0 z-[140]"
+        class="link-widget-controls pointer-events-none absolute inset-0 z-[3200]"
     >
         <!-- Delete Button -->
         <button
@@ -269,7 +442,7 @@ onUnmounted(() => emit('lockOpen', false));
             v-if="widget.type === 'text' && showColorPicker"
             class="pointer-events-auto absolute right-1/2 z-[150] flex h-11 translate-x-1/2 items-center gap-1.5 rounded-2xl bg-black/80 p-1.5 shadow-xl ring-1 ring-white/10 backdrop-blur-md"
             :class="
-                mode === 'desktop' ? 'bottom-2' : 'bottom-[-4.5rem]'
+                mode === 'desktop' ? 'bottom-1' : 'bottom-[-4.25rem]'
             "
             @click.stop
             @pointerdown.stop
@@ -305,7 +478,7 @@ onUnmounted(() => emit('lockOpen', false));
         <!-- Resize Controls & Content Settings -->
         <div
             v-if="sizeOptions && sizeOptions.length > 0"
-            class="pointer-events-auto absolute right-1/2 z-[140] flex translate-x-1/2 items-center gap-1.5 rounded-2xl bg-black/80 p-1.5 text-white shadow-xl ring-1 ring-white/10 backdrop-blur-md"
+            class="pointer-events-auto absolute right-1/2 z-[3200] flex translate-x-1/2 items-center gap-1.5 rounded-2xl bg-black/80 p-1.5 text-white shadow-xl ring-1 ring-white/10 backdrop-blur-md"
             :class="mode === 'desktop' ? '-bottom-10' : '-bottom-8'"
             @click.stop
             @pointerdown.prevent.stop
@@ -319,7 +492,7 @@ onUnmounted(() => emit('lockOpen', false));
             >
                 <button
                     :aria-label="option.label"
-                    @click.prevent.stop="emit('resize', option.size)"
+                    @click.prevent.stop="resizeWidget(option.size)"
                     :disabled="isCropping"
                     :class="[...sizeButtonClass(option.size), isCropping ? 'opacity-50 !cursor-not-allowed' : '', 'hs-tooltip-toggle']"
                 >
@@ -337,6 +510,122 @@ onUnmounted(() => emit('lockOpen', false));
                     </span>
                 </button>
             </div>
+
+            <template v-if="widget.type === 'map'">
+                <div class="mx-1 h-7 w-px bg-gray-600"></div>
+                <div class="hs-tooltip inline-block">
+                    <button
+                        aria-label="ロケーションを検索"
+                        @click.prevent.stop="toggleMapSearch"
+                        :class="[...toolButtonClass(showMapSearch), 'hs-tooltip-toggle']"
+                    >
+                        <Search
+                            :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                        />
+
+                        <span
+                            class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap"
+                            role="tooltip"
+                        >
+                            ロケーションを検索
+                        </span>
+                    </button>
+                </div>
+                <div class="hs-tooltip inline-block">
+                    <button
+                        aria-label="マップを移動"
+                        @click.prevent.stop="toggleMapMove"
+                        :class="[...toolButtonClass(Boolean(isMapMoving)), 'hs-tooltip-toggle']"
+                    >
+                        <Move
+                            :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                        />
+
+                        <span
+                            class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap"
+                            role="tooltip"
+                        >
+                            マップを移動
+                        </span>
+                    </button>
+                </div>
+
+                <div
+                    v-if="isMapMoving"
+                    class="pointer-events-auto absolute top-[calc(100%+0.125rem)] right-0 z-[3300] flex items-center gap-1.5 rounded-2xl bg-black/80 p-1.5 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-md"
+                    @click.stop
+                    @pointerdown.stop
+                    @mousedown.stop
+                    @touchstart.stop
+                >
+                    <button
+                        type="button"
+                        aria-label="縮小"
+                        class="flex size-8 cursor-pointer items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                        @click.prevent.stop="emit('updateMapZoom', -1)"
+                    >
+                        <Minus class="size-4" />
+                    </button>
+                    <button
+                        type="button"
+                        aria-label="拡大"
+                        class="flex size-8 cursor-pointer items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                        @click.prevent.stop="emit('updateMapZoom', 1)"
+                    >
+                        <Plus class="size-4" />
+                    </button>
+                </div>
+
+                <div
+                    v-if="showMapSearch"
+                    class="pointer-events-auto absolute top-[calc(100%+0.125rem)] left-1/2 z-[3300] flex w-72 -translate-x-1/2 flex-col gap-2 rounded-2xl bg-[#292929] p-3 text-sm text-white shadow-2xl ring-1 ring-white/10"
+                    @click.stop
+                    @pointerdown.stop
+                    @mousedown.stop
+                    @touchstart.stop
+                >
+                    <input
+                        v-model="mapSearchQuery"
+                        type="text"
+                        aria-label="ロケーション"
+                        placeholder="ロケーションを入力"
+                        class="h-10 w-full rounded-xl border border-white/20 bg-white/8 px-3 text-sm font-semibold text-white outline-none placeholder:text-white/45 focus:border-white/50 focus:ring-2 focus:ring-white/20"
+                        @keydown.stop
+                    />
+
+                    <div
+                        v-if="isSearchingMap"
+                        class="px-2 py-2 text-sm font-semibold text-white/60"
+                    >
+                        検索中...
+                    </div>
+                    <div
+                        v-else-if="mapSearchError"
+                        class="px-2 py-2 text-sm font-semibold text-red-200"
+                    >
+                        {{ mapSearchError }}
+                    </div>
+                    <div
+                        v-else-if="
+                            mapSearchQuery.trim().length >= 2 &&
+                            mapSearchResults.length === 0
+                        "
+                        class="px-2 py-2 text-sm font-semibold text-white/60"
+                    >
+                        候補が見つかりません
+                    </div>
+
+                    <button
+                        v-for="result in mapSearchResults"
+                        :key="result.place_id"
+                        type="button"
+                        class="block w-full cursor-pointer truncate rounded-xl px-3 py-2 text-left text-sm font-semibold text-white/85 transition-colors hover:bg-white/10"
+                        @click.prevent.stop="selectMapLocation(result)"
+                    >
+                        {{ result.display_name }}
+                    </button>
+                </div>
+            </template>
 
             <template v-if="widget.type === 'image'">
                 <div class="mx-1 h-7 w-px bg-gray-600"></div>
@@ -494,11 +783,11 @@ onUnmounted(() => emit('lockOpen', false));
         <!-- YouTube / Music Mode Switcher -->
         <div
             v-if="isEmbeddableWidget && !showContentLabels"
-            class="pointer-events-auto absolute right-1/2 z-[140] flex translate-x-1/2 items-center gap-1.5 rounded-2xl bg-black/80 p-1.5 text-white shadow-xl ring-1 ring-white/10 backdrop-blur-md"
+            class="pointer-events-auto absolute right-1/2 z-[3200] flex translate-x-1/2 items-center gap-1.5 rounded-2xl bg-black/80 p-1.5 text-white shadow-xl ring-1 ring-white/10 backdrop-blur-md"
             :class="
                 mode === 'desktop'
-                    ? (sizeOptions && sizeOptions.length > 0 ? '-bottom-[5.25rem]' : '-bottom-10')
-                    : (sizeOptions && sizeOptions.length > 0 ? '-bottom-[4.75rem]' : '-bottom-8')
+                    ? (sizeOptions && sizeOptions.length > 0 ? '-bottom-[5rem]' : '-bottom-10')
+                    : (sizeOptions && sizeOptions.length > 0 ? '-bottom-[4.5rem]' : '-bottom-8')
             "
             @click.stop
             @pointerdown.prevent.stop
@@ -548,8 +837,8 @@ onUnmounted(() => emit('lockOpen', false));
 
         <div
             v-if="widget.type === 'text' && !showContentLabels"
-            class="pointer-events-auto absolute right-1/2 z-[140] flex translate-x-1/2 items-center gap-1.5 rounded-2xl bg-black/80 p-1.5 text-white shadow-xl ring-1 ring-white/10 backdrop-blur-md"
-            :class="mode === 'desktop' ? 'bottom-[-5.25rem]' : 'bottom-[-4.5rem]'"
+            class="pointer-events-auto absolute right-1/2 z-[3200] flex translate-x-1/2 items-center gap-1.5 rounded-2xl bg-black/80 p-1.5 text-white shadow-xl ring-1 ring-white/10 backdrop-blur-md"
+            :class="mode === 'desktop' ? 'bottom-[-5rem]' : 'bottom-[-4.25rem]'"
             @click.stop
             @pointerdown.prevent.stop
             @mousedown.prevent.stop

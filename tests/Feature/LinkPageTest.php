@@ -69,50 +69,127 @@ test('empty link add controls fit the responsive widget area', function () {
         ->toContain('const toolbarWidgetSize = { w: 1, h: 2 } as const')
         ->toContain('pendingWidgetSize.value = toolbarWidgetSize')
         ->toContain('const addTextWidget = (position: WidgetPosition | null = null)')
+        ->toContain('const addMapWidget = (position: WidgetPosition | null = null)')
+        ->toContain("type: 'map'")
+        ->toContain('const w = position ? position.w : (pendingWidgetSize.value?.w ?? 2)')
+        ->toContain('const h = position ? position.h : (pendingWidgetSize.value?.h ?? 4)')
+        ->toContain("widget.type !== 'link'")
+        ->toContain("option.key !== 'inline'")
+        ->toContain("address: '東京都港区芝公園4丁目2-8'")
+        ->toContain('lat: 35.6585805')
+        ->toContain('lng: 139.7454329')
+        ->toContain('@add-map="addMapWidget"')
         ->toContain('const addMediaWidget = async (')
         ->toContain('ref="emptyMediaInput"');
 });
 
-test('link page displays top profile navigation', function () {
+test('map widgets use leaflet and replace the toolbar message shortcut', function () {
+    $toolbar = file_get_contents(resource_path('js/components/links/LinkToolbar.vue'));
+    $content = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
+    $controls = file_get_contents(resource_path('js/components/links/LinkWidgetControls.vue'));
+    $css = file_get_contents(resource_path('css/app.css'));
+
+    expect($toolbar)
+        ->toContain('MapPinned')
+        ->toContain('addMap: []')
+        ->toContain("emit('addMap')")
+        ->toContain('マップ')
+        ->not->toContain('MessageCircleHeart')
+        ->not->toContain('ファンレター');
+
+    expect($content)
+        ->toContain("await import('leaflet')")
+        ->toContain("widget.type === 'map'")
+        ->toContain('L.map(mapRef.value')
+        ->toContain("'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'")
+        ->toContain('&copy; OpenStreetMap contributors &copy; CARTO')
+        ->toContain('grid-link-map-marker')
+        ->toContain('grid-link-map-marker__pulse')
+        ->toContain('grid-link-map-marker__dot')
+        ->toContain('grid-link-map-center-marker')
+        ->toContain('props.isMapMoving')
+        ->toContain('leafletMap.value.setZoom(mapZoom.value, { animate: false })')
+        ->toContain('updateMapCenterFromLeaflet')
+        ->toContain("'update-map-center'")
+        ->toContain('const recenterMap = () => {')
+        ->toContain('window.requestAnimationFrame')
+        ->toContain('window.setTimeout(applyCenter, 160)')
+        ->toContain('invalidateSize({ pan: false })')
+        ->toContain('animate: false')
+        ->toContain('mapLayoutKey.value')
+        ->toContain('const mapTitle = computed(() => {')
+        ->toContain('rawTitle === undefined || rawTitle === null')
+        ->toContain(':aria-label="mapAriaLabel"')
+        ->toContain('grid-link-google-map')
+        ->toContain('v-if="isEditing"')
+        ->toContain(':value="mapTitle"')
+        ->toContain('placeholder="Add a title..."')
+        ->toContain('widget-text-input max-w-full cursor-text resize-none whitespace-pre-wrap break-words rounded-xl border border-white/60 bg-white/55 px-3 py-2 font-semibold text-gray-800 shadow-sm backdrop-blur-md')
+        ->toContain('@input="updateTitle"')
+        ->toContain('inline-block w-fit max-w-full whitespace-normal break-words rounded-xl border border-white/60 bg-white/55 px-3 py-2 font-semibold text-gray-800 shadow-sm backdrop-blur-md')
+        ->toContain('東京タワー')
+        ->not->toContain('{{ mapAddress }}');
+
+    expect($controls)
+        ->toContain('Search')
+        ->toContain('Move')
+        ->toContain('Minus')
+        ->toContain('Plus')
+        ->toContain('toggleMapMove')
+        ->toContain('closeMapMove')
+        ->toContain('updateMapZoom')
+        ->toContain('updateMapLocation')
+        ->toContain('showMapSearch')
+        ->toContain('mapSearchQuery')
+        ->toContain('https://nominatim.openstreetmap.org/search')
+        ->toContain('ロケーションを検索')
+        ->toContain('マップを移動')
+        ->toContain('aria-label="縮小"')
+        ->toContain('aria-label="拡大"')
+        ->toContain('ロケーションを入力')
+        ->toContain('top-[calc(100%+0.125rem)]')
+        ->not->toContain('top-[calc(100%+0.25rem)]')
+        ->not->toContain('top-[calc(100%+0.5rem)]')
+        ->toContain('z-[3300]')
+        ->toContain('w-72')
+        ->toContain('type="text"')
+        ->not->toContain('type="search"')
+        ->toContain('text-sm text-white')
+        ->toContain('h-10 w-full')
+        ->toContain('selectMapLocation')
+        ->toContain('候補が見つかりません')
+        ->toContain('z-[3200]')
+        ->toContain('gap-1.5 rounded-2xl bg-black/80 p-1.5')
+        ->toContain('size-8 cursor-pointer items-center justify-center rounded-lg')
+        ->not->toContain('size-9 cursor-pointer items-center justify-center rounded-lg')
+        ->not->toContain('z-[140]');
+
+    expect($css)
+        ->toContain("@import 'leaflet/dist/leaflet.css'")
+        ->toContain('.grid-link-map-marker__dot')
+        ->toContain('.grid-link-map-marker__pulse')
+        ->toContain('.grid-link-google-map .leaflet-tile')
+        ->toContain('filter: saturate(1.18) contrast(0.96) brightness(1.05)')
+        ->toContain('@keyframes grid-link-map-marker-pulse')
+        ->toContain('background: #3b82f6')
+        ->toContain('background: rgb(59 130 246 / 0.22)');
+});
+
+test('link and message pages hide the top profile navigation', function () {
     $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
-    $navigation = file_get_contents(resource_path('js/components/links/LinkPageNavigation.vue'));
+    $messagePage = file_get_contents(resource_path('js/pages/links/Message.vue'));
 
     expect($linkPage)
-        ->toContain('LinkPageNavigation')
-        ->toContain(':slug="props.link.slug"')
-        ->toContain('active-tab="profile"')
+        ->not->toContain('LinkPageNavigation')
+        ->not->toContain('active-tab="profile"')
         ->toContain('pt-8')
         ->toContain('pt-12 min-[1025px]:px-0 sm:px-8');
 
-    expect($navigation)
-        ->toContain('aria-label="プロフィールナビゲーション"')
-        ->toContain('h-9')
-        ->toContain('z-[9000]')
-        ->toContain('border-b border-gray-200 bg-white/95')
-        ->not->toContain('shadow-sm')
-        ->toContain('max-w-[374px]')
-        ->toContain('min-[1025px]:max-w-[1198px]')
-        ->toContain('@{{ slug }}')
-        ->toContain('v-if="isLoggedIn"')
-        ->toContain(':href="`/@${slug}`"')
-        ->toContain('v-else')
-        ->toContain('href="/"')
-        ->toContain('hover:text-gray-700')
-        ->not->toContain('tabClass')
-        ->not->toContain('<UserRound')
-        ->not->toContain('<MessageCircleHeart')
-        ->not->toContain('プロフィール</span>')
-        ->not->toContain('メッセージ</span>')
-        ->not->toContain(':href="`/@${slug}/message`"')
-        ->toContain('isLoggedIn')
-        ->toContain('aria-label="通知"')
-        ->not->toContain('aria-label="検索"')
-        ->toContain('aria-label="アカウントメニュー"')
-        ->toContain('UserMenuContent')
-        ->toContain('DropdownMenuContent align="end" class="z-[9001] w-56"')
-        ->toContain('getInitials(auth.user?.name)')
-        ->toContain('href="/login"')
-        ->toContain('Login');
+    expect($messagePage)
+        ->not->toContain('LinkPageNavigation')
+        ->not->toContain('active-tab="message"')
+        ->toContain('px-5 pt-5')
+        ->toContain('absolute inset-x-0 top-0 h-28');
 });
 
 test('link page shows visitor floating share actions', function () {
@@ -175,8 +252,8 @@ test('message page displays real messages', function () {
         ->toContain("Inertia::render('links/Message'");
 
     expect($messagePage)
-        ->toContain('LinkPageNavigation')
-        ->toContain('active-tab="message"')
+        ->not->toContain('LinkPageNavigation')
+        ->not->toContain('active-tab="message"')
         ->toContain(':href="linkShow.url(link.slug)"')
         ->toContain('プロフィールを見る')
         ->toContain('const isOwner = computed')
@@ -280,19 +357,25 @@ test('link toolbar exposes text widget controls next to media', function () {
         ->toContain("verticalAlign: 'center'");
 });
 
-test('link toolbar exposes letter page button after section controls', function () {
+test('link toolbar exposes map button after text controls', function () {
     $toolbar = file_get_contents(resource_path('js/components/links/LinkToolbar.vue'));
     $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
+    $textPosition = strpos($toolbar, '<span class="font-semibold">テキスト</span>');
+    $mapPosition = strpos($toolbar, '<span class="font-semibold">マップ</span>');
+    $sectionPosition = strpos($toolbar, '<span class="font-semibold">セクション</span>');
 
     expect($toolbar)
-        ->toContain("import { Link as InertiaLink } from '@inertiajs/vue3'")
-        ->toContain('MessageCircleHeart')
-        ->toContain('letterUrl: string')
-        ->toContain(':href="letterUrl"')
-        ->toContain('ファンレター')
-        ->toContain('aria-label="ファンレターページを開く"');
+        ->toContain('MapPinned')
+        ->toContain('addMap: []')
+        ->toContain("emit('addMap')")
+        ->toContain('マップ')
+        ->toContain('aria-label="マップを追加"');
+
+    expect($textPosition)->toBeLessThan($mapPosition);
+    expect($mapPosition)->toBeLessThan($sectionPosition);
 
     expect($linkPage)
+        ->toContain('@add-map="addMapWidget"')
         ->toContain(':letter-url="`/@${props.link.slug}/message`"');
 });
 
@@ -432,6 +515,11 @@ test('link profile uses responsive avatar sizing and fixed name and bio sizing',
         ->toContain('size-[120px]')
         ->toContain('min-[1025px]:size-[184px]')
         ->toContain('text-[30px] leading-tight font-bold tracking-tight')
+        ->toContain("pageTheme === 'dark'")
+        ->toContain('border-white/15 bg-white/10 text-white')
+        ->toContain('focus:bg-white/15')
+        ->toContain("pageTheme === 'dark'\n                            ? 'border-white/15 bg-white/10 text-white")
+        ->toContain('border-gray-200 bg-gray-100/70 text-gray-700')
         ->toContain('text-[16px]')
         ->not->toContain('min-[1025px]:text-[20px]');
 });
@@ -464,6 +552,114 @@ test('link web display flag defaults false and only turns on', function () {
     expect($link->fresh()->has_web_display)->toBeTrue();
 });
 
+test('link page style settings are saved to theme config', function () {
+    $user = User::factory()->create();
+    $link = Link::factory()->create([
+        'user_id' => $user->id,
+        'slug' => 'styled-link',
+        'theme_config' => [
+            'theme' => 'light',
+            'widget_style' => 'rounded',
+        ],
+    ]);
+
+    $this->actingAs($user)->put(route('links.update', $link), [
+        'display_name' => 'Styled Link',
+        'bio' => 'Updated bio',
+        'theme_config' => [
+            'theme' => 'dark',
+            'widget_style' => 'sharp',
+        ],
+    ])->assertRedirect();
+
+    expect($link->fresh()->theme_config)->toMatchArray([
+        'theme' => 'dark',
+        'widget_style' => 'sharp',
+    ]);
+
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
+    $toolbar = file_get_contents(resource_path('js/components/links/LinkToolbar.vue'));
+    $content = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
+    $profile = file_get_contents(resource_path('js/components/links/LinkProfile.vue'));
+    $request = file_get_contents(app_path('Http/Requests/Links/UpdateLinkRequest.php'));
+    $controller = file_get_contents(app_path('Http/Controllers/LinkController.php'));
+
+    expect($linkPage)
+        ->toContain('props.link.theme_config?.theme')
+        ->toContain('props.link.theme_config?.widget_style')
+        ->toContain('const LINK_PAGE_THEME_BACKGROUNDS = {')
+        ->toContain("dark: '#111111'")
+        ->toContain('const applyDocumentBackgroundColor = () => {')
+        ->toContain('document.documentElement.style.backgroundColor = pageBackgroundColor.value')
+        ->toContain('document.body.style.backgroundColor = pageBackgroundColor.value')
+        ->toContain('watch(pageBackgroundColor, () => {')
+        ->toContain('const pageTheme = ref')
+        ->toContain('const widgetStyle = ref')
+        ->toContain('theme_config: {')
+        ->toContain('theme: pageTheme.value')
+        ->toContain('widget_style: widgetStyle.value')
+        ->toContain(':page-theme="pageTheme"')
+        ->toContain(':widget-style="widgetStyle"')
+        ->toContain('@update:page-theme="pageTheme = $event"')
+        ->toContain('@update:widget-style="widgetStyle = $event"')
+        ->toContain(':widget-corner-class=')
+        ->toContain('pageThemeClasses')
+        ->toContain('widgetCornerClass');
+
+    expect($toolbar)
+        ->toContain('Palette')
+        ->not->toContain('Settings')
+        ->toContain('スタイル変更')
+        ->toContain('w-[min(calc(100vw-2rem),400px)]')
+        ->toContain('text-base font-black')
+        ->toContain('text-xs font-semibold')
+        ->toContain('テーマ')
+        ->toContain('ライト')
+        ->toContain('ダーク')
+        ->toContain('ウィジェットスタイル')
+        ->toContain('シェイプ')
+        ->toContain('ソフト')
+        ->toContain('角丸')
+        ->toContain("{ value: 'sharp', label: 'シェイプ', class: 'rounded-none' }")
+        ->toContain("{ value: 'soft', label: 'ソフト', class: 'rounded-md' }")
+        ->toContain("{ value: 'rounded', label: '角丸', class: 'rounded-full' }")
+        ->toContain("'update:pageTheme'")
+        ->toContain("'update:widgetStyle'")
+        ->toContain('showStylePanel')
+        ->toContain('stylePanelRef')
+        ->toContain('data-style-toggle-button')
+        ->toContain("targetElement?.closest('[data-style-toggle-button]')")
+        ->not->toContain('styleButtonRef')
+        ->toContain('closeStylePanelOnOutsideClick')
+        ->toContain("window.addEventListener('pointerdown', closeStylePanelOnOutsideClick)")
+        ->toContain("window.removeEventListener('pointerdown', closeStylePanelOnOutsideClick)");
+
+    expect($content)
+        ->toContain('widgetCornerClass?: string')
+        ->toContain("pageTheme?: 'light' | 'dark'")
+        ->toContain("props.widgetCornerClass ?? 'rounded-2xl'")
+        ->toContain(':class="[cardFrameClasses, cardClipClasses, widgetCornerClass]"')
+        ->toContain("props.widget.type === 'section' && !props.isEditing")
+        ->toContain('border border-gray-200 bg-gray-100/70')
+        ->toContain('border border-white/15 bg-white/10')
+        ->toContain('text-white placeholder:text-white/45 hover:bg-white/10 focus:border-white/20 focus:bg-white/10')
+        ->toContain('text-gray-950 placeholder:text-gray-400 hover:bg-gray-100 focus:border-gray-200 focus:bg-white')
+        ->toContain("pageTheme === 'dark' ? 'text-white' : 'text-gray-800'");
+
+    expect($profile)
+        ->toContain("pageTheme?: 'light' | 'dark'")
+        ->toContain("pageTheme === 'dark'");
+
+    expect($request)
+        ->toContain("'theme_config' => ['nullable', 'array']")
+        ->toContain("'theme_config.theme' => ['nullable', Rule::in(['light', 'dark'])]")
+        ->toContain("'theme_config.widget_style' => ['nullable', Rule::in(['sharp', 'soft', 'rounded'])]");
+
+    expect($controller)
+        ->toContain('$linkData[\'theme_config\']')
+        ->toContain("'widget_style'");
+});
+
 test('text widgets support alignment controls and background colors', function () {
     $controls = file_get_contents(resource_path('js/components/links/LinkWidgetControls.vue'));
     $content = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
@@ -476,9 +672,9 @@ test('text widgets support alignment controls and background colors', function (
         ->toContain('updateVerticalAlign')
         ->toContain('AlignVerticalJustifyStart')
         ->toContain('AlignVerticalJustifyEnd')
-        ->toContain('bottom-[-5.25rem]')
+        ->toContain('bottom-[-5rem]')
         ->toContain('flex h-11 translate-x-1/2')
-        ->toContain("mode === 'desktop' ? 'bottom-2' : 'bottom-[-4.5rem]'")
+        ->toContain("mode === 'desktop' ? 'bottom-1' : 'bottom-[-4.25rem]'")
         ->toContain('class="h-8 w-20 rounded-lg')
         ->toContain("widget.type === 'text' && !showContentLabels")
         ->not->toContain("widget.type === 'text' && !showColorPicker && !showContentLabels")
@@ -579,23 +775,67 @@ test('link widgets expose sensitive content labels', function () {
         ->toContain('emit(\'add\', normalizedUrl, isSensitive.value)');
 });
 
-test('map widget controls and rendering are removed', function () {
+test('map widget controls add a leaflet map without the old modal flow', function () {
     $toolbar = file_get_contents(resource_path('js/components/links/LinkToolbar.vue'));
     $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
     $content = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
 
     expect($toolbar)
-        ->not->toContain('addMap')
-        ->not->toContain('マップ');
+        ->toContain('addMap')
+        ->toContain('マップ');
 
     expect($linkPage)
         ->not->toContain('showAddMapModal')
-        ->not->toContain("type: 'map'")
-        ->not->toContain('temp_map_')
+        ->toContain("type: 'map'")
+        ->toContain('temp_map_')
+        ->toContain('const updateMapWidgetLocation = (')
+        ->toContain('const mobileMapEditorWidget = ref')
+        ->toContain('const openMobileMapEditor = (widget: any) => {')
+        ->toContain('const mobileMapEditorPreviewStyle = computed(() => {')
+        ->toContain('const shouldShowMobileMapLocationDropdown = computed(() => {')
+        ->toContain('const updateMobileMapSearchQuery = (event: Event) => {')
+        ->toContain('const selectMobileMapLocation = (result: {')
+        ->toContain('const updateMobileMapTitle = (event: Event) => {')
+        ->toContain('const updateMobileMapZoom = (delta: number) => {')
+        ->toContain('マップを編集')
+        ->toContain('mobileMapSearchQuery')
+        ->toContain('ロケーション')
+        ->toContain('placeholder="ロケーションを入力"')
+        ->toContain('absolute top-[calc(100%+0.5rem)] right-0 left-0 z-[500] max-h-56 overflow-y-auto')
+        ->toContain('マップ')
+        ->toContain('mobileMapEditorPreviewStyle')
+        ->toContain('bottom-3 left-3 z-[410]')
+        ->toContain('updateMobileMapZoom(-1)')
+        ->toContain('updateMobileMapZoom(1)')
+        ->toContain('タイトル')
+        ->toContain('placeholder="タイトルを入力"')
+        ->toContain(':is-map-moving="true"')
+        ->toContain('@update-map-location=')
+        ->toContain('widget.settings.address = location.address')
+        ->toContain('widget.settings.lat = location.lat')
+        ->toContain('widget.settings.lng = location.lng')
+        ->toContain('const activeMapMovingWidgetId = ref')
+        ->toContain('const toggleMapMove = (')
+        ->toContain('const closeMapMove = () => {')
+        ->toContain('const updateMapWidgetCenter = (')
+        ->toContain('const updateMapWidgetZoom = (')
+        ->toContain('@toggle-map-move=')
+        ->toContain('@update-map-center=')
+        ->toContain('@update-map-zoom=')
+        ->toContain('fixed inset-0 z-[2000] bg-white/70')
+        ->toContain('@click="closeMapMove"')
+        ->toContain('@close-map-move="closeMapMove"')
+        ->toContain('!activeMapMovingWidgetId')
+        ->toContain('!z-[3000]')
+        ->not->toContain('hover:scale-[1.015]')
+        ->toContain('z-[1000]')
+        ->toContain('z-[1100]')
+        ->toContain('z-[4000] cursor-grab')
         ->not->toContain('openMapModalWithPos');
 
     expect($content)
-        ->not->toContain("widget.type === 'map'")
+        ->toContain("widget.type === 'map'")
+        ->toContain("await import('leaflet')")
         ->not->toContain('staticmap.openstreetmap.de');
 });
 
@@ -642,6 +882,26 @@ test('link widgets show play buttons and brand tinted backgrounds for services',
         ->toContain("actionLabel: 'プレイ'")
         ->toContain("'bg-[#fff1f3]'")
         ->toContain("'bg-[#effaf3]'");
+});
+
+test('github link widgets show commit glass instead of og images', function () {
+    $content = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
+
+    expect($content)
+        ->toContain("host !== 'github.com'")
+        ->toContain('const githubProfile = computed(() => {')
+        ->toContain('handle: `@${username}`')
+        ->toContain('const githubCommitCells = computed(() => {')
+        ->toContain('const githubCommitCellClasses = (level: number) => [')
+        ->toContain('const githubCommitGlassClasses = computed(() => [')
+        ->toContain('v-else-if="githubProfile"')
+        ->toContain('v-for="(level, index) in githubCommitCells"')
+        ->toContain(':class="githubCommitCellClasses(level)"')
+        ->toContain(':class="githubCommitGlassClasses"')
+        ->toContain('bg-[#F7F7F8]')
+        ->toContain('bg-[#216E39]')
+        ->not->toContain('{{ githubProfile.handle }}')
+        ->not->toContain('<Github class="size-6" />');
 });
 
 test('link widgets show purchase and install actions for commerce and app stores', function () {
@@ -708,8 +968,9 @@ test('link widget images render without placeholder backgrounds', function () {
 
     expect($content)
         ->toContain('chooseOgpImage')
-        ->toContain('class="cursor-pointer group relative flex-1 overflow-hidden rounded-2xl"')
-        ->toContain('class="cursor-pointer group relative w-full shrink-0 overflow-hidden rounded-2xl"')
+        ->toContain('class="cursor-pointer group relative flex-1 overflow-hidden"')
+        ->toContain('class="cursor-pointer group relative w-full shrink-0 overflow-hidden"')
+        ->toContain(':class="widgetCornerClass"')
         ->not->toContain('rounded-2xl bg-gray-100');
 });
 
@@ -719,7 +980,8 @@ test('image widgets show an editable hover title field', function () {
     expect($content)
         ->toContain('placeholder="Add a title..."')
         ->toContain('group-hover:opacity-100')
-        ->toContain('bg-white/80')
+        ->toContain('border border-white/60 bg-white/55')
+        ->toContain('shadow-sm backdrop-blur-md')
         ->toContain('w-fit max-w-full whitespace-normal break-words')
         ->toContain('@input="updateTitle"')
         ->toContain('v-if="isEditing"');
@@ -734,8 +996,8 @@ test('image widgets expose link and crop controls', function () {
         ->toContain("widget.type === 'image'")
         ->toContain("emit('editLink')")
         ->toContain("emit('toggleCrop')")
-        ->toContain('Crop media')
-        ->toContain('Save crop');
+        ->toContain('トリミング')
+        ->toContain('完了');
 
     expect($content)
         ->toContain('objectPosition')
@@ -791,7 +1053,9 @@ test('mobile widget editing uses tap operation controls and a bottom resize tool
         ->toContain('ウィジェットを削除')
         ->toContain('bg-red-600')
         ->toContain('<Trash2 class="size-4" />')
-        ->toContain('rounded-2xl border-2 border-black')
+        ->toContain('border-2 border-black')
+        ->toContain('z-[4000] cursor-grab')
+        ->toContain('absolute inset-0 z-[700]')
         ->toContain('flex size-10 translate-x-1/2')
         ->toContain('cursor-grab touch-none')
         ->toContain('<Move class="size-5" />')
@@ -801,17 +1065,20 @@ test('mobile widget editing uses tap operation controls and a bottom resize tool
 
     expect($toolbar)
         ->toContain('mobileWidgetOperationActive?: boolean')
+        ->toContain('fixed bottom-6 left-1/2 z-[9005]')
         ->toContain('mobileSizeOptions?: any[]')
         ->toContain('activeMobileWidget?: any | null')
         ->toContain('resizeMobileWidget')
         ->toContain('completeMobileWidgetOperation')
         ->toContain('v-if="!mobileWidgetOperationActive"')
+        ->toContain('<Palette class="size-5" stroke-width="2.2" />')
+        ->toContain('aria-label="スタイル変更"')
         ->toContain("'min-w-16 gap-1.5 bg-black px-3 text-sm font-bold text-white")
         ->toContain('<span v-if="isEditing">保存</span>')
         ->toContain('hidden h-11 items-center gap-1.5 rounded-2xl')
         ->toContain('class="flex size-8 cursor-pointer items-center justify-center')
         ->toContain('rounded-lg transition-colors"')
-        ->toContain('class="flex h-8 min-w-12 cursor-pointer items-center justify-center whitespace-nowrap rounded-lg bg-white px-4 text-xs font-bold text-black transition-transform active:scale-95"')
+        ->toContain('class="flex h-8 min-w-12 cursor-pointer items-center justify-center rounded-lg bg-white px-4 text-xs font-bold whitespace-nowrap text-black transition-transform active:scale-95"')
         ->toContain('v-for="option in mobileSizeOptions"')
         ->toContain("emit('resizeMobileWidget', option.size)")
         ->toContain("emit('completeMobileWidgetOperation')")
@@ -870,7 +1137,7 @@ test('widget dragging uses motion wobble animations', function () {
     $widgetContent = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
 
     expect($linkPage)
-        ->toContain("import { usePreferredReducedMotion } from '@vueuse/core';")
+        ->toContain("import { usePreferredReducedMotion, useWindowSize } from '@vueuse/core';")
         ->toContain('const dragPointerState = ref<{')
         ->toContain('const dragVisualState = ref<{')
         ->toContain('const prefersReducedMotion = usePreferredReducedMotion()')
@@ -1110,11 +1377,11 @@ test('mobile image widget edit button opens a bottom sheet editor', function () 
         ->toContain('updateMobileImageLink')
         ->toContain('updateMobileImageSensitive')
         ->toContain('isMobileImageCropping')
-        ->toContain('startMobileImageCrop')
-        ->toContain('dragMobileImageCrop')
-        ->toContain('stopMobileImageCrop')
-        ->toContain('event.preventDefault()')
-        ->toContain('event.stopPropagation()')
+        ->toContain('initMobileCropper')
+        ->toContain('destroyMobileCropper')
+        ->toContain('new Cropper')
+        ->toContain('dragMode: \'move\'')
+        ->toContain('crop()')
         ->toContain('touch-none')
         ->toContain('bg-black text-white')
         ->toContain('bg-white text-black')
@@ -1217,6 +1484,11 @@ test('mobile text and section widgets open bottom sheet editors', function () {
         ->toContain('updateTextWidgetVerticalAlign')
         ->toContain('updateTextWidgetBackgroundColor')
         ->toContain('AlignVerticalJustifyCenter')
+        ->toContain('const RectangleHalfThin = (props: any) =>')
+        ->toContain("key: 'section-compact'")
+        ->toContain('icon: RectangleHalfThin')
+        ->toContain("key: 'section-wide'")
+        ->toContain('icon: RectangleThin')
         ->toContain("widget.type === 'section'")
         ->toContain("openMobileSectionEditor(newWidget, 'add')")
         ->toContain('openMobileSectionEditor(widget)')
@@ -1279,7 +1551,7 @@ test('link creation allows an empty title and bio', function () {
     ]);
 
     $link = Link::where('slug', 'maessun')->firstOrFail();
-    $response->assertRedirect(route('dashboard.links.show', $link->id));
+    $response->assertRedirect(route('links.show', ['link' => $link->slug, 'edit' => 1]));
     $response->assertSessionHasNoErrors();
     $this->assertDatabaseHas('links', [
         'slug' => 'maessun',
@@ -1304,21 +1576,57 @@ test('link creation stores the selected title', function () {
     ]);
 
     $link = Link::where('slug', 'maessun')->firstOrFail();
-    $response->assertRedirect(route('dashboard.links.show', $link->id));
+    $response->assertRedirect(route('links.show', ['link' => $link->slug, 'edit' => 1]));
     $this->assertDatabaseHas('links', [
         'slug' => 'maessun',
         'title_id' => $title->id,
     ]);
 });
 
-test('link creation modals expose title selection', function () {
-    $dashboardPage = file_get_contents(resource_path('js/pages/dashboard/Index.vue'));
+test('link creation walkthrough exposes title selection', function () {
+    $walkthroughPage = file_get_contents(resource_path('js/pages/walkthrough/Index.vue'));
 
-    expect($dashboardPage)
+    expect($walkthroughPage)
         ->toContain('titleOptions')
         ->toContain('v-model="form.title_id"')
-        ->toContain('職業を選択')
+        ->toContain('肩書きを選択')
         ->toContain('form.errors.title_id');
+});
+
+test('walkthrough creation opens edit mode with profile values ready to edit', function () {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('walkthrough.store'), [
+        'slug' => 'walkthrough-profile',
+        'display_name' => 'Walkthrough Name',
+        'bio' => 'Walkthrough bio',
+    ]);
+
+    $link = Link::where('slug', 'walkthrough-profile')->firstOrFail();
+
+    $response->assertRedirect(route('links.show', ['link' => $link->slug, 'edit' => 1]));
+    $this->assertDatabaseHas('links', [
+        'slug' => 'walkthrough-profile',
+        'display_name' => 'Walkthrough Name',
+        'bio' => 'Walkthrough bio',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('links.show', ['link' => $link->slug, 'edit' => 1]))
+        ->assertSuccessful()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('links/Link')
+            ->where('is_editing', true)
+            ->where('link.display_name', 'Walkthrough Name')
+            ->where('link.bio', 'Walkthrough bio')
+        );
+
+    $profile = file_get_contents(resource_path('js/components/links/LinkProfile.vue'));
+
+    expect($profile)
+        ->toContain("import { nextTick, onMounted, ref, watch } from 'vue'")
+        ->toContain('onMounted(() => {')
+        ->toContain('nextTick(() => syncEditors())');
 });
 
 test('admin can manage title master records', function () {

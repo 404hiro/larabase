@@ -22,6 +22,14 @@ Route::get('dashboard', \App\Http\Controllers\DashboardController::class)
     ->middleware(['auth'])
     ->name('dashboard');
 
+Route::get('walkthrough', [\App\Http\Controllers\WalkthroughController::class, 'index'])
+    ->middleware(['auth'])
+    ->name('walkthrough.index');
+
+Route::post('walkthrough', [\App\Http\Controllers\WalkthroughController::class, 'store'])
+    ->middleware(['auth'])
+    ->name('walkthrough.store');
+
 Route::redirect('dashboard/messages', '/dashboard/messages/inbox')
     ->middleware(['auth']);
 

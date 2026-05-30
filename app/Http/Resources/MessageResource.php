@@ -29,7 +29,7 @@ class MessageResource extends JsonResource
             'read_at' => $this->read_at?->toIso8601String(),
             'created_at' => $this->created_at->toIso8601String(),
             'status' => $this->status,
-            'reply_body' => $this->publication?->reply_body,
+            'reply_body' => $this->reply?->body,
             'can_manage' => $isOwner,
         ];
     }

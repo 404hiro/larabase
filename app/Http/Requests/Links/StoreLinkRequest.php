@@ -45,4 +45,17 @@ class StoreLinkRequest extends FormRequest
             'bio' => ['nullable', 'string', 'max:280'],
         ];
     }
+
+    /**
+     * Get custom attributes for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'slug' => 'リンクURL',
+            'display_name' => '表示名',
+        ];
+    }
 }

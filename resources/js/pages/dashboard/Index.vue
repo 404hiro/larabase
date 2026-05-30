@@ -3,22 +3,10 @@ import {
     destroy as messageDestroy,
     update as messageUpdate,
 } from '@/actions/App/Http/Controllers/MessageController';
-import InputError from '@/components/InputError.vue';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
 import DashboardLayout from '@/layouts/DashboardLayout.vue';
+import { index as walkthroughIndex } from '@/routes/walkthrough';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import {
     CheckCircle2,
@@ -66,31 +54,13 @@ interface Props {
     userName: string;
 }
 
-const props = defineProps<Props>();
+defineProps<Props>();
 
-const isCreateDialogOpen = ref(false);
 const replyingToId = ref<string | null>(null);
-
-const form = useForm({
-    slug: '',
-    display_name: props.linksCount === 0 ? props.userName : '',
-    title_id: '',
-    bio: '',
-});
 
 const replyForm = useForm({
     reply_body: '',
 });
-
-const submit = () => {
-    form.post('/dashboard/links', {
-        preserveScroll: true,
-        onSuccess: () => {
-            isCreateDialogOpen.value = false;
-            form.reset();
-        },
-    });
-};
 
 const getSenderName = (message: DashboardMessage) => {
     if (message.sender_mode === 'anonymous') {
@@ -170,79 +140,11 @@ const deleteMessage = (message: DashboardMessage) => {
                         で公開しましょう。
                     </span>
 
-                    <Dialog v-model:open="isCreateDialogOpen">
-                        <DialogTrigger as-child>
-                            <Button class="w-full bg-yellow-500 text-yellow-950 hover:bg-yellow-400 sm:w-auto">
-                                リンクを作る
-                            </Button>
-                        </DialogTrigger>
-
-                        <DialogContent class="sm:max-w-lg">
-                            <form class="space-y-6" @submit.prevent="submit">
-                                <DialogHeader>
-                                    <DialogTitle>リンクを作る</DialogTitle>
-                                    <DialogDescription>
-                                        プロフィールページの URL
-                                        と表示情報を入力してください。
-                                    </DialogDescription>
-                                </DialogHeader>
-
-                                <div class="grid gap-4">
-                                    <div class="grid gap-2">
-                                        <Label for="slug">リンクURL</Label>
-                                        <div class="flex items-center">
-                                            <span
-                                                class="inline-flex h-9 items-center rounded-s-md border border-e-0 border-input bg-muted px-3 text-sm text-muted-foreground">
-                                                /@
-                                            </span>
-                                            <Input id="slug" v-model="form.slug" class="rounded-s-none"
-                                                placeholder="my-link" />
-                                        </div>
-                                        <InputError :message="form.errors.slug" />
-                                    </div>
-
-                                    <div class="grid gap-2">
-                                        <Label for="display_name">表示名</Label>
-                                        <Input id="display_name" v-model="form.display_name" placeholder="My Profile" />
-                                        <InputError :message="form.errors.display_name" />
-                                    </div>
-
-                                    <div class="grid gap-2">
-                                        <Label for="title_id">職業</Label>
-                                        <Select id="title_id" v-model="form.title_id">
-                                            <option value="">
-                                                職業を選択しない
-                                            </option>
-                                            <option v-for="title in titleOptions" :key="title.id"
-                                                :value="String(title.id)">
-                                                {{ title.name }}
-                                            </option>
-                                        </Select>
-                                        <InputError :message="form.errors.title_id" />
-                                    </div>
-
-                                    <div class="grid gap-2">
-                                        <Label for="bio">BIO</Label>
-                                        <textarea id="bio" v-model="form.bio" rows="4" maxlength="280"
-                                            class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:ring-destructive/40"
-                                            placeholder="自己紹介を入力" />
-                                        <div class="flex items-center justify-between gap-3">
-                                            <InputError :message="form.errors.bio" />
-                                            <span class="ms-auto text-xs text-muted-foreground">
-                                                {{ form.bio.length }}/280
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <DialogFooter>
-                                    <Button type="submit" :disabled="form.processing">
-                                        作成する
-                                    </Button>
-                                </DialogFooter>
-                            </form>
-                        </DialogContent>
-                    </Dialog>
+                    <Link :href="walkthroughIndex().url">
+                        <Button class="w-full bg-yellow-500 text-yellow-950 hover:bg-yellow-400 sm:w-auto">
+                            リンクを作る
+                        </Button>
+                    </Link>
                 </AlertDescription>
             </Alert>
 
@@ -254,47 +156,12 @@ const deleteMessage = (message: DashboardMessage) => {
                 </div>
 
                 <div class="flex items-center gap-3">
-                    <Dialog v-model:open="isCreateDialogOpen" v-if="linksCount > 0">
-                        <DialogTrigger as-child>
-                            <Button>
-                                <LinkIcon class="size-4" />
-                                リンクを追加
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent class="sm:max-w-lg">
-                            <form class="space-y-6" @submit.prevent="submit">
-                                <DialogHeader>
-                                    <DialogTitle>リンクを追加</DialogTitle>
-                                    <DialogDescription>
-                                        新しいプロフィールページを作成します。
-                                    </DialogDescription>
-                                </DialogHeader>
-
-                                <div class="grid gap-4">
-                                    <div class="grid gap-2">
-                                        <Label for="slug">リンクURL</Label>
-                                        <div class="flex items-center">
-                                            <span
-                                                class="inline-flex h-9 items-center rounded-s-md border border-e-0 border-input bg-muted px-3 text-sm text-muted-foreground">/@</span>
-                                            <Input id="slug" v-model="form.slug" class="rounded-s-none"
-                                                placeholder="my-link" />
-                                        </div>
-                                        <InputError :message="form.errors.slug" />
-                                    </div>
-
-                                    <div class="grid gap-2">
-                                        <Label for="display_name">表示名</Label>
-                                        <Input id="display_name" v-model="form.display_name" placeholder="名前を入力" />
-                                        <InputError :message="form.errors.display_name" />
-                                    </div>
-                                </div>
-
-                                <DialogFooter>
-                                    <Button type="submit" :disabled="form.processing">作成する</Button>
-                                </DialogFooter>
-                            </form>
-                        </DialogContent>
-                    </Dialog>
+                    <Link :href="walkthroughIndex().url" v-if="linksCount > 0">
+                        <Button>
+                            <LinkIcon class="size-4" />
+                            リンクを追加
+                        </Button>
+                    </Link>
                 </div>
             </div>
 

@@ -5,7 +5,6 @@ import {
     store as messageStore,
     update as messageUpdate,
 } from '@/actions/App/Http/Controllers/MessageController';
-import LinkPageNavigation from '@/components/links/LinkPageNavigation.vue';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -309,15 +308,11 @@ const formatDate = (dateString: string) => {
 <template>
     <Head :title="`${link.display_name} へメッセージ`" />
 
-    <main
-        class="relative min-h-screen overflow-hidden bg-white px-5 pt-14 text-gray-950"
-    >
+    <main class="relative min-h-screen overflow-hidden bg-white px-5 pt-5 text-gray-950">
         <div
-            class="absolute inset-x-0 top-9 h-28 bg-black min-[1025px]:h-36"
+            class="absolute inset-x-0 top-0 h-28 bg-black min-[1025px]:h-36"
             aria-hidden="true"
         ></div>
-
-        <LinkPageNavigation :slug="props.link.slug" active-tab="message" />
 
         <section
             class="relative z-10 mx-auto w-full max-w-[374px] pb-20 min-[1025px]:max-w-[1198px]"

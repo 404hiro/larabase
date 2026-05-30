@@ -1,23 +1,26 @@
 <script setup lang="ts">
-import {
-    ArrowRight,
-    Link as LinkIcon,
-    Image,
-    Trash2,
-    X,
-} from 'lucide-vue-next';
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import { type LinkService, linkServicesConfig } from '@/lib/linkServices';
 import { compressImage } from '@/utils/imageCompression';
 import Cropper from 'cropperjs';
 import 'cropperjs/dist/cropper.css';
+import type { Map as LeafletMap } from 'leaflet';
+import {
+    ArrowRight,
+    Image,
+    Link as LinkIcon,
+    Trash2,
+} from 'lucide-vue-next';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps<{
     widget: any;
     mode: 'desktop' | 'mobile';
+    widgetCornerClass?: string;
+    pageTheme?: 'light' | 'dark';
     isEditing: boolean;
     isActive: boolean;
     isCropping?: boolean;
+    isMapMoving?: boolean;
 }>();
 
 const MAX_LINK_TITLE_LENGTH = 100;
@@ -27,6 +30,7 @@ const emit = defineEmits<{
     activate: [];
     'update-title': [newTitle: string];
     'update-crop': [crop: { x: number; y: number }];
+    'update-map-center': [center: { lat: number; lng: number; zoom: number }];
     'upload-image': [file: File];
     'remove-image': [];
 }>();
@@ -68,11 +72,11 @@ const youtubeVideoId = computed(() => {
         const url = new URL(href.value);
         const host = url.hostname.replace(/^www\./, '');
         const pathParts = url.pathname.split('/').filter(Boolean);
-        
+
         if (host === 'youtu.be') {
             return pathParts[0] || null;
         }
-        
+
         if (host === 'youtube.com' || host.endsWith('.youtube.com')) {
             if (pathParts[0] === 'watch') {
                 return url.searchParams.get('v');
@@ -125,7 +129,7 @@ const musicEmbedInfo = computed(() => {
     try {
         const url = new URL(href.value);
         const host = url.hostname.replace(/^www\./, '');
-        
+
         // YouTube Music
         if (host === 'music.youtube.com') {
             const videoId = url.searchParams.get('v');
@@ -186,6 +190,26 @@ const image = computed(() => props.widget.thumbnail_url || '');
 const bgColor = computed(() => settings.value.bgColor || '#FFFFFF');
 const textAlign = computed(() => settings.value.textAlign || 'left');
 const verticalAlign = computed(() => settings.value.verticalAlign || 'center');
+const mapLat = computed(() => Number(settings.value.lat ?? 35.6585805));
+const mapLng = computed(() => Number(settings.value.lng ?? 139.7454329));
+const mapZoom = computed(() => Number(settings.value.zoom ?? 15));
+const mapTitle = computed(() => {
+    const rawTitle = settings.value.title;
+
+    return rawTitle === undefined || rawTitle === null
+        ? '東京タワー'
+        : String(rawTitle);
+});
+const mapAriaLabel = computed(
+    () => mapTitle.value.trim() || settings.value.address || 'マップ',
+);
+const mapLayoutKey = computed(() => {
+    if (props.mode === 'desktop') {
+        return `${props.widget.w}:${props.widget.h}`;
+    }
+
+    return `${props.widget.w_mobile}:${props.widget.h_mobile}`;
+});
 
 const domain = computed(() => {
     if (!href.value) return '';
@@ -196,6 +220,72 @@ const domain = computed(() => {
         return '';
     }
 });
+
+const githubProfile = computed(() => {
+    if (props.widget.type !== 'link' || !href.value) return null;
+
+    try {
+        const url = new URL(href.value);
+        const host = url.hostname.replace(/^www\./, '').toLowerCase();
+
+        if (host !== 'github.com') {
+            return null;
+        }
+
+        const username = url.pathname.split('/').filter(Boolean)[0] ?? 'github';
+
+        return {
+            username,
+            handle: `@${username}`,
+        };
+    } catch (e) {
+        return null;
+    }
+});
+
+const githubCommitCellCount = computed(() => (shape.value === '2x2' ? 48 : 30));
+const githubCommitGridClasses = computed(() =>
+    shape.value === '2x2'
+        ? 'grid grid-cols-8 gap-1.5'
+        : 'grid grid-cols-6 gap-1.5',
+);
+
+const githubCommitCells = computed(() => {
+    const seed = githubProfile.value?.username ?? 'github';
+    const charTotal = Array.from(seed).reduce(
+        (total, char) => total + char.charCodeAt(0),
+        0,
+    );
+
+    return Array.from({ length: githubCommitCellCount.value }, (_, index) => {
+        const value = (charTotal + index * 17 + (index % 5) * 11) % 9;
+        const emptyLeadCells = shape.value === '2x2' ? 12 : 8;
+
+        if (index < emptyLeadCells) {
+            return 0;
+        }
+
+        return value > 6 ? 4 : value > 4 ? 3 : value > 2 ? 2 : 1;
+    });
+});
+
+const githubCommitCellClasses = (level: number) => [
+    'size-3.5 rounded-[5px] transition-colors sm:size-4',
+    level === 4
+        ? 'bg-[#216E39]'
+        : level === 3
+          ? 'bg-[#40C463]'
+          : level === 2
+            ? 'bg-[#9BE9A8]'
+            : level === 1
+              ? 'bg-[#D6F5D6]'
+              : 'bg-[#EEF0F3]',
+];
+
+const githubCommitGlassClasses = computed(() => [
+    'flex h-full w-full items-center justify-center bg-[#F7F7F8] p-4',
+    props.mode === 'desktop' ? 'sm:p-5' : '',
+]);
 
 const faviconUrl = computed(() => {
     if (props.widget.favicon_url) return props.widget.favicon_url;
@@ -386,7 +476,7 @@ const linkService = computed<LinkService | null>(() => {
 
         if (matchedServiceConfig) {
             const config = { ...matchedServiceConfig };
-            
+
             // YouTube specific handling for videos vs channels
             if (isHost('youtube.com') || host === 'youtu.be') {
                 if (youtubeVideoId.value) {
@@ -413,7 +503,7 @@ const linkService = computed<LinkService | null>(() => {
                 account: config.account ?? account,
             } as LinkService;
         }
-        
+
         return null;
     } catch (e) {
         return null;
@@ -453,7 +543,9 @@ const actionServicePillClasses = computed(() => [
     actionService.value?.color ?? 'bg-black text-white',
 ]);
 
-const actionServiceLabel = computed(() => actionService.value?.actionLabel ?? '');
+const actionServiceLabel = computed(
+    () => actionService.value?.actionLabel ?? '',
+);
 
 const ogpInput = ref<HTMLInputElement | null>(null);
 const textEditor = ref<HTMLElement | null>(null);
@@ -511,12 +603,21 @@ const cardFrameClasses = computed(() => {
         return '';
     }
 
-    if (props.widget.type === 'image' || props.widget.type === 'text') {
-        return 'rounded-2xl border border-gray-200';
+    if (props.widget.type === 'section') {
+        return props.pageTheme === 'dark'
+            ? 'border border-white/15 bg-white/10'
+            : 'border border-gray-200 bg-gray-100/70';
     }
 
-    return 'rounded-2xl border border-gray-200 bg-white';
+    if (props.widget.type === 'image' || props.widget.type === 'text') {
+        return 'border border-gray-200';
+    }
+
+    return 'border border-gray-200 bg-white';
 });
+const widgetCornerClass = computed(
+    () => props.widgetCornerClass ?? 'rounded-2xl',
+);
 const cardClipClasses = computed(() =>
     props.isCropping ? 'overflow-visible' : 'overflow-hidden',
 );
@@ -562,7 +663,9 @@ const textColor = computed(() => {
 });
 const textEditorClasses = computed(() => [
     isTextEditorFocused.value ? 'widget-text-input--focused' : '',
-    isTextEditorFocused.value ? 'cursor-text' : 'cursor-grab active:cursor-grabbing',
+    isTextEditorFocused.value
+        ? 'cursor-text'
+        : 'cursor-grab active:cursor-grabbing',
     textColor.value,
     hasTitle.value ? '' : 'is-empty',
     textAlign.value === 'center'
@@ -578,10 +681,12 @@ const linkTitleEditorClasses = computed(() => [
         ? 'h-6'
         : shape.value === '1x1'
           ? 'h-[48px]'
-        : props.mode === 'mobile'
-          ? 'h-[48px]'
-          : 'h-[72px]',
-    isLinkTitleFocused.value ? 'cursor-text' : 'cursor-grab active:cursor-grabbing',
+          : props.mode === 'mobile'
+            ? 'h-[48px]'
+            : 'h-[72px]',
+    isLinkTitleFocused.value
+        ? 'cursor-text'
+        : 'cursor-grab active:cursor-grabbing',
 ]);
 const linkTitleDisplayClasses = computed(() => [
     'block whitespace-pre-wrap break-words text-base leading-6 text-gray-800',
@@ -671,9 +776,10 @@ const pastePlainText = (event: ClipboardEvent, maxLength: number) => {
         0,
         maxLength - currentLength + selectedLength,
     );
-    const pastedText = (
-        event.clipboardData?.getData('text/plain') ?? ''
-    ).slice(0, remainingLength);
+    const pastedText = (event.clipboardData?.getData('text/plain') ?? '').slice(
+        0,
+        remainingLength,
+    );
 
     document.execCommand('insertText', false, pastedText);
 };
@@ -720,6 +826,8 @@ watch(
 const imageRef = ref<HTMLImageElement | null>(null);
 const cropper = ref<Cropper | null>(null);
 const isInitializingCropper = ref(false);
+const mapRef = ref<HTMLElement | null>(null);
+const leafletMap = ref<LeafletMap | null>(null);
 
 const initCropper = () => {
     if (!imageRef.value) return;
@@ -820,6 +928,99 @@ const destroyCropper = () => {
     isInitializingCropper.value = false;
 };
 
+const initializeMap = async () => {
+    if (props.widget.type !== 'map' || !mapRef.value || leafletMap.value) {
+        return;
+    }
+
+    const L = await import('leaflet');
+    leafletMap.value = L.map(mapRef.value, {
+        attributionControl: false,
+        zoomControl: false,
+        dragging: Boolean(props.isMapMoving),
+        scrollWheelZoom: false,
+        doubleClickZoom: Boolean(props.isMapMoving),
+        boxZoom: false,
+        keyboard: false,
+        tap: Boolean(props.isMapMoving),
+        touchZoom: Boolean(props.isMapMoving),
+    }).setView([mapLat.value, mapLng.value], mapZoom.value);
+
+    L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        },
+    ).addTo(leafletMap.value);
+
+    leafletMap.value.on('moveend', updateMapCenterFromLeaflet);
+
+    recenterMap();
+};
+
+const recenterMap = () => {
+    const applyCenter = () => {
+        if (!leafletMap.value || props.widget.type !== 'map') {
+            return;
+        }
+
+        leafletMap.value.invalidateSize({ pan: false });
+        leafletMap.value.setView([mapLat.value, mapLng.value], mapZoom.value, {
+            animate: false,
+        });
+    };
+
+    nextTick(() => {
+        window.requestAnimationFrame(() => {
+            applyCenter();
+            window.setTimeout(applyCenter, 160);
+        });
+    });
+};
+
+const syncMapView = () => {
+    if (!leafletMap.value || props.widget.type !== 'map') {
+        return;
+    }
+
+    if (props.isMapMoving) {
+        leafletMap.value.dragging.enable();
+        leafletMap.value.doubleClickZoom.enable();
+        leafletMap.value.touchZoom.enable();
+        if (leafletMap.value.getZoom() !== mapZoom.value) {
+            leafletMap.value.setZoom(mapZoom.value, { animate: false });
+        }
+    } else {
+        leafletMap.value.dragging.disable();
+        leafletMap.value.doubleClickZoom.disable();
+        leafletMap.value.touchZoom.disable();
+        recenterMap();
+    }
+};
+
+const updateMapCenterFromLeaflet = () => {
+    if (!leafletMap.value || !props.isMapMoving) {
+        return;
+    }
+
+    const center = leafletMap.value.getCenter();
+
+    emit('update-map-center', {
+        lat: center.lat,
+        lng: center.lng,
+        zoom: leafletMap.value.getZoom(),
+    });
+};
+
+const destroyMap = () => {
+    if (leafletMap.value) {
+        leafletMap.value.off('moveend', updateMapCenterFromLeaflet);
+        leafletMap.value.remove();
+        leafletMap.value = null;
+    }
+};
+
 watch(
     () => props.isCropping,
     (isCropping) => {
@@ -831,15 +1032,43 @@ watch(
     },
 );
 
+watch(
+    () => [
+        props.widget.type,
+        props.isEditing,
+        mapLat.value,
+        mapLng.value,
+        mapZoom.value,
+        mapLayoutKey.value,
+        props.isMapMoving,
+        props.mode,
+    ],
+    () => {
+        if (props.widget.type === 'map') {
+            nextTick(() => {
+                initializeMap();
+                syncMapView();
+            });
+        }
+    },
+);
+
+onMounted(() => {
+    if (props.widget.type === 'map') {
+        nextTick(initializeMap);
+    }
+});
+
 onUnmounted(() => {
     destroyCropper();
+    destroyMap();
 });
 </script>
 
 <template>
     <div
         class="relative h-full w-full"
-        :class="[cardFrameClasses, cardClipClasses]"
+        :class="[cardFrameClasses, cardClipClasses, widgetCornerClass]"
         :style="cardFrameStyle"
     >
         <div
@@ -852,10 +1081,12 @@ onUnmounted(() => {
                 rows="1"
                 maxlength="4500"
                 placeholder="セクションを入力"
-                class="widget-text-input w-full cursor-text resize-none rounded-xl border border-transparent bg-transparent px-3 py-2 leading-tight font-bold text-gray-800 transition-colors duration-150 placeholder:text-gray-400 hover:bg-gray-100/70 focus:border-gray-200 focus:bg-gray-100/70 focus:outline-none"
+                class="widget-text-input w-full cursor-text resize-none rounded-xl border border-transparent bg-transparent px-3 py-2 leading-tight font-bold transition-colors duration-150 focus:outline-none"
                 :class="[
                     mode === 'desktop' ? 'text-xl' : 'text-lg',
-                    hasTitle ? '' : 'bg-gray-100/60',
+                    pageTheme === 'dark'
+                        ? 'text-white placeholder:text-white/45 hover:bg-white/10 focus:border-white/20 focus:bg-white/10'
+                        : 'text-gray-950 placeholder:text-gray-400 hover:bg-gray-100 focus:border-gray-200 focus:bg-white',
                 ]"
                 @input="updateTitle"
                 @focus="activate"
@@ -866,8 +1097,11 @@ onUnmounted(() => {
             ></textarea>
             <p
                 v-else
-                class="truncate px-3 py-2 font-bold text-gray-800"
-                :class="mode === 'desktop' ? 'text-xl' : 'text-lg'"
+                class="truncate px-3 py-2 font-bold"
+                :class="[
+                    mode === 'desktop' ? 'text-xl' : 'text-lg',
+                    pageTheme === 'dark' ? 'text-white' : 'text-gray-800',
+                ]"
             >
                 {{ title }}
             </p>
@@ -892,7 +1126,7 @@ onUnmounted(() => {
                     role="textbox"
                     aria-multiline="true"
                     data-placeholder="テキストを入力..."
-                    class="text-widget-editor max-h-full w-full overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent text-lg font-semibold leading-snug outline-none transition-colors duration-150"
+                    class="text-widget-editor max-h-full w-full overflow-auto border border-transparent bg-transparent text-lg leading-snug font-semibold break-words whitespace-pre-wrap transition-colors duration-150 outline-none"
                     :class="textEditorClasses"
                     @beforeinput="
                         limitPlainTextBeforeInput(
@@ -924,8 +1158,12 @@ onUnmounted(() => {
             </div>
             <p
                 v-else-if="title"
-                class="p-3 text-lg font-semibold leading-snug"
-                :class="shape === 'inline' ? 'truncate' : 'whitespace-pre-wrap break-words'"
+                class="p-3 text-lg leading-snug font-semibold"
+                :class="
+                    shape === 'inline'
+                        ? 'truncate'
+                        : 'break-words whitespace-pre-wrap'
+                "
             >
                 {{ title }}
             </p>
@@ -945,12 +1183,14 @@ onUnmounted(() => {
                 :src="image"
                 :alt="title"
                 :style="!isCropping ? imageStyle : undefined"
-                class="relative z-10 h-full w-full rounded-2xl object-cover transition-[filter,transform] duration-150"
+                class="relative z-10 h-full w-full object-cover transition-[filter,transform] duration-150"
+                :class="widgetCornerClass"
                 draggable="false"
             />
             <div
                 v-if="isCropping"
-                class="pointer-events-none absolute inset-0 z-20 rounded-2xl"
+                class="pointer-events-none absolute inset-0 z-20"
+                :class="widgetCornerClass"
             ></div>
             <div
                 v-if="isEditing"
@@ -964,7 +1204,57 @@ onUnmounted(() => {
                     placeholder="Add a title..."
                     rows="1"
                     maxlength="4500"
-                    class="widget-text-input max-w-full cursor-text resize-none whitespace-pre-wrap break-words rounded-xl bg-white/80 px-3 py-2 font-semibold text-gray-800 backdrop-blur-sm [field-sizing:content] placeholder:text-gray-800 focus:ring-2 focus:ring-white/80 focus:outline-none"
+                    class="widget-text-input [field-sizing:content] max-w-full cursor-text resize-none rounded-xl border border-white/60 bg-white/55 px-3 py-2 font-semibold break-words whitespace-pre-wrap text-gray-800 shadow-sm backdrop-blur-md placeholder:text-gray-800 focus:ring-2 focus:ring-white/80 focus:outline-none"
+                    :class="mode === 'desktop' ? 'text-sm' : 'text-xs'"
+                    :style="captionEditorStyle"
+                    @keydown.enter.prevent
+                    @input="updateTitle"
+                    @focus="activate"
+                    @click.stop
+                    @pointerdown.stop
+                    @mousedown.stop
+                    @touchstart.stop
+                ></textarea>
+            </div>
+            <div v-else-if="title" class="absolute inset-x-0 bottom-0 z-30 p-3">
+                <span
+                    class="inline-block w-fit max-w-full rounded-xl border border-white/60 bg-white/55 px-3 py-2 font-semibold break-words whitespace-normal text-gray-800 shadow-sm backdrop-blur-md"
+                    :class="mode === 'desktop' ? 'text-sm' : 'text-xs'"
+                >
+                    {{ title }}
+                </span>
+            </div>
+        </div>
+
+        <div
+            v-else-if="widget.type === 'map'"
+            class="grid-link-google-map relative h-full w-full overflow-hidden bg-[#f1eee8]"
+            :class="widgetCornerClass"
+            :aria-label="mapAriaLabel"
+        >
+            <div ref="mapRef" class="h-full w-full"></div>
+            <div
+                class="grid-link-map-center-marker pointer-events-none absolute top-1/2 left-1/2 z-[402] -translate-x-1/2 -translate-y-1/2"
+                aria-hidden="true"
+            >
+                <span class="grid-link-map-marker__pulse"></span>
+                <span class="grid-link-map-marker__dot"></span>
+            </div>
+            <div
+                v-if="isEditing"
+                class="absolute inset-x-0 bottom-0 z-[403] p-3 transition-opacity duration-150 focus-within:opacity-100"
+                :class="
+                    mapTitle
+                        ? 'opacity-100'
+                        : 'opacity-0 group-hover:opacity-100'
+                "
+            >
+                <textarea
+                    :value="mapTitle"
+                    placeholder="Add a title..."
+                    rows="1"
+                    maxlength="4500"
+                    class="widget-text-input [field-sizing:content] max-w-full cursor-text resize-none rounded-xl border border-white/60 bg-white/55 px-3 py-2 font-semibold break-words whitespace-pre-wrap text-gray-800 shadow-sm backdrop-blur-md placeholder:text-gray-800 focus:ring-2 focus:ring-white/80 focus:outline-none"
                     :class="mode === 'desktop' ? 'text-sm' : 'text-xs'"
                     :style="captionEditorStyle"
                     @keydown.enter.prevent
@@ -977,20 +1267,28 @@ onUnmounted(() => {
                 ></textarea>
             </div>
             <div
-                v-else-if="title"
-                class="absolute inset-x-0 bottom-0 z-30 p-3"
+                v-else-if="mapTitle"
+                class="absolute inset-x-0 bottom-0 z-[403] p-3"
             >
                 <span
-                    class="inline-block w-fit max-w-full whitespace-normal break-words rounded-xl bg-white/80 px-3 py-2 font-semibold text-gray-800 backdrop-blur-sm"
+                    class="inline-block w-fit max-w-full rounded-xl border border-white/60 bg-white/55 px-3 py-2 font-semibold break-words whitespace-normal text-gray-800 shadow-sm backdrop-blur-md"
                     :class="mode === 'desktop' ? 'text-sm' : 'text-xs'"
                 >
-                    {{ title }}
+                    {{ mapTitle }}
                 </span>
             </div>
         </div>
 
-        <div v-else-if="widget.type === 'social'" class="flex h-full flex-col p-4">
-            <img :src="image" :alt="widget.subtitle" class="mb-3 size-8" draggable="false" />
+        <div
+            v-else-if="widget.type === 'social'"
+            class="flex h-full flex-col p-4"
+        >
+            <img
+                :src="image"
+                :alt="widget.subtitle"
+                class="mb-3 size-8"
+                draggable="false"
+            />
             <span class="block truncate text-base text-gray-800">
                 {{ title }}
             </span>
@@ -1006,12 +1304,24 @@ onUnmounted(() => {
             :class="linkCardClasses"
         >
             <!-- Embed Mode -->
-            <div v-if="embedMode === 'embed' && musicEmbedInfo" class="h-full w-full overflow-hidden rounded-2xl bg-black">
+            <div
+                v-if="embedMode === 'embed' && musicEmbedInfo"
+                class="h-full w-full overflow-hidden bg-black"
+                :class="widgetCornerClass"
+            >
                 <iframe
                     :src="musicEmbedInfo.url"
                     :title="`${musicEmbedInfo.service} player`"
                     frameborder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allow="
+                        accelerometer;
+                        autoplay;
+                        clipboard-write;
+                        encrypted-media;
+                        gyroscope;
+                        picture-in-picture;
+                        web-share;
+                    "
                     allowfullscreen
                     class="h-full w-full"
                     :class="{ 'pointer-events-none': isEditing }"
@@ -1019,11 +1329,22 @@ onUnmounted(() => {
             </div>
 
             <!-- Inline Layout -->
-            <div v-else-if="shape === 'inline'" class="flex h-full items-center px-5">
-                <img v-if="faviconUrl && !faviconFailed" :src="faviconUrl" @error="handleFaviconError" alt=""
-                    class="mr-3 size-8 shrink-0 rounded-lg object-cover" draggable="false" />
-                <div v-else
-                    class="mr-3 flex size-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-400">
+            <div
+                v-else-if="shape === 'inline'"
+                class="flex h-full items-center px-5"
+            >
+                <img
+                    v-if="faviconUrl && !faviconFailed"
+                    :src="faviconUrl"
+                    @error="handleFaviconError"
+                    alt=""
+                    class="mr-3 size-8 shrink-0 rounded-lg object-cover"
+                    draggable="false"
+                />
+                <div
+                    v-else
+                    class="mr-3 flex size-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-400"
+                >
                     <LinkIcon class="size-4" />
                 </div>
                 <div
@@ -1033,7 +1354,9 @@ onUnmounted(() => {
                     role="textbox"
                     aria-label="リンクタイトル"
                     :class="[linkTitleEditorClasses, 'flex-1']"
-                    @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
+                    @beforeinput="
+                        limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)
+                    "
                     @keydown.enter.prevent
                     @input="updateLinkTitleEditor"
                     @paste="pastePlainLinkTitle"
@@ -1053,15 +1376,28 @@ onUnmounted(() => {
                         stopPointerWhenFocused($event, isLinkTitleFocused)
                     "
                 ></div>
-                <p v-else class="flex-1 truncate text-lg font-bold text-gray-800">{{ title || socialNetwork?.account }}</p>
+                <p
+                    v-else
+                    class="flex-1 truncate text-lg font-bold text-gray-800"
+                >
+                    {{ title || socialNetwork?.account }}
+                </p>
             </div>
 
             <!-- 1x1 Layout -->
             <div v-else-if="shape === '1x1'" class="flex h-full flex-col p-5">
-                <img v-if="faviconUrl && !faviconFailed" :src="faviconUrl" @error="handleFaviconError" alt=""
-                    class="mb-3 size-8 rounded-lg object-cover" draggable="false" />
-                <div v-else
-                    class="mb-3 flex size-8 items-center justify-center rounded-lg bg-gray-100 text-gray-400">
+                <img
+                    v-if="faviconUrl && !faviconFailed"
+                    :src="faviconUrl"
+                    @error="handleFaviconError"
+                    alt=""
+                    class="mb-3 size-8 rounded-lg object-cover"
+                    draggable="false"
+                />
+                <div
+                    v-else
+                    class="mb-3 flex size-8 items-center justify-center rounded-lg bg-gray-100 text-gray-400"
+                >
                     <LinkIcon class="size-4" />
                 </div>
                 <div
@@ -1071,7 +1407,9 @@ onUnmounted(() => {
                     role="textbox"
                     aria-label="リンクタイトル"
                     :class="linkTitleEditorClasses"
-                    @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
+                    @beforeinput="
+                        limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)
+                    "
                     @keydown.enter.prevent
                     @input="updateLinkTitleEditor"
                     @paste="pastePlainLinkTitle"
@@ -1091,19 +1429,17 @@ onUnmounted(() => {
                         stopPointerWhenFocused($event, isLinkTitleFocused)
                     "
                 ></div>
-                <p v-else :class="linkTitleDisplayClasses">{{ title || socialNetwork?.account }}</p>
+                <p v-else :class="linkTitleDisplayClasses">
+                    {{ title || socialNetwork?.account }}
+                </p>
 
                 <div class="flex-1"></div>
 
                 <template v-if="socialNetwork && socialNetwork.account">
-                    <span
-                        :class="socialActionPillClasses">
-                        フォロー</span>
+                    <span :class="socialActionPillClasses"> フォロー</span>
                 </template>
                 <template v-else-if="actionService">
-                    <span
-                        :class="actionServicePillClasses"
-                    >
+                    <span :class="actionServicePillClasses">
                         {{ actionServiceLabel }}
                     </span>
                 </template>
@@ -1113,14 +1449,22 @@ onUnmounted(() => {
             </div>
 
             <!-- 2x1 Layout (Horizontal) -->
-            <div v-else-if="shape === '2x1'" class="flex h-full p-4 gap-4">
+            <div v-else-if="shape === '2x1'" class="flex h-full gap-4 p-4">
                 <div class="flex min-w-0 flex-1 flex-col py-1 pl-1">
                     <div class="mb-3">
                         <div class="relative w-fit shrink-0">
-                            <img v-if="faviconUrl && !faviconFailed" :src="faviconUrl" @error="handleFaviconError" alt=""
-                                class="size-8 rounded-lg object-cover shrink-0" draggable="false" />
-                            <div v-else
-                                class="flex size-8 items-center justify-center rounded-lg bg-gray-100 text-gray-400 shrink-0">
+                            <img
+                                v-if="faviconUrl && !faviconFailed"
+                                :src="faviconUrl"
+                                @error="handleFaviconError"
+                                alt=""
+                                class="size-8 shrink-0 rounded-lg object-cover"
+                                draggable="false"
+                            />
+                            <div
+                                v-else
+                                class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-400"
+                            >
                                 <LinkIcon class="size-4" />
                             </div>
                         </div>
@@ -1132,7 +1476,12 @@ onUnmounted(() => {
                         role="textbox"
                         aria-label="リンクタイトル"
                         :class="linkTitleEditorClasses"
-                    @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
+                        @beforeinput="
+                            limitPlainTextBeforeInput(
+                                $event,
+                                MAX_LINK_TITLE_LENGTH,
+                            )
+                        "
                         @keydown.enter.prevent
                         @input="updateLinkTitleEditor"
                         @paste="pastePlainLinkTitle"
@@ -1152,60 +1501,122 @@ onUnmounted(() => {
                             stopPointerWhenFocused($event, isLinkTitleFocused)
                         "
                     ></div>
-                    <p v-else :class="linkTitleDisplayClasses">{{ title || socialNetwork?.account }}</p>
+                    <p v-else :class="linkTitleDisplayClasses">
+                        {{ title || socialNetwork?.account }}
+                    </p>
                     <template v-if="socialNetwork && socialNetwork.account">
-                        <span
-                            :class="[socialActionPillClasses, 'mt-2']">
-                            フォロー</span>
+                        <span :class="[socialActionPillClasses, 'mt-2']">
+                            フォロー</span
+                        >
                     </template>
                     <template v-else-if="actionService">
-                        <span
-                            :class="[actionServicePillClasses, 'mt-2']">
+                        <span :class="[actionServicePillClasses, 'mt-2']">
                             {{ actionServiceLabel }}
                         </span>
                     </template>
                     <div class="flex-1"></div>
                     <template v-if="!socialNetwork && !actionService">
-                        <p :class="['mt-auto', linkDomainClasses]">{{ domain }}</p>
+                        <p :class="['mt-auto', linkDomainClasses]">
+                            {{ domain }}
+                        </p>
                     </template>
                 </div>
-                <div v-if="embedMode === 'link_embed' && musicEmbedInfo" class="relative flex-1 overflow-hidden rounded-2xl">
+                <div
+                    v-if="embedMode === 'link_embed' && musicEmbedInfo"
+                    class="relative flex-1 overflow-hidden"
+                    :class="widgetCornerClass"
+                >
                     <iframe
                         :src="musicEmbedInfo.url"
                         :title="`${musicEmbedInfo.service} player`"
                         frameborder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allow="
+                            accelerometer;
+                            autoplay;
+                            clipboard-write;
+                            encrypted-media;
+                            gyroscope;
+                            picture-in-picture;
+                            web-share;
+                        "
                         allowfullscreen
                         class="relative z-10 h-full w-full"
                         :class="{ 'pointer-events-none': isEditing }"
                     ></iframe>
                 </div>
-                <button v-else-if="isEditing" @click.stop="chooseOgpImage"
-                    class="cursor-pointer group relative flex-1 overflow-hidden rounded-2xl">
-                    <img v-if="image" :src="image" class="h-full w-full object-cover" draggable="false" />
+                <div
+                    v-else-if="githubProfile"
+                    class="flex-1 overflow-hidden"
+                    :class="widgetCornerClass"
+                >
+                    <div :class="githubCommitGlassClasses">
+                        <div class="grid grid-cols-6 gap-1.5">
+                            <span
+                                v-for="(level, index) in githubCommitCells"
+                                :key="index"
+                                :class="githubCommitCellClasses(level)"
+                            ></span>
+                        </div>
+                    </div>
+                </div>
+                <button
+                    v-else-if="isEditing"
+                    @click.stop="chooseOgpImage"
+                    class="group relative flex-1 cursor-pointer overflow-hidden"
+                    :class="widgetCornerClass"
+                >
+                    <img
+                        v-if="image"
+                        :src="image"
+                        class="h-full w-full object-cover"
+                        draggable="false"
+                    />
                     <span
-                        class="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-all duration-150 group-hover:bg-black/20 group-hover:opacity-100">
+                        class="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-all duration-150 group-hover:bg-black/20 group-hover:opacity-100"
+                    >
                         <Image class="size-8" />
                     </span>
-                    <button v-if="image" @click.stop="emit('remove-image')"
-                        class="absolute top-2 right-2 flex size-8 cursor-pointer items-center justify-center rounded-xl bg-red-600 text-white opacity-0 transition-opacity duration-150 hover:bg-red-700 group-hover:opacity-100">
+                    <button
+                        v-if="image"
+                        @click.stop="emit('remove-image')"
+                        class="absolute top-2 right-2 flex size-8 cursor-pointer items-center justify-center rounded-xl bg-red-600 text-white opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:bg-red-700"
+                    >
                         <Trash2 class="size-4" />
                     </button>
                 </button>
-                <div v-else-if="image" class="flex-1 overflow-hidden rounded-2xl">
-                    <img :src="image" class="h-full w-full object-cover" draggable="false" />
+                <div
+                    v-else-if="image"
+                    class="flex-1 overflow-hidden"
+                    :class="widgetCornerClass"
+                >
+                    <img
+                        :src="image"
+                        class="h-full w-full object-cover"
+                        draggable="false"
+                    />
                 </div>
             </div>
 
             <!-- 1x2 Layout (Vertical) -->
-            <div v-else-if="shape === '1x2'" class="flex h-full flex-col p-4 gap-4">
-                <div class="flex min-h-0 flex-1 flex-col pt-1 px-1">
+            <div
+                v-else-if="shape === '1x2'"
+                class="flex h-full flex-col gap-4 p-4"
+            >
+                <div class="flex min-h-0 flex-1 flex-col px-1 pt-1">
                     <div class="mb-3">
                         <div class="relative w-fit shrink-0">
-                            <img v-if="faviconUrl && !faviconFailed" :src="faviconUrl" @error="handleFaviconError" alt=""
-                                class="size-8 rounded-lg object-cover shrink-0" draggable="false" />
-                            <div v-else
-                                class="flex size-8 items-center justify-center rounded-lg bg-gray-100 text-gray-400 shrink-0">
+                            <img
+                                v-if="faviconUrl && !faviconFailed"
+                                :src="faviconUrl"
+                                @error="handleFaviconError"
+                                alt=""
+                                class="size-8 shrink-0 rounded-lg object-cover"
+                                draggable="false"
+                            />
+                            <div
+                                v-else
+                                class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-400"
+                            >
                                 <LinkIcon class="size-4" />
                             </div>
                         </div>
@@ -1217,7 +1628,12 @@ onUnmounted(() => {
                         role="textbox"
                         aria-label="リンクタイトル"
                         :class="linkTitleEditorClasses"
-                    @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
+                        @beforeinput="
+                            limitPlainTextBeforeInput(
+                                $event,
+                                MAX_LINK_TITLE_LENGTH,
+                            )
+                        "
                         @keydown.enter.prevent
                         @input="updateLinkTitleEditor"
                         @paste="pastePlainLinkTitle"
@@ -1237,15 +1653,16 @@ onUnmounted(() => {
                             stopPointerWhenFocused($event, isLinkTitleFocused)
                         "
                     ></div>
-                    <p v-else :class="linkTitleDisplayClasses">{{ title || socialNetwork?.account }}</p>
+                    <p v-else :class="linkTitleDisplayClasses">
+                        {{ title || socialNetwork?.account }}
+                    </p>
                     <template v-if="socialNetwork && socialNetwork.account">
-                        <span
-                            :class="[socialActionPillClasses, 'mt-2']">
-                            フォロー</span>
+                        <span :class="[socialActionPillClasses, 'mt-2']">
+                            フォロー</span
+                        >
                     </template>
                     <template v-else-if="actionService">
-                        <span
-                            :class="[actionServicePillClasses, 'mt-2']">
+                        <span :class="[actionServicePillClasses, 'mt-2']">
                             {{ actionServiceLabel }}
                         </span>
                     </template>
@@ -1254,57 +1671,114 @@ onUnmounted(() => {
                         <p :class="linkDomainClasses">{{ domain }}</p>
                     </template>
                 </div>
-                <div v-if="embedMode === 'link_embed' && musicEmbedInfo" class="relative flex-1 overflow-hidden rounded-2xl">
+                <div
+                    v-if="embedMode === 'link_embed' && musicEmbedInfo"
+                    class="relative flex-1 overflow-hidden"
+                    :class="widgetCornerClass"
+                >
                     <iframe
                         :src="musicEmbedInfo.url"
                         :title="`${musicEmbedInfo.service} player`"
                         frameborder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allow="
+                            accelerometer;
+                            autoplay;
+                            clipboard-write;
+                            encrypted-media;
+                            gyroscope;
+                            picture-in-picture;
+                            web-share;
+                        "
                         allowfullscreen
                         class="relative z-10 h-full w-full"
                         :class="{ 'pointer-events-none': isEditing }"
                     ></iframe>
                 </div>
-                <button v-else-if="isEditing" @click.stop="chooseOgpImage"
-                    class="cursor-pointer group relative flex-1 overflow-hidden rounded-2xl">
-                    <img v-if="image" :src="image" class="h-full w-full object-cover" draggable="false" />
+                <div
+                    v-else-if="githubProfile"
+                    class="flex-1 overflow-hidden"
+                    :class="widgetCornerClass"
+                >
+                    <div :class="githubCommitGlassClasses">
+                        <div class="grid grid-cols-6 gap-1.5">
+                            <span
+                                v-for="(level, index) in githubCommitCells"
+                                :key="index"
+                                :class="githubCommitCellClasses(level)"
+                            ></span>
+                        </div>
+                    </div>
+                </div>
+                <button
+                    v-else-if="isEditing"
+                    @click.stop="chooseOgpImage"
+                    class="group relative flex-1 cursor-pointer overflow-hidden"
+                    :class="widgetCornerClass"
+                >
+                    <img
+                        v-if="image"
+                        :src="image"
+                        class="h-full w-full object-cover"
+                        draggable="false"
+                    />
                     <span
-                        class="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-all duration-150 group-hover:bg-black/20 group-hover:opacity-100">
+                        class="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-all duration-150 group-hover:bg-black/20 group-hover:opacity-100"
+                    >
                         <Image class="size-8" />
                     </span>
-                    <button v-if="image" @click.stop="emit('remove-image')"
-                        class="absolute top-2 right-2 flex size-8 cursor-pointer items-center justify-center rounded-xl bg-red-600 text-white opacity-0 transition-opacity duration-150 hover:bg-red-700 group-hover:opacity-100">
+                    <button
+                        v-if="image"
+                        @click.stop="emit('remove-image')"
+                        class="absolute top-2 right-2 flex size-8 cursor-pointer items-center justify-center rounded-xl bg-red-600 text-white opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:bg-red-700"
+                    >
                         <Trash2 class="size-4" />
                     </button>
                 </button>
-                <div v-else-if="image" class="flex-1 overflow-hidden rounded-2xl">
-                    <img :src="image" class="h-full w-full object-cover" draggable="false" />
+                <div
+                    v-else-if="image"
+                    class="flex-1 overflow-hidden"
+                    :class="widgetCornerClass"
+                >
+                    <img
+                        :src="image"
+                        class="h-full w-full object-cover"
+                        draggable="false"
+                    />
                 </div>
             </div>
 
             <!-- 2x2 Layout (Large Square) -->
-            <div v-else-if="shape === '2x2'" class="flex h-full flex-col p-4 justify-between">
+            <div
+                v-else-if="shape === '2x2'"
+                class="flex h-full flex-col justify-between p-4"
+            >
                 <div class="flex min-h-0 flex-1 flex-col px-1 pt-1 pb-3">
                     <div class="mb-3 flex items-start justify-between">
                         <div class="relative w-fit shrink-0">
-                            <img v-if="faviconUrl && !faviconFailed" :src="faviconUrl" @error="handleFaviconError" alt=""
-                                class="size-8 rounded-lg object-cover shrink-0"
-                                draggable="false" />
-                            <div v-else
-                                class="flex size-8 items-center justify-center rounded-lg bg-gray-100 text-gray-400 shrink-0">
+                            <img
+                                v-if="faviconUrl && !faviconFailed"
+                                :src="faviconUrl"
+                                @error="handleFaviconError"
+                                alt=""
+                                class="size-8 shrink-0 rounded-lg object-cover"
+                                draggable="false"
+                            />
+                            <div
+                                v-else
+                                class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-400"
+                            >
                                 <LinkIcon class="size-4" />
                             </div>
                         </div>
 
                         <!-- Top Right Action Button -->
                         <template v-if="socialNetwork && socialNetwork.account">
-                            <span
-                                :class="socialActionPillClasses">
-                                フォロー</span>
+                            <span :class="socialActionPillClasses">
+                                フォロー</span
+                            >
                         </template>
                         <template v-else-if="actionService">
-                            <span
-                                :class="actionServicePillClasses">
+                            <span :class="actionServicePillClasses">
                                 {{ actionServiceLabel }}
                             </span>
                         </template>
@@ -1318,7 +1792,12 @@ onUnmounted(() => {
                             role="textbox"
                             aria-label="リンクタイトル"
                             :class="linkTitleEditorClasses"
-                    @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
+                            @beforeinput="
+                                limitPlainTextBeforeInput(
+                                    $event,
+                                    MAX_LINK_TITLE_LENGTH,
+                                )
+                            "
                             @keydown.enter.prevent
                             @input="updateLinkTitleEditor"
                             @paste="pastePlainLinkTitle"
@@ -1329,17 +1808,27 @@ onUnmounted(() => {
                             @blur="isLinkTitleFocused = false"
                             @click.stop
                             @pointerdown="
-                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                                stopPointerWhenFocused(
+                                    $event,
+                                    isLinkTitleFocused,
+                                )
                             "
                             @mousedown="
-                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                                stopPointerWhenFocused(
+                                    $event,
+                                    isLinkTitleFocused,
+                                )
                             "
                             @touchstart="
-                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                                stopPointerWhenFocused(
+                                    $event,
+                                    isLinkTitleFocused,
+                                )
                             "
                         ></div>
-                        <p v-else :class="linkTitleDisplayClasses">{{
-                            title || socialNetwork.account }}</p>
+                        <p v-else :class="linkTitleDisplayClasses">
+                            {{ title || socialNetwork.account }}
+                        </p>
                     </template>
                     <template v-else-if="actionService">
                         <div
@@ -1349,7 +1838,12 @@ onUnmounted(() => {
                             role="textbox"
                             aria-label="リンクタイトル"
                             :class="linkTitleEditorClasses"
-                    @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
+                            @beforeinput="
+                                limitPlainTextBeforeInput(
+                                    $event,
+                                    MAX_LINK_TITLE_LENGTH,
+                                )
+                            "
                             @keydown.enter.prevent
                             @input="updateLinkTitleEditor"
                             @paste="pastePlainLinkTitle"
@@ -1360,17 +1854,27 @@ onUnmounted(() => {
                             @blur="isLinkTitleFocused = false"
                             @click.stop
                             @pointerdown="
-                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                                stopPointerWhenFocused(
+                                    $event,
+                                    isLinkTitleFocused,
+                                )
                             "
                             @mousedown="
-                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                                stopPointerWhenFocused(
+                                    $event,
+                                    isLinkTitleFocused,
+                                )
                             "
                             @touchstart="
-                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                                stopPointerWhenFocused(
+                                    $event,
+                                    isLinkTitleFocused,
+                                )
                             "
                         ></div>
-                        <p v-else :class="linkTitleDisplayClasses">{{
-                            title }}</p>
+                        <p v-else :class="linkTitleDisplayClasses">
+                            {{ title }}
+                        </p>
                     </template>
                     <template v-else>
                         <div
@@ -1380,7 +1884,12 @@ onUnmounted(() => {
                             role="textbox"
                             aria-label="リンクタイトル"
                             :class="linkTitleEditorClasses"
-                    @beforeinput="limitPlainTextBeforeInput($event, MAX_LINK_TITLE_LENGTH)"
+                            @beforeinput="
+                                limitPlainTextBeforeInput(
+                                    $event,
+                                    MAX_LINK_TITLE_LENGTH,
+                                )
+                            "
                             @keydown.enter.prevent
                             @input="updateLinkTitleEditor"
                             @paste="pastePlainLinkTitle"
@@ -1391,56 +1900,126 @@ onUnmounted(() => {
                             @blur="isLinkTitleFocused = false"
                             @click.stop
                             @pointerdown="
-                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                                stopPointerWhenFocused(
+                                    $event,
+                                    isLinkTitleFocused,
+                                )
                             "
                             @mousedown="
-                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                                stopPointerWhenFocused(
+                                    $event,
+                                    isLinkTitleFocused,
+                                )
                             "
                             @touchstart="
-                                stopPointerWhenFocused($event, isLinkTitleFocused)
+                                stopPointerWhenFocused(
+                                    $event,
+                                    isLinkTitleFocused,
+                                )
                             "
                         ></div>
-                        <p v-else :class="linkTitleDisplayClasses">{{
-                            title }}</p>
+                        <p v-else :class="linkTitleDisplayClasses">
+                            {{ title }}
+                        </p>
                         <div class="flex-1"></div>
-                        <p :class="['mt-2 text-lg', linkDomainClasses]">{{ domain }}</p>
+                        <p :class="['mt-2 text-lg', linkDomainClasses]">
+                            {{ domain }}
+                        </p>
                     </template>
                 </div>
-                <div v-if="embedMode === 'link_embed' && musicEmbedInfo" class="relative w-full shrink-0 overflow-hidden rounded-2xl" style="aspect-ratio: 1.91 / 1;">
+                <div
+                    v-if="embedMode === 'link_embed' && musicEmbedInfo"
+                    class="relative w-full shrink-0 overflow-hidden"
+                    :class="widgetCornerClass"
+                    style="aspect-ratio: 1.91 / 1"
+                >
                     <iframe
                         :src="musicEmbedInfo.url"
                         :title="`${musicEmbedInfo.service} player`"
                         frameborder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allow="
+                            accelerometer;
+                            autoplay;
+                            clipboard-write;
+                            encrypted-media;
+                            gyroscope;
+                            picture-in-picture;
+                            web-share;
+                        "
                         allowfullscreen
                         class="relative z-10 h-full w-full"
                         :class="{ 'pointer-events-none': isEditing }"
                     ></iframe>
                 </div>
-                <button v-else-if="isEditing" @click.stop="chooseOgpImage"
-                    class="cursor-pointer group relative w-full shrink-0 overflow-hidden rounded-2xl"
-                    style="aspect-ratio: 1.91 / 1;">
-                    <img v-if="image" :src="image" class="h-full w-full object-cover" draggable="false" />
+                <div
+                    v-else-if="githubProfile"
+                    class="w-full shrink-0 overflow-hidden"
+                    :class="widgetCornerClass"
+                    style="aspect-ratio: 1.91 / 1"
+                >
+                    <div :class="githubCommitGlassClasses">
+                        <div class="grid grid-cols-6 gap-1.5">
+                            <span
+                                v-for="(level, index) in githubCommitCells"
+                                :key="index"
+                                :class="githubCommitCellClasses(level)"
+                            ></span>
+                        </div>
+                    </div>
+                </div>
+                <button
+                    v-else-if="isEditing"
+                    @click.stop="chooseOgpImage"
+                    class="group relative w-full shrink-0 cursor-pointer overflow-hidden"
+                    :class="widgetCornerClass"
+                    style="aspect-ratio: 1.91 / 1"
+                >
+                    <img
+                        v-if="image"
+                        :src="image"
+                        class="h-full w-full object-cover"
+                        draggable="false"
+                    />
                     <span
-                        class="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-all duration-150 group-hover:bg-black/20 group-hover:opacity-100">
+                        class="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-all duration-150 group-hover:bg-black/20 group-hover:opacity-100"
+                    >
                         <Image class="size-8" />
                     </span>
-                    <button v-if="image" @click.stop="emit('remove-image')"
-                        class="absolute top-2 right-2 flex size-8 cursor-pointer items-center justify-center rounded-xl bg-red-600 text-white opacity-0 transition-opacity duration-150 hover:bg-red-700 group-hover:opacity-100">
+                    <button
+                        v-if="image"
+                        @click.stop="emit('remove-image')"
+                        class="absolute top-2 right-2 flex size-8 cursor-pointer items-center justify-center rounded-xl bg-red-600 text-white opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:bg-red-700"
+                    >
                         <Trash2 class="size-4" />
                     </button>
                 </button>
-                <div v-else-if="image" class="w-full shrink-0 overflow-hidden rounded-2xl"
-                    style="aspect-ratio: 1.91 / 1;">
-                    <img :src="image" class="h-full w-full object-cover" draggable="false" />
+                <div
+                    v-else-if="image"
+                    class="w-full shrink-0 overflow-hidden"
+                    :class="widgetCornerClass"
+                    style="aspect-ratio: 1.91 / 1"
+                >
+                    <img
+                        :src="image"
+                        class="h-full w-full object-cover"
+                        draggable="false"
+                    />
                 </div>
             </div>
-            <input ref="ogpInput" type="file" accept="image/*,.apng" class="hidden" @change="handleOgpUpdate" />
+            <input
+                ref="ogpInput"
+                type="file"
+                accept="image/*,.apng"
+                class="hidden"
+                @change="handleOgpUpdate"
+            />
         </div>
 
-        <div v-else
+        <div
+            v-else
             class="flex h-full w-full items-center justify-center p-4 text-center text-lg font-semibold whitespace-pre-line text-gray-700"
-            :class="[widget.bg, mode === 'desktop' ? 'leading-relaxed' : '']">
+            :class="[widget.bg, mode === 'desktop' ? 'leading-relaxed' : '']"
+        >
             <span v-if="widget.id === 'article-note' && mode === 'desktop'">
                 article
                 <ArrowRight class="inline size-6" />

@@ -70,7 +70,7 @@ class LinkController extends Controller
 
         $link = $request->user()->links()->create($validated);
 
-        return redirect()->route('dashboard.links.show', $link->id);
+        return redirect()->route('links.show', ['link' => $link->slug, 'edit' => 1]);
     }
 
     /**
@@ -122,6 +122,7 @@ class LinkController extends Controller
 
         return Inertia::render('links/Link', [
             'link' => $link->load(['widgets', 'title']),
+            'is_editing' => $request->boolean('edit') && $request->user()?->id === $link->user_id,
         ]);
     }
 
@@ -162,7 +163,7 @@ class LinkController extends Controller
     {
         $isOwner = $request->user()?->id === $link->user_id;
 
-        $query = $link->messages()->with('publication')->latest();
+        $query = $link->messages()->with('reply')->latest();
 
         if ($isOwner) {
             $link->messages()
@@ -197,6 +198,16 @@ class LinkController extends Controller
             'title_id' => $validated['title_id'] ?? null,
             'bio' => filled($validated['bio'] ?? null) ? $validated['bio'] : null,
         ];
+
+        if ($request->has('theme_config')) {
+            $currentThemeConfig = $link->theme_config ?? [];
+            $incomingThemeConfig = $validated['theme_config'] ?? [];
+
+            $linkData['theme_config'] = array_merge($currentThemeConfig, [
+                'theme' => $incomingThemeConfig['theme'] ?? $currentThemeConfig['theme'] ?? 'light',
+                'widget_style' => $incomingThemeConfig['widget_style'] ?? $currentThemeConfig['widget_style'] ?? 'rounded',
+            ]);
+        }
 
         if ($request->has('is_published')) {
             $linkData['is_published'] = $request->boolean('is_published');

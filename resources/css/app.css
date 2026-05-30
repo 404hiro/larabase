@@ -4,11 +4,67 @@
 
 @import 'tw-animate-css';
 
+@import 'leaflet/dist/leaflet.css';
+
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 @source '../../node_modules/preline/dist/*.js';
 
 @custom-variant dark (&:is(.dark *));
+
+.grid-link-map-marker {
+    border: 0;
+    background: transparent;
+}
+
+.grid-link-google-map .leaflet-tile {
+    filter: saturate(1.18) contrast(0.96) brightness(1.05);
+}
+
+.grid-link-google-map .leaflet-container {
+    background: #f1eee8;
+    font-family:
+        Roboto, Arial, Helvetica, sans-serif;
+}
+
+.grid-link-map-marker__dot,
+.grid-link-map-marker__pulse {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border-radius: 9999px;
+    transform: translate(-50%, -50%);
+}
+
+.grid-link-map-marker__dot {
+    width: 28px;
+    height: 28px;
+    border: 5px solid #ffffff;
+    background: #3b82f6;
+    box-shadow:
+        0 2px 6px rgb(60 64 67 / 0.3),
+        0 8px 18px rgb(60 64 67 / 0.22);
+}
+
+.grid-link-map-marker__pulse {
+    width: 56px;
+    height: 56px;
+    background: rgb(59 130 246 / 0.22);
+    animation: grid-link-map-marker-pulse 2s ease-out infinite;
+}
+
+@keyframes grid-link-map-marker-pulse {
+    0% {
+        opacity: 0.72;
+        transform: translate(-50%, -50%) scale(0.4);
+    }
+
+    70%,
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
 
 @theme inline {
     --font-sans:
@@ -169,7 +225,8 @@
     * {
         @apply border-border outline-ring/50;
     }
-    body {
+    body,
+    html {
         @apply bg-background text-foreground;
     }
     a:not(.link-page *),

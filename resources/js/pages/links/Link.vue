@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import LinkAddModal from '@/components/links/LinkAddModal.vue';
-import LinkPageNavigation from '@/components/links/LinkPageNavigation.vue';
 import LinkProfile from '@/components/links/LinkProfile.vue';
 import LinkToolbar from '@/components/links/LinkToolbar.vue';
 import LinkWidgetContent from '@/components/links/LinkWidgetContent.vue';
@@ -18,10 +17,10 @@ import {
     SheetTitle,
 } from '@/components/ui/sheet';
 import { Toaster } from '@/components/ui/toast';
+import { click as widgetClick } from '@/routes/widgets';
 import { compressImage } from '@/utils/imageCompression';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { click as widgetClick } from '@/routes/widgets';
-import { usePreferredReducedMotion } from '@vueuse/core';
+import { usePreferredReducedMotion, useWindowSize } from '@vueuse/core';
 import axios from 'axios';
 import Cropper from 'cropperjs';
 import 'cropperjs/dist/cropper.css';
@@ -40,12 +39,14 @@ import {
     Image as ImageIcon,
     LayoutGrid,
     Link as LinkIcon,
+    Minus,
     MoreHorizontal,
     Move,
     Pencil,
     Plus,
     RectangleHorizontal,
     RectangleVertical,
+    Search,
     Square,
     Trash2,
     Type,
@@ -83,6 +84,26 @@ const RectangleThin = (props: any) =>
         ],
     );
 
+const RectangleHalfThin = (props: any) =>
+    h(
+        'svg',
+        {
+            xmlns: 'http://www.w3.org/2000/svg',
+            viewBox: '0 0 24 24',
+            fill: 'none',
+            class: props.class,
+        },
+        [
+            h('path', {
+                d: 'M12 10H5C3.89543 10 3 10.199 3 10.4444V13.5556C3 13.801 3.89543 14 5 14H12C13.1046 14 14 13.801 14 13.5556V10.4444C14 10.199 13.1046 10 12 10Z',
+                stroke: 'currentColor',
+                'stroke-width': '2',
+                'stroke-linecap': 'round',
+                'stroke-linejoin': 'round',
+            }),
+        ],
+    );
+
 const props = defineProps<{
     link: {
         id: number;
@@ -93,12 +114,22 @@ const props = defineProps<{
         avatar_url?: string | null;
         is_published?: boolean;
         has_web_display?: boolean;
+        theme_config?: {
+            theme?: 'light' | 'dark' | null;
+            widget_style?: 'sharp' | 'soft' | 'rounded' | null;
+        } | null;
         widgets?: any[];
     };
+    is_editing?: boolean;
 }>();
 
 const getWidgetHref = (widget: any) => {
-    if (!widget.content || widget.type === 'section' || isEditing.value) {
+    if (
+        !widget.content ||
+        widget.type === 'section' ||
+        widget.type === 'map' ||
+        isEditing.value
+    ) {
         return undefined;
     }
 
@@ -121,7 +152,7 @@ const isOwner = computed(() => {
 });
 
 const previewMode = ref<'desktop' | 'mobile'>('desktop');
-const isEditing = ref(false);
+const isEditing = ref(isOwner.value && Boolean(props.is_editing));
 const isLinkPublished = ref(Boolean(props.link.is_published));
 const isPublishingLink = ref(false);
 const copiedProfileUrl = ref(false);
@@ -146,6 +177,46 @@ const shouldShowMobileGrid = computed(() => {
         activePreviewMode.value === 'mobile'
     );
 });
+const LINK_PAGE_THEME_BACKGROUNDS = {
+    light: '#ffffff',
+    dark: '#111111',
+} as const;
+const pageTheme = ref<'light' | 'dark'>(
+    props.link.theme_config?.theme === 'dark' ? 'dark' : 'light',
+);
+const widgetStyle = ref<'sharp' | 'soft' | 'rounded'>(
+    ['sharp', 'soft', 'rounded'].includes(
+        String(props.link.theme_config?.widget_style),
+    )
+        ? (props.link.theme_config?.widget_style as
+              | 'sharp'
+              | 'soft'
+              | 'rounded')
+        : 'rounded',
+);
+const widgetCornerClass = computed(() => {
+    return widgetStyle.value === 'sharp'
+        ? 'rounded-none'
+        : widgetStyle.value === 'soft'
+          ? 'rounded-xl'
+          : 'rounded-2xl';
+});
+const pageThemeClasses = computed(() => {
+    return pageTheme.value === 'dark'
+        ? 'bg-[#111111] text-white'
+        : 'bg-white text-gray-950';
+});
+const pageBackgroundColor = computed(() => {
+    return LINK_PAGE_THEME_BACKGROUNDS[pageTheme.value];
+});
+
+let previousHtmlBackgroundColor = '';
+let previousBodyBackgroundColor = '';
+
+const applyDocumentBackgroundColor = () => {
+    document.documentElement.style.backgroundColor = pageBackgroundColor.value;
+    document.body.style.backgroundColor = pageBackgroundColor.value;
+};
 
 const editForm = ref({
     display_name: props.link.display_name,
@@ -202,6 +273,7 @@ const draggingWidgetId = ref<string | number | null>(null);
 const draggingWidgetMode = ref<'desktop' | 'mobile' | null>(null);
 const suppressWidgetClickUntil = ref(0);
 const croppingWidgetId = ref<string | number | null>(null);
+const activeMapMovingWidgetId = ref<string | number | null>(null);
 const isSmallViewport = ref(false);
 const isPreviewLayoutSwitching = ref(false);
 let suppressWidgetClickTimeout: number | null = null;
@@ -308,28 +380,28 @@ const sectionSizeOptions = {
     desktop: [
         {
             key: 'section-compact',
-            icon: Square,
-            label: '1/2幅',
+            icon: RectangleHalfThin,
+            label: '1x2',
             size: { w: 2, h: 1 },
         },
         {
             key: 'section-wide',
-            icon: RectangleHorizontal,
-            label: '全幅',
+            icon: RectangleThin,
+            label: '1x4',
             size: { w: 4, h: 1 },
         },
     ],
     mobile: [
         {
             key: 'section-compact',
-            icon: Square,
-            label: '1/2幅',
+            icon: RectangleHalfThin,
+            label: '1x2',
             size: { w: 1, h: 1 },
         },
         {
             key: 'section-wide',
-            icon: RectangleHorizontal,
-            label: '全幅',
+            icon: RectangleThin,
+            label: '1x4',
             size: { w: 2, h: 1 },
         },
     ],
@@ -338,7 +410,7 @@ const widgetSizeOptionList = [
     {
         key: 'inline',
         icon: RectangleThin,
-        label: '0.5x1',
+        label: 'インライン',
         size: { w: 2, h: 1 },
     },
     { key: 'small', icon: Square, label: '1x1', size: { w: 1, h: 2 } },
@@ -593,6 +665,10 @@ const widgetSizeOptions = (widget: any, mode: 'desktop' | 'mobile') => {
         return sectionSizeOptions[mode];
     }
 
+    if (widget.type !== 'link') {
+        return widgetSizeOptionList.filter((option) => option.key !== 'inline');
+    }
+
     return widgetSizeOptionList;
 };
 
@@ -630,6 +706,7 @@ const activateMobileWidget = (widgetId: string | number) => {
 const completeMobileWidgetOperation = () => {
     activeWidgetId.value = null;
     croppingWidgetId.value = null;
+    activeMapMovingWidgetId.value = null;
     lockedControlsWidgetId.value = null;
 };
 
@@ -642,6 +719,12 @@ const editMobileWidget = (widget: any) => {
 
     if (widget.type === 'image') {
         openMobileImageEditor(widget);
+
+        return;
+    }
+
+    if (widget.type === 'map') {
+        openMobileMapEditor(widget);
 
         return;
     }
@@ -687,6 +770,10 @@ const disableLayoutTransitionsBriefly = () => {
 };
 
 onMounted(() => {
+    previousHtmlBackgroundColor =
+        document.documentElement.style.backgroundColor;
+    previousBodyBackgroundColor = document.body.style.backgroundColor;
+    applyDocumentBackgroundColor();
     updateViewportMode();
     window.addEventListener('resize', updateViewportMode);
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -705,6 +792,10 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+    document.documentElement.style.backgroundColor =
+        previousHtmlBackgroundColor;
+    document.body.style.backgroundColor = previousBodyBackgroundColor;
+
     if (avatarPreviewUrl.value) {
         URL.revokeObjectURL(avatarPreviewUrl.value);
     }
@@ -725,6 +816,11 @@ onUnmounted(() => {
         window.clearTimeout(previewLayoutSwitchTimeout);
     }
 
+    if (mobileMapSearchTimeout !== null) {
+        window.clearTimeout(mobileMapSearchTimeout);
+    }
+
+    mobileMapSearchAbortController?.abort();
     window.removeEventListener('resize', updateViewportMode);
     window.removeEventListener('beforeunload', handleBeforeUnload);
     window.removeEventListener('pointermove', handleWindowPointerMove);
@@ -758,6 +854,12 @@ watch(
     () => markDirty(),
 );
 
+watch([pageTheme, widgetStyle], () => markDirty());
+
+watch(pageBackgroundColor, () => {
+    applyDocumentBackgroundColor();
+});
+
 watch([activePreviewMode, isSmallViewport], () => {
     disableLayoutTransitionsBriefly();
     updateLayoutsFromWidgets();
@@ -778,6 +880,10 @@ const toggleEdit = () => {
                 display_name: editForm.value.display_name,
                 bio: editForm.value.bio,
                 has_web_display: !isSmallViewport.value,
+                theme_config: {
+                    theme: pageTheme.value,
+                    widget_style: widgetStyle.value,
+                },
                 avatar: avatarFile.value,
                 remove_avatar: avatarRemoved.value,
             },
@@ -801,6 +907,7 @@ const toggleEdit = () => {
                                 hasUnsavedChanges.value = false;
                                 isEditing.value = false;
                                 activeWidgetId.value = null;
+                                activeMapMovingWidgetId.value = null;
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                             },
                             onError: () => {
@@ -952,6 +1059,10 @@ const publishLink = () => {
             _method: 'put',
             display_name: editForm.value.display_name.replace(/\s+/g, ''),
             bio: editForm.value.bio,
+            theme_config: {
+                theme: pageTheme.value,
+                widget_style: widgetStyle.value,
+            },
             is_published: true,
         },
         {
@@ -1015,7 +1126,21 @@ const updateWidgetLink = (widget: any) => {
 const toggleImageCrop = (widgetId: string | number) => {
     croppingWidgetId.value =
         croppingWidgetId.value === widgetId ? null : widgetId;
+    activeMapMovingWidgetId.value = null;
     activeWidgetId.value = widgetId;
+};
+
+const toggleMapMove = (widgetId: string | number) => {
+    activeMapMovingWidgetId.value =
+        String(activeMapMovingWidgetId.value) === String(widgetId)
+            ? null
+            : widgetId;
+    croppingWidgetId.value = null;
+    activeWidgetId.value = widgetId;
+};
+
+const closeMapMove = () => {
+    activeMapMovingWidgetId.value = null;
 };
 
 const setControlsLock = (widgetId: string | number, isOpen: boolean) => {
@@ -1045,6 +1170,52 @@ const updateWidgetYoutubeMode = (
         widget.settings = {};
     }
     widget.settings.youtubeMode = mode;
+    markDirty();
+};
+
+const updateMapWidgetLocation = (
+    widget: any,
+    location: {
+        title: string;
+        address: string;
+        lat: number;
+        lng: number;
+        zoom: number;
+    },
+) => {
+    if (!widget.settings) {
+        widget.settings = {};
+    }
+
+    widget.settings.title = location.title;
+    widget.settings.address = location.address;
+    widget.settings.lat = location.lat;
+    widget.settings.lng = location.lng;
+    widget.settings.zoom = location.zoom;
+    markDirty();
+};
+
+const updateMapWidgetCenter = (
+    widget: any,
+    center: { lat: number; lng: number; zoom: number },
+) => {
+    if (!widget.settings) {
+        widget.settings = {};
+    }
+
+    widget.settings.lat = center.lat;
+    widget.settings.lng = center.lng;
+    widget.settings.zoom = center.zoom;
+    markDirty();
+};
+
+const updateMapWidgetZoom = (widget: any, delta: number) => {
+    if (!widget.settings) {
+        widget.settings = {};
+    }
+
+    const currentZoom = Number(widget.settings.zoom ?? 15);
+    widget.settings.zoom = Math.min(19, Math.max(3, currentZoom + delta));
     markDirty();
 };
 
@@ -1305,6 +1476,22 @@ const mobileImageCropPreview = ref<HTMLElement | null>(null);
 const mobileImageRef = ref<HTMLImageElement | null>(null);
 const mobileCropper = ref<Cropper | null>(null);
 const isInitializingMobileCropper = ref(false);
+const mobileMapEditorWidget = ref<any | null>(null);
+const mobileMapSearchQuery = ref('');
+const mobileMapSearchResults = ref<
+    Array<{
+        place_id: number;
+        display_name: string;
+        lat: string;
+        lon: string;
+        name?: string;
+    }>
+>([]);
+const isSearchingMobileMap = ref(false);
+const mobileMapSearchError = ref('');
+const hasSearchedMobileMap = ref(false);
+let mobileMapSearchTimeout: number | null = null;
+let mobileMapSearchAbortController: AbortController | null = null;
 const mobileTextEditorWidget = ref<any | null>(null);
 const mobileTextEditorInput = ref<HTMLElement | null>(null);
 const isMobileTextEditorFocused = ref(false);
@@ -1611,6 +1798,227 @@ const updateMobileImageSensitive = () => {
     );
 };
 
+const closeMobileMapEditor = () => {
+    mobileMapEditorWidget.value = null;
+    mobileMapSearchResults.value = [];
+    mobileMapSearchError.value = '';
+    isSearchingMobileMap.value = false;
+    hasSearchedMobileMap.value = false;
+
+    if (mobileMapSearchTimeout !== null) {
+        window.clearTimeout(mobileMapSearchTimeout);
+        mobileMapSearchTimeout = null;
+    }
+
+    mobileMapSearchAbortController?.abort();
+    mobileMapSearchAbortController = null;
+};
+
+const setMobileMapEditorOpen = (open: boolean) => {
+    if (!open) {
+        closeMobileMapEditor();
+    }
+};
+
+const openMobileMapEditor = (widget: any) => {
+    ensureWidgetSettings(widget);
+    widget.settings.title ??= '東京タワー';
+    widget.settings.address ??= '東京都港区芝公園4丁目2-8';
+    widget.settings.lat ??= 35.6585805;
+    widget.settings.lng ??= 139.7454329;
+    widget.settings.zoom ??= 15;
+    mobileMapEditorWidget.value = widget;
+    mobileMapSearchQuery.value = widget.settings.address;
+    mobileMapSearchResults.value = [];
+    mobileMapSearchError.value = '';
+    hasSearchedMobileMap.value = false;
+};
+
+const { width: windowWidth } = useWindowSize();
+const mobileGridDimensions = computed(() => {
+    // Mobile grid settings (matching the GridLayout component)
+    const colNum = 2;
+    const rowHeight = 84.5;
+    const margin = 12;
+
+    // Calculate content width
+    // Parent section has max-w-[374px]
+    // Outer container has px-5 (20px each side)
+    const padding = 40; // px-5 = 20px * 2
+    const contentWidth = Math.min(windowWidth.value - padding, 374);
+    const gridWidth = contentWidth + 24; // w-[calc(100%+24px)]
+
+    const colWidth = (gridWidth - (colNum + 1) * margin) / colNum;
+
+    return { colWidth, rowHeight, margin };
+});
+
+const mobileMapEditorPreviewStyle = computed(() => {
+    const widget = mobileMapEditorWidget.value;
+
+    if (!widget) {
+        return {
+            height: '250px',
+            width: '250px',
+        };
+    }
+
+    const w = Number(widget.w_mobile ?? 2);
+    const h = Number(widget.h_mobile ?? 4);
+
+    const { colWidth, rowHeight, margin } = mobileGridDimensions.value;
+
+    // Calculate actual pixel dimensions on the grid
+    const actualWidth = w * colWidth + (w - 1) * margin;
+    const actualHeight = h * rowHeight + (h - 1) * margin;
+
+    // Scale to fit a reasonable preview size (max dimension around 288px)
+    const scale = Math.min(288 / actualWidth, 288 / actualHeight);
+
+    return {
+        width: `${actualWidth * scale}px`,
+        height: `${actualHeight * scale}px`,
+    };
+});
+
+const shouldShowMobileMapLocationDropdown = computed(() => {
+    return (
+        isSearchingMobileMap.value ||
+        Boolean(mobileMapSearchError.value) ||
+        mobileMapSearchResults.value.length > 0 ||
+        (hasSearchedMobileMap.value &&
+            mobileMapSearchQuery.value.trim().length >= 2 &&
+            mobileMapSearchResults.value.length === 0)
+    );
+});
+
+const extractMapLocationTitle = (displayName: string, name?: string) => {
+    const title = (name || displayName.split(',')[0] || '').trim();
+
+    return title || displayName;
+};
+
+const searchMobileMapLocations = async (query: string) => {
+    const trimmedQuery = query.trim();
+
+    mobileMapSearchAbortController?.abort();
+
+    if (trimmedQuery.length < 2) {
+        mobileMapSearchResults.value = [];
+        mobileMapSearchError.value = '';
+        isSearchingMobileMap.value = false;
+        hasSearchedMobileMap.value = false;
+
+        return;
+    }
+
+    mobileMapSearchAbortController = new AbortController();
+    isSearchingMobileMap.value = true;
+    mobileMapSearchError.value = '';
+    hasSearchedMobileMap.value = false;
+
+    try {
+        const params = new URLSearchParams({
+            q: trimmedQuery,
+            format: 'jsonv2',
+            limit: '5',
+            addressdetails: '1',
+            'accept-language': 'ja,en',
+        });
+        const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+            {
+                signal: mobileMapSearchAbortController.signal,
+                headers: {
+                    Accept: 'application/json',
+                },
+            },
+        );
+
+        if (!response.ok) {
+            throw new Error('Failed to search map locations.');
+        }
+
+        mobileMapSearchResults.value = await response.json();
+    } catch (error) {
+        if ((error as DOMException).name === 'AbortError') {
+            return;
+        }
+
+        mobileMapSearchError.value = '候補を取得できませんでした';
+        mobileMapSearchResults.value = [];
+    } finally {
+        isSearchingMobileMap.value = false;
+        hasSearchedMobileMap.value = true;
+    }
+};
+
+const updateMobileMapSearchQuery = (event: Event) => {
+    mobileMapSearchQuery.value = (event.target as HTMLInputElement).value;
+    hasSearchedMobileMap.value = false;
+
+    if (mobileMapSearchTimeout !== null) {
+        window.clearTimeout(mobileMapSearchTimeout);
+    }
+
+    mobileMapSearchTimeout = window.setTimeout(() => {
+        searchMobileMapLocations(mobileMapSearchQuery.value);
+    }, 300);
+};
+
+const selectMobileMapLocation = (result: {
+    display_name: string;
+    lat: string;
+    lon: string;
+    name?: string;
+}) => {
+    if (!mobileMapEditorWidget.value) {
+        return;
+    }
+
+    updateMapWidgetLocation(mobileMapEditorWidget.value, {
+        title: extractMapLocationTitle(result.display_name, result.name),
+        address: result.display_name,
+        lat: Number(result.lat),
+        lng: Number(result.lon),
+        zoom: 15,
+    });
+
+    mobileMapSearchQuery.value = result.display_name;
+    mobileMapSearchResults.value = [];
+};
+
+const updateMobileMapTitle = (event: Event) => {
+    if (!mobileMapEditorWidget.value) {
+        return;
+    }
+
+    updateWidgetTitle(
+        mobileMapEditorWidget.value,
+        (event.target as HTMLInputElement).value,
+    );
+};
+
+const updateMobileMapCenter = (center: {
+    lat: number;
+    lng: number;
+    zoom: number;
+}) => {
+    if (!mobileMapEditorWidget.value) {
+        return;
+    }
+
+    updateMapWidgetCenter(mobileMapEditorWidget.value, center);
+};
+
+const updateMobileMapZoom = (delta: number) => {
+    if (!mobileMapEditorWidget.value) {
+        return;
+    }
+
+    updateMapWidgetZoom(mobileMapEditorWidget.value, delta);
+};
+
 const updateMobileImageCrop = (crop: { x: number; y: number }) => {
     if (!mobileImageEditorWidget.value) {
         return;
@@ -1662,8 +2070,12 @@ const initMobileCropper = () => {
             });
 
             const canvasData = mobileCropper.value.getCanvasData();
-            const xPercent = Number(mobileImageEditorWidget.value?.settings?.cropX ?? 50);
-            const yPercent = Number(mobileImageEditorWidget.value?.settings?.cropY ?? 50);
+            const xPercent = Number(
+                mobileImageEditorWidget.value?.settings?.cropX ?? 50,
+            );
+            const yPercent = Number(
+                mobileImageEditorWidget.value?.settings?.cropY ?? 50,
+            );
 
             const xRange = containerData.width - canvasData.width;
             const yRange = containerData.height - canvasData.height;
@@ -2120,6 +2532,58 @@ const addTextWidget = (position: WidgetPosition | null = null) => {
     pendingWidgetSize.value = null;
 };
 
+const addMapWidget = (position: WidgetPosition | null = null) => {
+    if (!canAddWidget()) {
+        return;
+    }
+
+    const w = position ? position.w : (pendingWidgetSize.value?.w ?? 2);
+    const h = position ? position.h : (pendingWidgetSize.value?.h ?? 4);
+    const desktopPosition =
+        position ??
+        findNextGridPosition(localWidgets.value, 4, w, h, {
+            x: 'x',
+            y: 'y',
+            w: 'w',
+            h: 'h',
+        });
+    const mobilePosition =
+        position ??
+        findNextGridPosition(localWidgets.value, 2, w, h, {
+            x: 'x_mobile',
+            y: 'y_mobile',
+            w: 'w_mobile',
+            h: 'h_mobile',
+        });
+    const newWidget = {
+        id: `temp_map_${Date.now()}`,
+        type: 'map',
+        content: null,
+        thumbnail_url: null,
+        x: desktopPosition.x,
+        y: desktopPosition.y,
+        w,
+        h,
+        x_mobile: mobilePosition.x,
+        y_mobile: mobilePosition.y,
+        w_mobile: w,
+        h_mobile: h,
+        settings: {
+            title: '東京タワー',
+            address: '東京都港区芝公園4丁目2-8',
+            lat: 35.6585805,
+            lng: 139.7454329,
+            zoom: 15,
+        },
+    };
+
+    addLocalWidget(newWidget);
+    updateLayoutsFromWidgets();
+    markDirty();
+    scrollToWidgetBottom();
+    pendingWidgetSize.value = null;
+};
+
 const addLinkWidget = async (url: string, isSensitive = false) => {
     showAddLinkModal.value = false;
     const limitedUrl = url.slice(0, MAX_URL_LENGTH);
@@ -2148,7 +2612,9 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
 
     try {
         const { data } = await axios.post('/fetch-ogp', { url: limitedUrl });
-        const xMatch = limitedUrl.match(/https?:\/\/(?:www\.)?(?:x|twitter)\.com\/([a-zA-Z0-9_]{1,15})(?:\/|\?|$)/i);
+        const xMatch = limitedUrl.match(
+            /https?:\/\/(?:www\.)?(?:x|twitter)\.com\/([a-zA-Z0-9_]{1,15})(?:\/|\?|$)/i,
+        );
 
         const desktopPosition = pos
             ? pos
@@ -2197,7 +2663,9 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
         scrollToWidgetBottom();
     } catch (e) {
         console.error('Failed to fetch OGP', e);
-        const xMatch = limitedUrl.match(/https?:\/\/(?:www\.)?(?:x|twitter)\.com\/([a-zA-Z0-9_]{1,15})(?:\/|\?|$)/i);
+        const xMatch = limitedUrl.match(
+            /https?:\/\/(?:www\.)?(?:x|twitter)\.com\/([a-zA-Z0-9_]{1,15})(?:\/|\?|$)/i,
+        );
 
         const desktopPosition = pos
             ? pos
@@ -2259,6 +2727,9 @@ const deleteWidget = (widgetId: number | string) => {
     }
     if (String(croppingWidgetId.value) === String(widgetId)) {
         croppingWidgetId.value = null;
+    }
+    if (String(activeMapMovingWidgetId.value) === String(widgetId)) {
+        activeMapMovingWidgetId.value = null;
     }
     if (String(mobileLinkEditorWidget.value?.id) === String(widgetId)) {
         mobileLinkEditorWidget.value = null;
@@ -2490,7 +2961,11 @@ const startWidgetDragPointer = (
     mode: 'desktop' | 'mobile',
     event: PointerEvent,
 ) => {
-    if (!isEditing.value || croppingWidgetId.value) {
+    if (
+        !isEditing.value ||
+        croppingWidgetId.value ||
+        activeMapMovingWidgetId.value
+    ) {
         return;
     }
 
@@ -2788,7 +3263,8 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
 .link-page--instant-layout,
 .link-page--instant-layout *,
 .link-page--instant-layout .vgl-item,
-.link-page--instant-layout .vgl-item:not(.vgl-item--dragging):not(.vgl-item--resizing) {
+.link-page--instant-layout
+    .vgl-item:not(.vgl-item--dragging):not(.vgl-item--resizing) {
     transition-duration: 0ms !important;
     transition-delay: 0ms !important;
     animation-duration: 0ms !important;
@@ -2852,18 +3328,18 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
 
     <main
         @click="handlePageClick"
-        class="link-page text-gray-950 transition-colors duration-300"
+        class="link-page transition-colors duration-300"
         :class="[
-            'min-h-screen bg-white',
+            'min-h-screen',
+            pageTheme,
+            pageThemeClasses,
             isEditing ? 'link-page--editing' : '',
             isPreviewLayoutSwitching ? 'link-page--instant-layout' : '',
         ]"
     >
-        <LinkPageNavigation :slug="props.link.slug" active-tab="profile" />
-
         <div
             v-if="!isOwner"
-            class="fixed inset-x-0 bottom-4 z-[60] flex justify-center px-4"
+            class="fixed inset-x-0 bottom-4 z-[9005] flex justify-center px-4"
             aria-label="プロフィールアクション"
         >
             <div
@@ -2872,7 +3348,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                 <div class="relative">
                     <div
                         v-if="copiedProfileUrl"
-                        class="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-black px-3 py-1.5 text-xs font-bold text-white shadow-lg"
+                        class="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded-lg bg-black px-3 py-1.5 text-xs font-bold whitespace-nowrap text-white shadow-lg"
                     >
                         URLをコピーしました
                     </div>
@@ -2924,10 +3400,11 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
             v-if="isOwner"
             :is-editing="isEditing"
             v-model:preview-mode="previewMode"
-            :letter-url="`/@${props.link.slug}/message`"
             :is-published="isLinkPublished"
             :is-share-copied="copiedProfileUrl"
             :has-widgets="localWidgets.length > 0"
+            :page-theme="pageTheme"
+            :widget-style="widgetStyle"
             :mobile-widget-operation-active="
                 Boolean(
                     activeMobileLayoutItem &&
@@ -2940,9 +3417,12 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
             @add-link="openAddLinkFromToolbar"
             @add-media="addMediaWidget"
             @add-text="addTextWidget"
+            @add-map="addMapWidget"
             @add-section="addSectionWidget"
             @publish="publishLink"
             @share="copyProfileUrl"
+            @update:page-theme="pageTheme = $event"
+            @update:widget-style="widgetStyle = $event"
             @resize-mobile-widget="resizeActiveMobileWidget"
             @complete-mobile-widget-operation="completeMobileWidgetOperation"
         />
@@ -2978,6 +3458,11 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
             v-if="croppingWidgetId"
             class="pointer-events-none fixed inset-0 z-[70] bg-gray-200/75"
         ></div>
+        <div
+            v-if="activeMapMovingWidgetId"
+            class="fixed inset-0 z-[2000] bg-white/70 backdrop-blur-[2px]"
+            @click="closeMapMove"
+        ></div>
 
         <div
             class="transition-all duration-300"
@@ -3005,6 +3490,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     :avatar-url="profileAvatarUrl"
                     :display-initial="displayInitial"
                     :letter-url="`/@${props.link.slug}/message`"
+                    :page-theme="pageTheme"
                     @update:avatar="updateAvatar"
                     @remove:avatar="removeAvatar"
                 />
@@ -3031,7 +3517,11 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                         :col-num="4"
                         :row-height="81.5"
                         :margin="[12, 12]"
-                        :is-draggable="isEditing && !croppingWidgetId"
+                        :is-draggable="
+                            isEditing &&
+                            !croppingWidgetId &&
+                            !activeMapMovingWidgetId
+                        "
                         :is-resizable="false"
                         :vertical-compact="true"
                         :use-css-transforms="true"
@@ -3110,17 +3600,20 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                             class="group"
                             :class="[
                                 croppingWidgetId === item.i
-                                    ? 'z-[9003] is-cropping'
-                                    : draggingWidgetId === item.i
-                                      ? 'z-[130]'
-                                      : hoveredWidgetId === item.i ||
-                                          lockedControlsWidgetId === item.i
-                                        ? 'z-[120]'
-                                        : 'z-10',
+                                    ? 'is-cropping z-[9003]'
+                                    : activeMapMovingWidgetId === item.i
+                                      ? '!z-[3000]'
+                                      : draggingWidgetId === item.i
+                                        ? 'z-[1100]'
+                                        : hoveredWidgetId === item.i ||
+                                            lockedControlsWidgetId === item.i
+                                          ? 'z-[1000]'
+                                          : 'z-10',
                             ]"
                         >
                             <div
-                                class="h-full w-full rounded-2xl will-change-transform"
+                                class="h-full w-full will-change-transform"
+                                :class="widgetCornerClass"
                                 :style="
                                     getDraggedWidgetStyle('desktop', item.i)
                                 "
@@ -3129,6 +3622,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                     :is="
                                         item.widget.content &&
                                         item.widget.type !== 'section' &&
+                                        item.widget.type !== 'map' &&
                                         !isSensitiveWidget(item.widget) &&
                                         !isYouTubeEmbedMode(item.widget) &&
                                         !isEditing
@@ -3139,6 +3633,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                     :target="
                                         item.widget.content &&
                                         item.widget.type !== 'section' &&
+                                        item.widget.type !== 'map' &&
                                         !isSensitiveWidget(item.widget) &&
                                         !isYouTubeEmbedMode(item.widget) &&
                                         !isEditing
@@ -3154,8 +3649,9 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                             $event,
                                         )
                                     "
-                                    class="relative block h-full w-full rounded-2xl"
+                                    class="relative block h-full w-full"
                                     :class="[
+                                        widgetCornerClass,
                                         newlyAddedWidgetIds.has(item.i)
                                             ? 'widget-bounce-enter'
                                             : '',
@@ -3167,6 +3663,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                             : '',
                                         item.widget.content &&
                                         item.widget.type !== 'section' &&
+                                        item.widget.type !== 'map' &&
                                         !isYouTubeEmbedMode(item.widget) &&
                                         !isEditing
                                             ? 'cursor-pointer'
@@ -3179,7 +3676,12 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                         item.widget.type === 'section' &&
                                         !isEditing
                                             ? ''
-                                            : 'hover:scale-[1.015] active:scale-[0.99]',
+                                            : isEditing
+                                              ? 'active:scale-[0.99]'
+                                              : '',
+                                        activeMapMovingWidgetId === item.i
+                                            ? 'ring-2 ring-black'
+                                            : '',
                                     ]"
                                 >
                                     <LinkWidgetControls
@@ -3188,6 +3690,8 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                             draggingWidgetId !== item.i &&
                                             (hoveredWidgetId === item.i ||
                                                 croppingWidgetId === item.i ||
+                                                activeMapMovingWidgetId ===
+                                                    item.i ||
                                                 lockedControlsWidgetId ===
                                                     item.i)
                                         "
@@ -3202,6 +3706,9 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                         :is-cropping="
                                             croppingWidgetId === item.i
                                         "
+                                        :is-map-moving="
+                                            activeMapMovingWidgetId === item.i
+                                        "
                                         @delete="deleteWidget(item.i)"
                                         @lock-open="
                                             setControlsLock(item.i, $event)
@@ -3210,6 +3717,8 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                             updateWidgetLink(item.widget)
                                         "
                                         @toggle-crop="toggleImageCrop(item.i)"
+                                        @toggle-map-move="toggleMapMove(item.i)"
+                                        @close-map-move="closeMapMove"
                                         @update-background-color="
                                             updateTextWidgetBackgroundColor(
                                                 item.widget,
@@ -3240,6 +3749,18 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                                 $event,
                                             )
                                         "
+                                        @update-map-location="
+                                            updateMapWidgetLocation(
+                                                item.widget,
+                                                $event,
+                                            )
+                                        "
+                                        @update-map-zoom="
+                                            updateMapWidgetZoom(
+                                                item.widget,
+                                                $event,
+                                            )
+                                        "
                                         @resize="
                                             resizeWidget(
                                                 item.i,
@@ -3252,10 +3773,15 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                     <LinkWidgetContent
                                         :widget="item.widget"
                                         mode="desktop"
+                                        :widget-corner-class="widgetCornerClass"
+                                        :page-theme="pageTheme"
                                         :is-editing="isEditing"
                                         :is-active="activeWidgetId === item.i"
                                         :is-cropping="
                                             croppingWidgetId === item.i
+                                        "
+                                        :is-map-moving="
+                                            activeMapMovingWidgetId === item.i
                                         "
                                         :profile-image-url="profileAvatarUrl"
                                         @activate="activateWidget(item.i)"
@@ -3267,6 +3793,12 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                         "
                                         @update-crop="
                                             updateImageWidgetCrop(
+                                                item.widget,
+                                                $event,
+                                            )
+                                        "
+                                        @update-map-center="
+                                            updateMapWidgetCenter(
                                                 item.widget,
                                                 $event,
                                             )
@@ -3294,7 +3826,11 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                         :col-num="2"
                         :row-height="84.5"
                         :margin="[12, 12]"
-                        :is-draggable="isEditing && !croppingWidgetId"
+                        :is-draggable="
+                            isEditing &&
+                            !croppingWidgetId &&
+                            !activeMapMovingWidgetId
+                        "
                         :is-resizable="false"
                         :vertical-compact="true"
                         :use-css-transforms="true"
@@ -3364,13 +3900,18 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                             class="group"
                             :class="[
                                 croppingWidgetId === item.i
-                                    ? 'z-[9003] is-cropping'
-                                    : draggingWidgetId === item.i
-                                      ? 'z-[130] cursor-grabbing'
-                                      : hoveredWidgetId === item.i ||
-                                          lockedControlsWidgetId === item.i
-                                        ? 'z-[120] cursor-grab'
-                                        : 'z-10',
+                                    ? 'is-cropping z-[9003]'
+                                    : activeMapMovingWidgetId === item.i
+                                      ? '!z-[3000]'
+                                      : draggingWidgetId === item.i
+                                        ? 'z-[1100] cursor-grabbing'
+                                        : isSmallViewport &&
+                                            activeWidgetId === item.i
+                                          ? 'z-[4000] cursor-grab'
+                                          : hoveredWidgetId === item.i ||
+                                              lockedControlsWidgetId === item.i
+                                            ? 'z-[1000] cursor-grab'
+                                            : 'z-10',
                                 isEditing && activeWidgetId === item.i
                                     ? 'cursor-default'
                                     : '',
@@ -3382,13 +3923,15 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                             ]"
                         >
                             <div
-                                class="h-full w-full rounded-2xl will-change-transform"
+                                class="h-full w-full will-change-transform"
+                                :class="widgetCornerClass"
                                 :style="getDraggedWidgetStyle('mobile', item.i)"
                             >
                                 <component
                                     :is="
                                         item.widget.content &&
                                         item.widget.type !== 'section' &&
+                                        item.widget.type !== 'map' &&
                                         !isSensitiveWidget(item.widget) &&
                                         !isYouTubeEmbedMode(item.widget) &&
                                         !isEditing
@@ -3399,6 +3942,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                     :target="
                                         item.widget.content &&
                                         item.widget.type !== 'section' &&
+                                        item.widget.type !== 'map' &&
                                         !isSensitiveWidget(item.widget) &&
                                         !isYouTubeEmbedMode(item.widget) &&
                                         !isEditing
@@ -3406,8 +3950,9 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                             : undefined
                                     "
                                     rel="noopener noreferrer"
-                                    class="relative block h-full w-full overflow-visible rounded-2xl"
+                                    class="relative block h-full w-full overflow-visible"
                                     :class="[
+                                        widgetCornerClass,
                                         newlyAddedWidgetIds.has(item.i)
                                             ? 'widget-bounce-enter'
                                             : '',
@@ -3420,15 +3965,19 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                         activeWidgetId === item.i &&
                                         isEditing &&
                                         isSmallViewport
-                                            ? 'rounded-2xl border-2 border-black'
+                                            ? 'border-2 border-black'
                                             : '',
                                         item.widget.content &&
                                         item.widget.type !== 'section' &&
+                                        item.widget.type !== 'map' &&
                                         !isEditing
                                             ? 'cursor-pointer'
                                             : '',
                                         draggingWidgetId == item.i
                                             ? 'z-50'
+                                            : '',
+                                        activeMapMovingWidgetId === item.i
+                                            ? 'ring-2 ring-black'
                                             : '',
                                     ]"
                                     @click="handleWidgetClick($event, item)"
@@ -3446,9 +3995,10 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                         v-if="
                                             isEditing &&
                                             isSmallViewport &&
-                                            (activeWidgetId === item.i || croppingWidgetId === item.i)
+                                            (activeWidgetId === item.i ||
+                                                croppingWidgetId === item.i)
                                         "
-                                        class="pointer-events-none absolute inset-0 z-[150]"
+                                        class="pointer-events-none absolute inset-0 z-[700]"
                                     >
                                         <button
                                             type="button"
@@ -3495,6 +4045,8 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                             !isSmallViewport &&
                                             (hoveredWidgetId === item.i ||
                                                 croppingWidgetId === item.i ||
+                                                activeMapMovingWidgetId ===
+                                                    item.i ||
                                                 lockedControlsWidgetId ===
                                                     item.i)
                                         "
@@ -3509,6 +4061,9 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                         :is-cropping="
                                             croppingWidgetId === item.i
                                         "
+                                        :is-map-moving="
+                                            activeMapMovingWidgetId === item.i
+                                        "
                                         @delete="deleteWidget(item.i)"
                                         @lock-open="
                                             setControlsLock(item.i, $event)
@@ -3517,6 +4072,8 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                             updateWidgetLink(item.widget)
                                         "
                                         @toggle-crop="toggleImageCrop(item.i)"
+                                        @toggle-map-move="toggleMapMove(item.i)"
+                                        @close-map-move="closeMapMove"
                                         @update-background-color="
                                             updateTextWidgetBackgroundColor(
                                                 item.widget,
@@ -3547,6 +4104,18 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                                 $event,
                                             )
                                         "
+                                        @update-map-location="
+                                            updateMapWidgetLocation(
+                                                item.widget,
+                                                $event,
+                                            )
+                                        "
+                                        @update-map-zoom="
+                                            updateMapWidgetZoom(
+                                                item.widget,
+                                                $event,
+                                            )
+                                        "
                                         @resize="
                                             resizeWidget(
                                                 item.i,
@@ -3558,12 +4127,17 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                     <LinkWidgetContent
                                         :widget="item.widget"
                                         mode="mobile"
+                                        :widget-corner-class="widgetCornerClass"
+                                        :page-theme="pageTheme"
                                         :is-editing="
                                             isEditing && !isSmallViewport
                                         "
                                         :is-active="activeWidgetId === item.i"
                                         :is-cropping="
                                             croppingWidgetId === item.i
+                                        "
+                                        :is-map-moving="
+                                            activeMapMovingWidgetId === item.i
                                         "
                                         :profile-image-url="profileAvatarUrl"
                                         @activate="activateWidget(item.i)"
@@ -3575,6 +4149,12 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                         "
                                         @update-crop="
                                             updateImageWidgetCrop(
+                                                item.widget,
+                                                $event,
+                                            )
+                                        "
+                                        @update-map-center="
+                                            updateMapWidgetCenter(
                                                 item.widget,
                                                 $event,
                                             )
@@ -3614,30 +4194,35 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                 side="bottom"
                 :show-close="false"
                 overlay-class="z-[9999]"
-                class="z-[9999] max-h-[92vh] gap-0 overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0"
+                :class="[
+                    'z-[9999] max-h-[92vh] gap-0 overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0 dark:border-zinc-800 dark:bg-zinc-950',
+                    pageTheme,
+                ]"
                 @click.stop
                 @pointerdown.stop
                 @touchstart.stop
             >
                 <SheetHeader
-                    class="sticky top-0 z-10 border-b border-gray-100 bg-white p-0"
+                    class="sticky top-0 z-10 border-b border-gray-100 bg-white p-0 dark:border-zinc-800 dark:bg-zinc-950"
                 >
                     <div class="flex h-16 items-center justify-between px-5">
                         <button
                             type="button"
-                            class="flex size-8 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-950"
+                            class="flex size-8 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-950 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
                             aria-label="キャンセル"
                             title="キャンセル"
                             @click="closeMobileAddLinkSheet"
                         >
                             <X class="size-5" />
                         </button>
-                        <SheetTitle class="text-base font-bold text-gray-950">
+                        <SheetTitle
+                            class="text-base font-bold text-gray-950 dark:text-white"
+                        >
                             リンクを追加
                         </SheetTitle>
                         <button
                             type="button"
-                            class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black"
+                            class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black dark:bg-white dark:text-black"
                             @click="submitMobileAddLink"
                         >
                             追加
@@ -3651,12 +4236,15 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     @submit.prevent="submitMobileAddLink"
                 >
                     <label class="grid gap-2">
-                        <span class="text-sm font-bold text-gray-800">URL</span>
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                            >URL</span
+                        >
                         <input
                             v-model="mobileAddLinkUrl"
                             type="url"
                             :maxlength="MAX_URL_LENGTH"
-                            class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15"
+                            class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500"
                             placeholder="https://..."
                             @input="mobileAddLinkError = ''"
                         />
@@ -3669,9 +4257,11 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     </label>
 
                     <label
-                        class="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3"
+                        class="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/70"
                     >
-                        <span class="text-sm font-bold text-gray-800">
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                        >
                             センシティブ
                         </span>
                         <button
@@ -3683,7 +4273,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                             :class="
                                 mobileAddLinkSensitive
                                     ? 'bg-blue-600'
-                                    : 'bg-gray-300'
+                                    : 'bg-gray-300 dark:bg-zinc-700'
                             "
                             @click.prevent.stop="
                                 mobileAddLinkSensitive = !mobileAddLinkSensitive
@@ -3711,21 +4301,26 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                 side="bottom"
                 :show-close="false"
                 overlay-class="z-[9999]"
-                class="z-[9999] max-h-[92vh] gap-0 overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0"
+                :class="[
+                    'z-[9999] max-h-[92vh] gap-0 overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0 dark:border-zinc-800 dark:bg-zinc-950',
+                    pageTheme,
+                ]"
                 @click.stop
                 @pointerdown.stop
                 @touchstart.stop
             >
                 <SheetHeader
-                    class="sticky top-0 z-10 border-b border-gray-100 bg-white p-0"
+                    class="sticky top-0 z-10 border-b border-gray-100 bg-white p-0 dark:border-zinc-800 dark:bg-zinc-950"
                 >
                     <div class="flex h-16 items-center justify-between px-5">
-                        <SheetTitle class="text-base font-bold text-gray-950">
+                        <SheetTitle
+                            class="text-base font-bold text-gray-950 dark:text-white"
+                        >
                             リンクを編集
                         </SheetTitle>
                         <button
                             type="button"
-                            class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black"
+                            class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black dark:bg-white dark:text-black"
                             @click="closeMobileLinkEditor"
                         >
                             完了
@@ -3738,7 +4333,9 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     class="flex max-h-[calc(92vh-64px)] flex-col gap-5 overflow-y-auto px-5 pt-2 pb-6"
                 >
                     <label class="grid gap-2">
-                        <span class="text-sm font-bold text-gray-800">
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                        >
                             タイトル
                         </span>
                         <input
@@ -3747,20 +4344,21 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                             "
                             type="text"
                             :maxlength="MAX_LINK_TITLE_LENGTH"
-                            class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15"
+                            class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500"
                             placeholder="タイトルを入力"
                             @input="updateMobileLinkTitle"
                         />
                     </label>
 
                     <div class="grid gap-2">
-                        <span class="text-sm font-bold text-gray-800"
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
                             >画像</span
                         >
                         <div class="relative">
                             <button
                                 type="button"
-                                class="relative flex h-48 w-full items-center justify-center overflow-hidden rounded-3xl border border-gray-200 bg-gray-50 text-gray-400 transition-transform active:scale-[0.99]"
+                                class="relative flex h-48 w-full items-center justify-center overflow-hidden rounded-3xl border border-gray-200 bg-gray-50 text-gray-400 transition-transform active:scale-[0.99] dark:border-zinc-800 dark:bg-zinc-900"
                                 @click="chooseMobileLinkImage"
                             >
                                 <img
@@ -3772,7 +4370,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                 />
                                 <div
                                     v-else
-                                    class="flex items-center text-gray-400"
+                                    class="flex items-center text-gray-400 dark:text-zinc-500"
                                 >
                                     <ImageIcon class="size-8" />
                                 </div>
@@ -3797,9 +4395,11 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     </div>
 
                     <label
-                        class="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3"
+                        class="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/70"
                     >
-                        <span class="text-sm font-bold text-gray-800">
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                        >
                             センシティブ
                         </span>
                         <button
@@ -3815,7 +4415,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                             :class="
                                 mobileLinkEditorWidget.settings?.sensitive
                                     ? 'bg-blue-600'
-                                    : 'bg-gray-300'
+                                    : 'bg-gray-300 dark:bg-zinc-700'
                             "
                             @click.prevent.stop="updateMobileLinkSensitive"
                         >
@@ -3841,21 +4441,26 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                 side="bottom"
                 :show-close="false"
                 overlay-class="z-[9999]"
-                class="z-[9999] max-h-[92vh] gap-0 overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0"
+                :class="[
+                    'z-[9999] max-h-[92vh] gap-0 overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0 dark:border-zinc-800 dark:bg-zinc-950',
+                    pageTheme,
+                ]"
                 @click.stop
                 @pointerdown.stop
                 @touchstart.stop
             >
                 <SheetHeader
-                    class="sticky top-0 z-10 border-b border-gray-100 bg-white p-0"
+                    class="sticky top-0 z-10 border-b border-gray-100 bg-white p-0 dark:border-zinc-800 dark:bg-zinc-950"
                 >
                     <div class="flex h-16 items-center justify-between px-5">
-                        <SheetTitle class="text-base font-bold text-gray-950">
+                        <SheetTitle
+                            class="text-base font-bold text-gray-950 dark:text-white"
+                        >
                             メディアを編集
                         </SheetTitle>
                         <button
                             type="button"
-                            class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black"
+                            class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black dark:bg-white dark:text-black"
                             @click="closeMobileImageEditor"
                         >
                             完了
@@ -3868,16 +4473,22 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     class="flex max-h-[calc(92vh-64px)] flex-col gap-5 overflow-y-auto px-5 pt-2 pb-6"
                 >
                     <div class="grid gap-2">
-                        <span class="text-sm font-bold text-gray-800">
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                        >
                             メディア
                         </span>
                         <div
-                            class="relative flex min-h-[360px] items-center justify-center rounded-3xl bg-gray-100 p-8"
+                            class="relative flex min-h-[360px] items-center justify-center rounded-3xl bg-gray-100 p-8 dark:bg-zinc-900"
                         >
                             <div
                                 ref="mobileImageCropPreview"
                                 class="relative touch-none rounded-2xl"
-                                :class="isMobileImageCropping ? 'is-cropping-active overflow-visible' : 'overflow-hidden'"
+                                :class="
+                                    isMobileImageCropping
+                                        ? 'is-cropping-active overflow-visible'
+                                        : 'overflow-hidden'
+                                "
                                 :style="mobileImageEditorPreviewStyle"
                             >
                                 <img
@@ -3885,10 +4496,13 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                     :src="mobileImageEditorWidget.thumbnail_url"
                                     alt=""
                                     class="h-full w-full object-cover"
-                                    :style="isMobileImageCropping ? {} : mobileImageEditorCropStyle"
+                                    :style="
+                                        isMobileImageCropping
+                                            ? {}
+                                            : mobileImageEditorCropStyle
+                                    "
                                     draggable="false"
                                 />
-
                             </div>
 
                             <button
@@ -3898,7 +4512,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                 :class="
                                     isMobileImageCropping
                                         ? 'bg-white text-black'
-                                        : 'bg-black text-white'
+                                        : 'bg-black text-white dark:bg-zinc-800'
                                 "
                                 @click.stop="
                                     isMobileImageCropping =
@@ -3912,7 +4526,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                 type="button"
                                 aria-label="画像を変更"
                                 :disabled="isMobileImageCropping"
-                                class="absolute left-8 bottom-8 flex h-10 items-center justify-center rounded-xl bg-white px-4 text-sm font-bold text-black shadow-md transition-transform"
+                                class="absolute bottom-8 left-8 flex h-10 items-center justify-center rounded-xl bg-white px-4 text-sm font-bold text-black shadow-md transition-transform dark:bg-zinc-800 dark:text-white"
                                 :class="[
                                     isMobileImageCropping
                                         ? 'cursor-not-allowed opacity-50'
@@ -3934,7 +4548,9 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     </div>
 
                     <label class="grid gap-2">
-                        <span class="text-sm font-bold text-gray-800">
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                        >
                             キャプション
                         </span>
                         <input
@@ -3943,33 +4559,37 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                             "
                             type="text"
                             :maxlength="MAX_TEXT_WIDGET_LENGTH"
-                            class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15"
+                            class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500"
                             placeholder="キャプションを入力"
                             @input="updateMobileImageCaption"
                         />
                     </label>
 
                     <label class="grid gap-2">
-                        <span class="text-sm font-bold text-gray-800">
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                        >
                             リンク
                         </span>
                         <input
                             :value="mobileImageEditorWidget.content ?? ''"
                             type="url"
                             :maxlength="MAX_URL_LENGTH"
-                            class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15"
+                            class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500"
                             placeholder="https://..."
                             @input="updateMobileImageLink"
                         />
                     </label>
 
                     <label
-                        class="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3"
+                        class="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/70"
                         :class="
                             mobileImageEditorWidget.content ? '' : 'opacity-50'
                         "
                     >
-                        <span class="text-sm font-bold text-gray-800">
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                        >
                             センシティブ
                         </span>
                         <button
@@ -3988,7 +4608,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                 mobileImageEditorWidget.content &&
                                 mobileImageEditorWidget.settings?.sensitive
                                     ? 'bg-blue-600'
-                                    : 'bg-gray-300'
+                                    : 'bg-gray-300 dark:bg-zinc-700'
                             "
                             @click.prevent.stop="updateMobileImageSensitive"
                         >
@@ -4008,6 +4628,179 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
         </Sheet>
 
         <Sheet
+            :open="Boolean(mobileMapEditorWidget)"
+            @update:open="setMobileMapEditorOpen"
+        >
+            <SheetContent
+                side="bottom"
+                :show-close="false"
+                overlay-class="z-[9999]"
+                :class="[
+                    'z-[9999] max-h-[92vh] gap-0 overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0 dark:border-zinc-800 dark:bg-zinc-950',
+                    pageTheme,
+                ]"
+                @click.stop
+                @pointerdown.stop
+                @touchstart.stop
+            >
+                <SheetHeader
+                    class="sticky top-0 z-10 border-b border-gray-100 bg-white p-0 dark:border-zinc-800 dark:bg-zinc-950"
+                >
+                    <div class="flex h-16 items-center justify-between px-5">
+                        <SheetTitle
+                            class="text-base font-bold text-gray-950 dark:text-white"
+                        >
+                            マップを編集
+                        </SheetTitle>
+                        <button
+                            type="button"
+                            class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black dark:bg-white dark:text-black"
+                            @click="closeMobileMapEditor"
+                        >
+                            完了
+                        </button>
+                    </div>
+                </SheetHeader>
+
+                <div
+                    v-if="mobileMapEditorWidget"
+                    class="flex max-h-[calc(92vh-64px)] flex-col gap-5 overflow-y-auto px-5 pt-2 pb-6"
+                >
+                    <div class="grid gap-2">
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                        >
+                            ロケーション
+                        </span>
+                        <div class="relative">
+                            <Search
+                                class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-gray-400 dark:text-zinc-500"
+                            />
+                            <input
+                                :value="mobileMapSearchQuery"
+                                type="text"
+                                class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 pr-3 pl-9 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500"
+                                placeholder="ロケーションを入力"
+                                @input="updateMobileMapSearchQuery"
+                            />
+
+                            <div
+                                v-if="shouldShowMobileMapLocationDropdown"
+                                class="absolute top-[calc(100%+0.5rem)] right-0 left-0 z-[500] max-h-56 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
+                            >
+                                <div
+                                    v-if="isSearchingMobileMap"
+                                    class="px-3 py-2 text-sm font-semibold text-gray-500 dark:text-zinc-400"
+                                >
+                                    検索中...
+                                </div>
+                                <div
+                                    v-else-if="mobileMapSearchError"
+                                    class="px-3 py-2 text-sm font-semibold text-red-600"
+                                >
+                                    {{ mobileMapSearchError }}
+                                </div>
+                                <div
+                                    v-else-if="
+                                        mobileMapSearchQuery.trim().length >=
+                                            2 &&
+                                        mobileMapSearchResults.length === 0
+                                    "
+                                    class="px-3 py-2 text-sm font-semibold text-gray-500 dark:text-zinc-400"
+                                >
+                                    候補が見つかりません
+                                </div>
+                                <button
+                                    v-for="result in mobileMapSearchResults"
+                                    :key="result.place_id"
+                                    type="button"
+                                    class="w-full truncate rounded-xl px-3 py-2 text-left text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-100 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                                    @click.prevent.stop="
+                                        selectMobileMapLocation(result)
+                                    "
+                                >
+                                    {{ result.display_name }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid gap-2">
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                        >
+                            マップ
+                        </span>
+                        <div
+                            class="relative flex h-[340px] items-center justify-center overflow-hidden rounded-3xl border border-gray-200 bg-gray-100 dark:border-zinc-800 dark:bg-zinc-900"
+                        >
+                            <div class="absolute inset-0 z-0">
+                                <LinkWidgetContent
+                                    :widget="mobileMapEditorWidget"
+                                    mode="mobile"
+                                    :page-theme="pageTheme"
+                                    :is-editing="false"
+                                    :is-active="true"
+                                    :is-map-moving="true"
+                                    @update-map-center="updateMobileMapCenter"
+                                />
+                            </div>
+
+                            <div
+                                class="pointer-events-none relative z-10 rounded-2xl border-2 border-black bg-transparent shadow-[0_0_0_1000px_rgba(243,244,246,0.6)] dark:border-white dark:shadow-[0_0_0_1000px_rgba(9,9,11,0.6)]"
+                                :style="mobileMapEditorPreviewStyle"
+                            >
+                                <div
+                                    class="pointer-events-auto absolute bottom-3 left-3 z-[410] flex items-center gap-1.5 rounded-2xl bg-black/80 p-1.5 text-white shadow-xl ring-1 ring-white/10 backdrop-blur-md"
+                                    @click.stop
+                                    @pointerdown.stop
+                                    @touchstart.stop
+                                >
+                                    <button
+                                        type="button"
+                                        aria-label="縮小"
+                                        class="flex size-8 cursor-pointer items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                                        @click.prevent.stop="
+                                            updateMobileMapZoom(-1)
+                                        "
+                                    >
+                                        <Minus class="size-4" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        aria-label="拡大"
+                                        class="flex size-8 cursor-pointer items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                                        @click.prevent.stop="
+                                            updateMobileMapZoom(1)
+                                        "
+                                    >
+                                        <Plus class="size-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <label class="grid gap-2">
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                        >
+                            タイトル
+                        </span>
+                        <input
+                            :value="mobileMapEditorWidget.settings?.title ?? ''"
+                            type="text"
+                            :maxlength="MAX_TEXT_WIDGET_LENGTH"
+                            class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500"
+                            placeholder="タイトルを入力"
+                            @input="updateMobileMapTitle"
+                        />
+                    </label>
+                </div>
+            </SheetContent>
+        </Sheet>
+
+        <Sheet
             :open="Boolean(mobileTextEditorWidget)"
             @update:open="setMobileTextEditorOpen"
         >
@@ -4015,19 +4808,22 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                 side="bottom"
                 :show-close="false"
                 overlay-class="z-[9999]"
-                class="z-[9999] max-h-[92vh] gap-0 overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0"
+                :class="[
+                    'z-[9999] max-h-[92vh] gap-0 overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0 dark:border-zinc-800 dark:bg-zinc-950',
+                    pageTheme,
+                ]"
                 @click.stop
                 @pointerdown.stop
                 @touchstart.stop
             >
                 <SheetHeader
-                    class="sticky top-0 z-10 border-b border-gray-100 bg-white p-0"
+                    class="sticky top-0 z-10 border-b border-gray-100 bg-white p-0 dark:border-zinc-800 dark:bg-zinc-950"
                 >
                     <div class="flex h-16 items-center justify-between px-5">
                         <button
                             v-if="mobileTextEditorMode === 'add'"
                             type="button"
-                            class="flex size-8 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-950"
+                            class="flex size-8 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-950 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
                             aria-label="キャンセル"
                             title="キャンセル"
                             @click="closeMobileTextEditor"
@@ -4036,7 +4832,9 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                         </button>
                         <div v-else class="size-8"></div>
 
-                        <SheetTitle class="text-base font-bold text-gray-950">
+                        <SheetTitle
+                            class="text-base font-bold text-gray-950 dark:text-white"
+                        >
                             {{
                                 mobileTextEditorMode === 'add'
                                     ? 'テキストを追加'
@@ -4046,7 +4844,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
 
                         <button
                             type="button"
-                            class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black"
+                            class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black dark:bg-white dark:text-black"
                             @click="completeMobileTextEditor"
                         >
                             {{
@@ -4061,14 +4859,16 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     class="flex max-h-[calc(92vh-64px)] flex-col gap-5 overflow-y-auto px-5 pt-2 pb-6"
                 >
                     <div class="grid gap-2">
-                        <span class="text-sm font-bold text-gray-800">
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                        >
                             テキスト
                         </span>
                         <div
-                            class="relative flex min-h-[300px] items-center justify-center rounded-3xl bg-gray-100 p-8"
+                            class="relative flex min-h-[300px] items-center justify-center rounded-3xl bg-gray-100 p-8 dark:bg-zinc-900"
                         >
                             <div
-                                class="flex flex-col overflow-auto rounded-2xl border border-gray-200 p-4 text-sm leading-snug font-semibold whitespace-pre-wrap transition-colors focus-within:ring-4 focus-within:ring-blue-500/15"
+                                class="flex flex-col overflow-auto rounded-2xl border border-gray-200 p-4 text-sm leading-snug font-semibold whitespace-pre-wrap transition-colors focus-within:ring-4 focus-within:ring-blue-500/15 dark:border-zinc-800"
                                 :class="mobileTextEditorBoxClasses"
                                 :style="[
                                     mobileTextEditorPreviewStyle,
@@ -4113,7 +4913,9 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     </div>
 
                     <div class="grid gap-2">
-                        <span class="text-sm font-bold text-gray-800">
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                        >
                             スタイル
                         </span>
                         <div class="flex gap-2 overflow-x-auto pb-1">
@@ -4123,8 +4925,8 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                 :class="
                                     (mobileTextEditorWidget.settings
                                         ?.textAlign ?? 'left') === 'left'
-                                        ? 'border-black bg-black text-white'
-                                        : 'border-gray-200 bg-gray-50 text-gray-700'
+                                        ? 'border-black bg-black text-white dark:border-white dark:bg-white dark:text-black'
+                                        : 'border-gray-200 bg-gray-50 text-gray-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400'
                                 "
                                 aria-label="左寄せ"
                                 @click="
@@ -4142,8 +4944,8 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                 :class="
                                     (mobileTextEditorWidget.settings
                                         ?.textAlign ?? 'left') === 'center'
-                                        ? 'border-black bg-black text-white'
-                                        : 'border-gray-200 bg-gray-50 text-gray-700'
+                                        ? 'border-black bg-black text-white dark:border-white dark:bg-white dark:text-black'
+                                        : 'border-gray-200 bg-gray-50 text-gray-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400'
                                 "
                                 aria-label="中央寄せ"
                                 @click="
@@ -4161,8 +4963,8 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                 :class="
                                     (mobileTextEditorWidget.settings
                                         ?.textAlign ?? 'left') === 'right'
-                                        ? 'border-black bg-black text-white'
-                                        : 'border-gray-200 bg-gray-50 text-gray-700'
+                                        ? 'border-black bg-black text-white dark:border-white dark:bg-white dark:text-black'
+                                        : 'border-gray-200 bg-gray-50 text-gray-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400'
                                 "
                                 aria-label="右寄せ"
                                 @click="
@@ -4180,8 +4982,8 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                 :class="
                                     (mobileTextEditorWidget.settings
                                         ?.verticalAlign ?? 'center') === 'start'
-                                        ? 'border-black bg-black text-white'
-                                        : 'border-gray-200 bg-gray-50 text-gray-700'
+                                        ? 'border-black bg-black text-white dark:border-white dark:bg-white dark:text-black'
+                                        : 'border-gray-200 bg-gray-50 text-gray-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400'
                                 "
                                 aria-label="上寄せ"
                                 @click="
@@ -4200,8 +5002,8 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                     (mobileTextEditorWidget.settings
                                         ?.verticalAlign ?? 'center') ===
                                     'center'
-                                        ? 'border-black bg-black text-white'
-                                        : 'border-gray-200 bg-gray-50 text-gray-700'
+                                        ? 'border-black bg-black text-white dark:border-white dark:bg-white dark:text-black'
+                                        : 'border-gray-200 bg-gray-50 text-gray-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400'
                                 "
                                 aria-label="上下中央"
                                 @click="
@@ -4219,8 +5021,8 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                 :class="
                                     (mobileTextEditorWidget.settings
                                         ?.verticalAlign ?? 'center') === 'end'
-                                        ? 'border-black bg-black text-white'
-                                        : 'border-gray-200 bg-gray-50 text-gray-700'
+                                        ? 'border-black bg-black text-white dark:border-white dark:bg-white dark:text-black'
+                                        : 'border-gray-200 bg-gray-50 text-gray-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400'
                                 "
                                 aria-label="下寄せ"
                                 @click="
@@ -4236,7 +5038,9 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     </div>
 
                     <div class="grid gap-2">
-                        <span class="text-sm font-bold text-gray-800">
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                        >
                             背景色
                         </span>
                         <div class="flex gap-2 overflow-x-auto pb-1">
@@ -4248,8 +5052,8 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                 :class="
                                     normalizedMobileTextBackgroundColor.toLowerCase() ===
                                     color.toLowerCase()
-                                        ? 'border-black ring-2 ring-black/15'
-                                        : 'border-gray-200'
+                                        ? 'border-black ring-2 ring-black/15 dark:border-white dark:ring-white/15'
+                                        : 'border-gray-200 dark:border-zinc-800'
                                 "
                                 :style="{ backgroundColor: color }"
                                 :aria-label="`背景色 ${color}`"
@@ -4265,7 +5069,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                 type="text"
                                 inputmode="text"
                                 maxlength="7"
-                                class="h-10 w-[90px] shrink-0 rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm font-bold text-gray-800 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15"
+                                class="h-10 w-[90px] shrink-0 rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm font-bold text-gray-800 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500"
                                 placeholder="#FFFFFF"
                                 aria-label="カラーコード"
                                 @input="updateMobileTextBackgroundColorInput"
@@ -4274,24 +5078,29 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     </div>
 
                     <label class="grid gap-2">
-                        <span class="text-sm font-bold text-gray-800">URL</span>
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                            >URL</span
+                        >
                         <input
                             :value="mobileTextEditorWidget.content ?? ''"
                             type="url"
                             :maxlength="MAX_URL_LENGTH"
-                            class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15"
+                            class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500"
                             placeholder="https://..."
                             @input="updateMobileTextLink"
                         />
                     </label>
 
                     <label
-                        class="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3"
+                        class="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/70"
                         :class="
                             mobileTextEditorWidget.content ? '' : 'opacity-50'
                         "
                     >
-                        <span class="text-sm font-bold text-gray-800">
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                        >
                             センシティブ
                         </span>
                         <button
@@ -4310,7 +5119,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                 mobileTextEditorWidget.content &&
                                 mobileTextEditorWidget.settings?.sensitive
                                     ? 'bg-blue-600'
-                                    : 'bg-gray-300'
+                                    : 'bg-gray-300 dark:bg-zinc-700'
                             "
                             @click.prevent.stop="updateMobileTextSensitive"
                         >
@@ -4337,19 +5146,22 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                 side="bottom"
                 :show-close="false"
                 overlay-class="z-[9999]"
-                class="z-[9999] max-h-[92vh] gap-0 overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0"
+                :class="[
+                    'z-[9999] max-h-[92vh] gap-0 overflow-hidden rounded-t-3xl border-gray-200 bg-white p-0 dark:border-zinc-800 dark:bg-zinc-950',
+                    pageTheme,
+                ]"
                 @click.stop
                 @pointerdown.stop
                 @touchstart.stop
             >
                 <SheetHeader
-                    class="sticky top-0 z-10 border-b border-gray-100 bg-white p-0"
+                    class="sticky top-0 z-10 border-b border-gray-100 bg-white p-0 dark:border-zinc-800 dark:bg-zinc-950"
                 >
                     <div class="flex h-16 items-center justify-between px-5">
                         <button
                             v-if="mobileSectionEditorMode === 'add'"
                             type="button"
-                            class="flex size-8 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-950"
+                            class="flex size-8 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-950 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
                             aria-label="キャンセル"
                             title="キャンセル"
                             @click="closeMobileSectionEditor"
@@ -4358,7 +5170,9 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                         </button>
                         <div v-else class="size-8"></div>
 
-                        <SheetTitle class="text-base font-bold text-gray-950">
+                        <SheetTitle
+                            class="text-base font-bold text-gray-950 dark:text-white"
+                        >
                             {{
                                 mobileSectionEditorMode === 'add'
                                     ? 'セクションを追加'
@@ -4368,7 +5182,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
 
                         <button
                             type="button"
-                            class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black"
+                            class="rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black dark:bg-white dark:text-black"
                             @click="completeMobileSectionEditor"
                         >
                             {{
@@ -4385,7 +5199,9 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                     class="flex max-h-[calc(92vh-64px)] flex-col gap-5 overflow-y-auto px-5 pt-2 pb-6"
                 >
                     <label class="grid gap-2">
-                        <span class="text-sm font-bold text-gray-800">
+                        <span
+                            class="text-sm font-bold text-gray-800 dark:text-zinc-200"
+                        >
                             セクション
                         </span>
                         <input
@@ -4395,7 +5211,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                 ''
                             "
                             type="text"
-                            class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15"
+                            class="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-base font-semibold text-gray-900 transition-colors outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500"
                             placeholder="セクションを入力"
                             @input="updateMobileSectionTitle"
                         />
@@ -4427,24 +5243,28 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
             v-if="sensitiveTargetWidget"
             class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
         >
-            <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
-                <h3 class="text-xl font-bold text-gray-950">
+            <div
+                class="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl dark:border dark:border-zinc-800 dark:bg-zinc-950"
+            >
+                <h3 class="text-xl font-bold text-gray-950 dark:text-white">
                     センシティブなコンテンツ
                 </h3>
-                <p class="mt-3 text-sm leading-6 text-gray-600">
+                <p
+                    class="mt-3 text-sm leading-6 text-gray-600 dark:text-zinc-400"
+                >
                     このリンクはセンシティブなコンテンツを含む可能性があります。内容を確認したうえでリンクを開いてください。
                 </p>
                 <div class="mt-6 flex gap-3">
                     <button
                         type="button"
-                        class="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                        class="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
                         @click="closeSensitiveWarning"
                     >
                         キャンセル
                     </button>
                     <button
                         type="button"
-                        class="flex-1 rounded-xl bg-[#292929] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-black"
+                        class="flex-1 rounded-xl bg-[#292929] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-black dark:bg-white dark:text-black dark:hover:bg-zinc-200"
                         @click="continueToSensitiveLink"
                     >
                         リンクを開く

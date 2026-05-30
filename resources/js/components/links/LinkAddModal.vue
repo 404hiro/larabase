@@ -87,15 +87,15 @@ const handleAdd = () => {
         class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
     >
         <div
-            class="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-xl"
+            class="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-xl dark:border dark:border-zinc-800 dark:bg-zinc-950"
         >
             <button
                 @click="emit('close')"
-                class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                class="absolute top-4 right-4 text-gray-400 transition-colors hover:text-gray-600 dark:text-zinc-500 dark:hover:text-zinc-300"
             >
                 <Plus class="size-6 rotate-45" />
             </button>
-            <h3 class="mb-6 text-xl font-bold">
+            <h3 class="mb-6 text-xl font-bold dark:text-white">
                 {{ title ?? 'リンクを追加' }}
             </h3>
             <div class="mb-4">
@@ -105,11 +105,11 @@ const handleAdd = () => {
                         type="url"
                         :maxlength="maxUrlLength"
                         placeholder="https://..."
-                        class="block w-full rounded-xl border px-4 py-3 pr-11 text-sm focus:ring-2 focus:outline-none"
+                        class="block w-full rounded-xl border px-4 py-3 pr-11 text-sm transition-colors focus:ring-2 focus:outline-none dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500"
                         :class="
                             errorMessage
                                 ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                                : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                                : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500 dark:border-zinc-700 dark:focus:border-blue-500'
                         "
                         :aria-describedby="errorMessage ? 'url-error' : undefined"
                         @keyup.enter="handleAdd"
@@ -123,7 +123,7 @@ const handleAdd = () => {
                         type="button"
                         aria-label="リンクをクリア"
                         title="リンクをクリア"
-                        class="absolute top-1/2 right-3 flex size-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                        class="absolute top-1/2 right-3 flex size-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
                         @click="url = ''"
                     >
                         <X class="size-4" />
@@ -134,9 +134,9 @@ const handleAdd = () => {
                 </p>
             </div>
             <label
-                class="mb-6 flex cursor-pointer items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3"
+                class="mb-6 flex cursor-pointer items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 transition-colors dark:border-zinc-800 dark:bg-zinc-900/70"
             >
-                <span class="text-sm font-semibold text-gray-800">
+                <span class="text-sm font-semibold text-gray-800 dark:text-zinc-200">
                     センシティブ
                 </span>
                 <button
@@ -145,7 +145,7 @@ const handleAdd = () => {
                     :aria-checked="isSensitive"
                     aria-label="センシティブ"
                     class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:outline-none"
-                    :class="isSensitive ? 'bg-blue-600' : 'bg-gray-300'"
+                    :class="isSensitive ? 'bg-blue-600' : 'bg-gray-300 dark:bg-zinc-700'"
                     @click.prevent.stop="isSensitive = !isSensitive"
                 >
                     <span
@@ -157,7 +157,7 @@ const handleAdd = () => {
             <div class="flex justify-end">
                 <Button
                     @click="handleAdd"
-                    class="w-full rounded-xl bg-[#292929] py-6 text-base font-semibold text-white hover:bg-black"
+                    class="w-full rounded-xl bg-[#292929] py-6 text-base font-semibold text-white transition-colors hover:bg-black dark:bg-white dark:text-black dark:hover:bg-zinc-200"
                 >
                     {{ submitLabel ?? '追加' }}
                 </Button>

@@ -40,6 +40,9 @@ class UpdateLinkRequest extends FormRequest
             'has_web_display' => ['nullable', 'boolean'],
             'remove_avatar' => ['nullable', 'boolean'],
             'message_one_liner' => ['nullable', 'string', 'max:100'],
+            'theme_config' => ['nullable', 'array'],
+            'theme_config.theme' => ['nullable', Rule::in(['light', 'dark'])],
+            'theme_config.widget_style' => ['nullable', Rule::in(['sharp', 'soft', 'rounded'])],
         ];
     }
 }

@@ -3,7 +3,7 @@ import LinkWidgetControls from '@/components/links/LinkWidgetControls.vue';
 import { compressImage } from '@/utils/imageCompression';
 import { Link as InertiaLink } from '@inertiajs/vue3';
 import { Image as ImageIcon, MessageCircleHeart } from 'lucide-vue-next';
-import { nextTick, ref, watch } from 'vue';
+import { nextTick, onMounted, ref, watch } from 'vue';
 
 const props = defineProps<{
     isEditing: boolean;
@@ -13,6 +13,7 @@ const props = defineProps<{
     avatarUrl: string | null;
     displayInitial: string;
     letterUrl: string;
+    pageTheme?: 'light' | 'dark';
 }>();
 
 const emit = defineEmits<{
@@ -46,6 +47,12 @@ const syncEditors = () => {
     syncEditorText(nameEditor.value, props.displayName, isNameFocused.value);
     syncEditorText(bioEditor.value, props.bio, isBioFocused.value);
 };
+
+onMounted(() => {
+    if (props.isEditing) {
+        nextTick(() => syncEditors());
+    }
+});
 
 watch(
     () => [props.bio, props.displayName],
@@ -151,11 +158,14 @@ const removeAvatar = () => {
                     >
                         <button
                             type="button"
-                            class="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full border-4 border-gray-300 bg-gray-100 text-[32px] font-bold text-gray-700 shadow-sm transition-colors"
+                            class="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full border-4 text-[32px] font-bold shadow-sm transition-colors"
                             :class="[
                                 isEditing
                                     ? 'cursor-pointer hover:border-gray-400'
                                     : '',
+                                pageTheme === 'dark'
+                                    ? 'border-white/20 bg-white/10 text-white'
+                                    : 'border-gray-300 bg-gray-100 text-gray-700',
                                 previewMode === 'mobile'
                                     ? 'text-[32px]'
                                     : 'min-[1025px]:text-[44px]',
@@ -224,11 +234,17 @@ const removeAvatar = () => {
                         @paste="pastePlainText($event, true)"
                         @focus="isNameFocused = true"
                         @blur="isNameFocused = false"
-                        class="editor-placeholder w-full resize-none overflow-hidden rounded-xl border-2 border-gray-200 bg-gray-100/70 px-3 py-1 text-[30px] leading-tight font-bold tracking-tight transition-colors duration-200 outline-none hover:border-gray-300 hover:bg-gray-100 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/20"
+                        class="editor-placeholder w-full resize-none overflow-hidden rounded-xl border-2 px-3 py-1 text-[30px] leading-tight font-bold tracking-tight transition-colors duration-200 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20"
+                        :class="
+                            pageTheme === 'dark'
+                                ? 'border-white/15 bg-white/10 text-white hover:border-white/25 hover:bg-white/15 focus:bg-white/15'
+                                : 'border-gray-200 bg-gray-100/70 text-gray-950 hover:border-gray-300 hover:bg-gray-100 focus:bg-white'
+                        "
                     ></div>
                     <h1
                         v-else
                         class="w-full border-2 border-transparent px-3 py-1 text-[30px] leading-tight font-bold tracking-tight break-words"
+                        :class="pageTheme === 'dark' ? 'text-white' : ''"
                     >
                         {{ displayName }}
                     </h1>
@@ -246,17 +262,23 @@ const removeAvatar = () => {
                     @paste="pastePlainText($event)"
                     @focus="isBioFocused = true"
                     @blur="isBioFocused = false"
-                    class="editor-placeholder w-full max-w-[374px] resize-none overflow-hidden rounded-xl border-2 border-gray-200 bg-gray-100/70 px-3 py-2 text-[16px] leading-relaxed text-gray-700 transition-colors duration-200 outline-none hover:border-gray-300 hover:bg-gray-100 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/20"
-                    :class="previewMode === 'desktop' ? 'lg:max-w-xl' : ''"
+                    class="editor-placeholder w-full max-w-[374px] resize-none overflow-hidden rounded-xl border-2 px-3 py-2 text-[16px] leading-relaxed transition-colors duration-200 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20"
+                    :class="[
+                        previewMode === 'desktop' ? 'lg:max-w-xl' : '',
+                        pageTheme === 'dark'
+                            ? 'border-white/15 bg-white/10 text-white hover:border-white/25 hover:bg-white/15 focus:bg-white/15'
+                            : 'border-gray-200 bg-gray-100/70 text-gray-700 hover:border-gray-300 hover:bg-gray-100 focus:bg-white',
+                    ]"
                 ></div>
                 <p
                     v-else
-                    class="w-full max-w-[374px] border-2 border-transparent px-3 py-2 text-[16px] leading-relaxed break-words whitespace-pre-wrap text-gray-700"
-                    :class="
+                    class="w-full max-w-[374px] border-2 border-transparent px-3 py-2 text-[16px] leading-relaxed break-words whitespace-pre-wrap"
+                    :class="[
                         previewMode === 'desktop'
                             ? 'lg:line-clamp-[15] lg:max-w-xl'
-                            : ''
-                    "
+                            : '',
+                        pageTheme === 'dark' ? 'text-white/70' : 'text-gray-700',
+                    ]"
                 >
                     {{ bio }}
                 </p>
@@ -282,8 +304,13 @@ const removeAvatar = () => {
                     <InertiaLink
                         v-else
                         :href="letterUrl"
-                        class="grid h-12 w-full max-w-[374px] grid-cols-[40px_1fr_40px] items-center rounded-full border border-gray-300 bg-white px-1.5 text-gray-950 transition-colors hover:border-gray-400 hover:bg-gray-50"
-                        :class="previewMode === 'desktop' ? 'lg:max-w-xl' : ''"
+                        class="grid h-12 w-full max-w-[374px] grid-cols-[40px_1fr_40px] items-center rounded-full border px-1.5 transition-colors"
+                        :class="[
+                            previewMode === 'desktop' ? 'lg:max-w-xl' : '',
+                            pageTheme === 'dark'
+                                ? 'border-white/15 bg-white/10 text-white hover:border-white/25 hover:bg-white/15'
+                                : 'border-gray-300 bg-white text-gray-950 hover:border-gray-400 hover:bg-gray-50',
+                        ]"
                     >
                         <span
                             class="flex size-9 items-center justify-center rounded-full bg-white text-black"
