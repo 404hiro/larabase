@@ -115,12 +115,12 @@ onMounted(() => {
                 </div>
             </div>
 
-            <!-- Pagination could go here if needed -->
-            <div v-if="notificationsData.links && notificationsData.links.length > 3" class="px-5 py-4 border-t border-gray-200 dark:border-neutral-800 flex items-center justify-center gap-1">
+            <div v-if="notificationsData && notificationsData.links && notificationsData.links.length > 3" class="px-5 py-4 border-t border-gray-200 dark:border-neutral-800 flex items-center justify-center gap-1">
                 <template v-for="(link, i) in notificationsData.links" :key="i">
                     <Link
                         v-if="link.url"
                         :href="link.url"
+                        preserve-scroll
                         class="px-3 py-1 rounded-md text-sm border"
                         :class="link.active ? 'bg-gray-900 text-white border-gray-900 dark:bg-white dark:text-gray-900' : 'bg-white text-gray-600 hover:bg-gray-50 border-gray-200 dark:bg-neutral-900 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-800'"
                         v-html="link.label"

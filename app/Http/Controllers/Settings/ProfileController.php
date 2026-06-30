@@ -18,8 +18,18 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): Response
     {
+        $request->user()->load('stripeAccount');
+
         return Inertia::render('settings/Profile', [
             'status' => $request->session()->get('status'),
+            'stripeAccount' => $request->user()->stripeAccount
+                ? [
+                    'details_submitted' => $request->user()->stripeAccount->details_submitted,
+                    'charges_enabled' => $request->user()->stripeAccount->charges_enabled,
+                    'payouts_enabled' => $request->user()->stripeAccount->payouts_enabled,
+                    'onboarding_completed_at' => $request->user()->stripeAccount->onboarding_completed_at?->toIso8601String(),
+                ]
+                : null,
         ]);
     }
 

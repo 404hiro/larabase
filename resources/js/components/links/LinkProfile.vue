@@ -277,13 +277,15 @@ const removeAvatar = () => {
                         previewMode === 'desktop'
                             ? 'lg:line-clamp-[15] lg:max-w-xl'
                             : '',
-                        pageTheme === 'dark' ? 'text-white/70' : 'text-gray-700',
+                        pageTheme === 'dark'
+                            ? 'text-white/70'
+                            : 'text-gray-700',
                     ]"
                 >
                     {{ bio }}
                 </p>
 
-                <div class="mt-3 px-3">
+                <div class="mt-3">
                     <button
                         v-if="isEditing"
                         type="button"

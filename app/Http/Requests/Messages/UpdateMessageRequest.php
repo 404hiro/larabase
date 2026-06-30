@@ -26,7 +26,7 @@ class UpdateMessageRequest extends FormRequest
             'is_public' => ['sometimes', 'boolean'],
             'is_read' => ['sometimes', 'boolean'],
             'reply_body' => ['sometimes', 'nullable', 'string', 'max:1000'],
-            'status' => ['sometimes', 'string', 'in:safe,flagged,blocked,deleted'],
+            'status' => ['sometimes', 'string', 'in:safe,flagged,blocked,deleted,payment_cancelled'],
         ];
     }
 }

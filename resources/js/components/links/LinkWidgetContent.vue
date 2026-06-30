@@ -221,72 +221,6 @@ const domain = computed(() => {
     }
 });
 
-const githubProfile = computed(() => {
-    if (props.widget.type !== 'link' || !href.value) return null;
-
-    try {
-        const url = new URL(href.value);
-        const host = url.hostname.replace(/^www\./, '').toLowerCase();
-
-        if (host !== 'github.com') {
-            return null;
-        }
-
-        const username = url.pathname.split('/').filter(Boolean)[0] ?? 'github';
-
-        return {
-            username,
-            handle: `@${username}`,
-        };
-    } catch (e) {
-        return null;
-    }
-});
-
-const githubCommitCellCount = computed(() => (shape.value === '2x2' ? 48 : 30));
-const githubCommitGridClasses = computed(() =>
-    shape.value === '2x2'
-        ? 'grid grid-cols-8 gap-1.5'
-        : 'grid grid-cols-6 gap-1.5',
-);
-
-const githubCommitCells = computed(() => {
-    const seed = githubProfile.value?.username ?? 'github';
-    const charTotal = Array.from(seed).reduce(
-        (total, char) => total + char.charCodeAt(0),
-        0,
-    );
-
-    return Array.from({ length: githubCommitCellCount.value }, (_, index) => {
-        const value = (charTotal + index * 17 + (index % 5) * 11) % 9;
-        const emptyLeadCells = shape.value === '2x2' ? 12 : 8;
-
-        if (index < emptyLeadCells) {
-            return 0;
-        }
-
-        return value > 6 ? 4 : value > 4 ? 3 : value > 2 ? 2 : 1;
-    });
-});
-
-const githubCommitCellClasses = (level: number) => [
-    'size-3.5 rounded-[5px] transition-colors sm:size-4',
-    level === 4
-        ? 'bg-[#216E39]'
-        : level === 3
-          ? 'bg-[#40C463]'
-          : level === 2
-            ? 'bg-[#9BE9A8]'
-            : level === 1
-              ? 'bg-[#D6F5D6]'
-              : 'bg-[#EEF0F3]',
-];
-
-const githubCommitGlassClasses = computed(() => [
-    'flex h-full w-full items-center justify-center bg-[#F7F7F8] p-4',
-    props.mode === 'desktop' ? 'sm:p-5' : '',
-]);
-
 const faviconUrl = computed(() => {
     if (props.widget.favicon_url) return props.widget.favicon_url;
     if (!domain.value) return '';
@@ -1544,21 +1478,6 @@ onUnmounted(() => {
                         :class="{ 'pointer-events-none': isEditing }"
                     ></iframe>
                 </div>
-                <div
-                    v-else-if="githubProfile"
-                    class="flex-1 overflow-hidden"
-                    :class="widgetCornerClass"
-                >
-                    <div :class="githubCommitGlassClasses">
-                        <div :class="githubCommitGridClasses">
-                            <span
-                                v-for="(level, index) in githubCommitCells"
-                                :key="index"
-                                :class="githubCommitCellClasses(level)"
-                            ></span>
-                        </div>
-                    </div>
-                </div>
                 <button
                     v-else-if="isEditing"
                     @click.stop="chooseOgpImage"
@@ -1693,21 +1612,6 @@ onUnmounted(() => {
                         class="relative z-10 h-full w-full"
                         :class="{ 'pointer-events-none': isEditing }"
                     ></iframe>
-                </div>
-                <div
-                    v-else-if="githubProfile"
-                    class="flex-1 overflow-hidden"
-                    :class="widgetCornerClass"
-                >
-                    <div :class="githubCommitGlassClasses">
-                        <div :class="githubCommitGridClasses">
-                            <span
-                                v-for="(level, index) in githubCommitCells"
-                                :key="index"
-                                :class="githubCommitCellClasses(level)"
-                            ></span>
-                        </div>
-                    </div>
                 </div>
                 <button
                     v-else-if="isEditing"
@@ -1950,22 +1854,6 @@ onUnmounted(() => {
                         class="relative z-10 h-full w-full"
                         :class="{ 'pointer-events-none': isEditing }"
                     ></iframe>
-                </div>
-                <div
-                    v-else-if="githubProfile"
-                    class="w-full shrink-0 overflow-hidden"
-                    :class="widgetCornerClass"
-                    style="aspect-ratio: 1.91 / 1"
-                >
-                    <div :class="githubCommitGlassClasses">
-                        <div :class="githubCommitGridClasses">
-                            <span
-                                v-for="(level, index) in githubCommitCells"
-                                :key="index"
-                                :class="githubCommitCellClasses(level)"
-                            ></span>
-                        </div>
-                    </div>
                 </div>
                 <button
                     v-else-if="isEditing"

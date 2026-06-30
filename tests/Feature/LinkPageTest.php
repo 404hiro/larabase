@@ -238,7 +238,7 @@ test('message page route renders message mock page', function () {
     );
 });
 
-test('message page displays real messages', function () {
+test('message page only provides message sending UI', function () {
     $routeFile = file_get_contents(base_path('routes/web.php'));
     $controller = file_get_contents(app_path('Http/Controllers/LinkController.php'));
     $messagePage = file_get_contents(resource_path('js/pages/links/Message.vue'));
@@ -249,7 +249,8 @@ test('message page displays real messages', function () {
 
     expect($controller)
         ->toContain('public function message(Request $request, Link $link): Response')
-        ->toContain("Inertia::render('links/Message'");
+        ->toContain("Inertia::render('links/Message'")
+        ->toContain("'can_receive_payments' => \$link->user->canReceivePayments()");
 
     expect($messagePage)
         ->not->toContain('LinkPageNavigation')
@@ -257,16 +258,35 @@ test('message page displays real messages', function () {
         ->toContain(':href="linkShow.url(link.slug)"')
         ->toContain('プロフィールを見る')
         ->toContain('const isOwner = computed')
-        ->toContain("const activeTab = ref<'write' | 'read'>('write')")
-        ->toContain('書く')
-        ->toContain('読む')
         ->toContain('メッセージを送る')
-        ->toContain('届いたメッセージ')
         ->toContain('supportOptions')
-        ->toContain('v-if="isOwner"');
+        ->toContain("return 'ラブ♡'")
+        ->toContain('selectedSupportName')
+        ->toContain('{{ selectedSupportName }}')
+        ->toContain('displayedSupportAmount')
+        ->toContain('v-if="isOwner && !can_receive_payments"')
+        ->toContain('const canOfferSupport = computed')
+        ->toContain('return props.can_receive_payments')
+        ->toContain('const shouldSendSupport = isSupportEnabled.value && canOfferSupport.value')
+        ->toContain('messageForm.has_gift = shouldSendSupport')
+        ->toContain('v-if="canOfferSupport"')
+        ->toContain('<footer')
+        ->toContain('v-if="!isOwner"')
+        ->toContain('Built with GridLink')
+        ->toContain('max-w-[600px] pb-20')
+        ->toContain('mt-8 pt-6')
+        ->not->toContain('mt-8 border-t border-neutral-100 pt-6')
+        ->not->toContain('mt-5 rounded-2xl border border-neutral-200 bg-white p-6')
+        ->not->toContain("const activeTab = ref<'write' | 'read'>('write')")
+        ->not->toContain('min-[1025px]:grid-cols-12')
+        ->not->toContain('min-[1025px]:col-span-8')
+        ->not->toContain('読む')
+        ->not->toContain('届いたメッセージ')
+        ->not->toContain('公開メッセージ')
+        ->not->toContain('messageItems');
 });
 
-test('message page only displays messages that are public and read to visitors', function () {
+test('message page does not expose existing messages to visitors', function () {
     $owner = User::factory()->create();
     $link = Link::factory()->create(['user_id' => $owner->id]);
 
@@ -295,12 +315,41 @@ test('message page only displays messages that are public and read to visitors',
         ->assertSuccessful()
         ->assertInertia(fn (Assert $page) => $page
             ->component('links/Message')
-            ->has('messages', 1)
-            ->where('messages.0.body', 'Visible message')
+            ->where('link.id', $link->id)
+            ->missing('messages')
         );
 });
 
-test('owner viewing the message page marks messages as read', function () {
+test('stripe checkout cancel route marks pending payment canceled and redirects to message page', function () {
+    $creator = User::factory()->create();
+    $payer = User::factory()->create();
+    $link = Link::factory()->create(['user_id' => $creator->id]);
+    $message = Message::factory()->create([
+        'link_id' => $link->id,
+        'sender_user_id' => $payer->id,
+        'status' => 'pending_payment',
+    ]);
+
+    $payment = \App\Models\MessagePayment::create([
+        'message_id' => $message->id,
+        'payer_user_id' => $payer->id,
+        'creator_user_id' => $creator->id,
+        'amount' => 1500,
+        'platform_fee' => 150,
+        'currency' => 'jpy',
+        'status' => 'pending',
+        'stripe_checkout_session_id' => 'cs_test_cancel',
+    ]);
+
+    $response = $this->get('/stripe/checkout/cancel?session_id=cs_test_cancel');
+
+    $response->assertRedirect(route('links.message', $link->slug).'?payment=cancel');
+
+    expect($message->fresh()->status)->toBe('payment_cancelled');
+    expect($payment->fresh()->status)->toBe('cancelled');
+});
+
+test('owner viewing the message page does not mark messages as read', function () {
     $owner = User::factory()->create();
     $link = Link::factory()->create(['user_id' => $owner->id]);
     $message = Message::factory()->create([
@@ -315,8 +364,106 @@ test('owner viewing the message page marks messages as read', function () {
         ->assertSuccessful();
 
     expect($message->fresh())
-        ->is_read->toBeTrue()
-        ->read_at->not->toBeNull();
+        ->is_read->toBeFalse()
+        ->read_at->toBeNull();
+});
+
+test('message page shows owner floating share and edit controls', function () {
+    $messagePage = file_get_contents(resource_path('js/pages/links/Message.vue'));
+
+    expect($messagePage)
+        ->toContain('const copiedMessageUrl = ref(false)')
+        ->toContain('const messagePageUrl = computed(() => {')
+        ->toContain('return `/@${props.link.slug}/message`;')
+        ->toContain('const copyMessageUrl = async () => {')
+        ->toContain('navigator.clipboard.writeText(messagePageUrl.value)')
+        ->toContain('aria-label="メッセージページアクション"')
+        ->toContain('v-if="isOwner"')
+        ->toContain('class="flex h-11 items-center gap-2 rounded-full')
+        ->toContain('class="flex h-9 cursor-pointer items-center justify-center gap-2 rounded-full bg-black px-5')
+        ->toContain('class="flex h-9 cursor-pointer items-center justify-center gap-2 rounded-full px-5')
+        ->toContain('URLをコピーしました')
+        ->toContain(":aria-label=\"isEditingOneLiner ? '保存' : 'シェア'\"")
+        ->toContain(':disabled="oneLinerForm.processing"')
+        ->toContain('isEditingOneLiner')
+        ->toContain('? saveOneLiner()')
+        ->toContain(': copyMessageUrl()')
+        ->toContain("{{ isEditingOneLiner ? '保存' : 'シェア' }}")
+        ->toContain('v-if="!isEditingOneLiner"')
+        ->toContain('aria-label="一言を編集"')
+        ->toContain('@click="startEditingOneLiner"')
+        ->toContain('ref="oneLinerEditor"')
+        ->toContain('contenteditable="true"')
+        ->toContain('data-placeholder="ひとことを入力"')
+        ->toContain('message-one-liner-editor')
+        ->toContain('bg-neutral-100')
+        ->toContain('border border-neutral-300')
+        ->toContain('oneLinerEditor.value.focus()')
+        ->toContain('const updateOneLiner = () => {')
+        ->toContain('const handleOneLinerEnter = (event: KeyboardEvent) => {')
+        ->toContain(".message-one-liner-editor[data-empty='true']::before")
+        ->toContain('oneLinerForm.put(linkUpdate.url(props.link.slug)')
+        ->not->toContain('ref="oneLinerInput"')
+        ->not->toContain('placeholder="一言メッセージを入力..."')
+        ->not->toContain('cancelEditingOneLiner')
+        ->not->toContain('@keydown.esc')
+        ->not->toContain('キャンセル');
+});
+
+test('message page editing can change the header background color', function () {
+    $request = file_get_contents(app_path('Http/Requests/Links/UpdateLinkRequest.php'));
+    $controller = file_get_contents(app_path('Http/Controllers/LinkController.php'));
+    $messagePage = file_get_contents(resource_path('js/pages/links/Message.vue'));
+
+    expect($request)
+        ->toContain('message_background_color')
+        ->toContain('regex:/^#[0-9A-Fa-f]{6}$/');
+
+    expect($controller)
+        ->toContain("if (\$request->has('message_background_color'))")
+        ->toContain("\$settings['background_color']")
+        ->toContain('strtoupper((string) $request->input(\'message_background_color\'))');
+
+    expect($messagePage)
+        ->toContain('Paintbrush')
+        ->toContain('const isBackgroundColorDialogOpen = ref(false)')
+        ->toContain('message_background_color')
+        ->toContain('const backgroundColorSwatches = [')
+        ->toContain('const messageBackgroundColor = computed(() => {')
+        ->toContain('const updateMessageBackgroundColor = (color: string) => {')
+        ->toContain(':style="{ backgroundColor: messageBackgroundColor }"')
+        ->toContain('aria-label="背景色を変更"')
+        ->toContain('@click="isBackgroundColorDialogOpen = true"')
+        ->toContain('<Dialog v-model:open="isBackgroundColorDialogOpen">')
+        ->toContain('<DialogTitle>背景色を変更</DialogTitle>')
+        ->toContain('type="color"')
+        ->toContain('aria-label="背景色のカラーピッカー"');
+});
+
+test('owner can update the message page one liner', function () {
+    $owner = User::factory()->create();
+    $link = Link::factory()->create([
+        'user_id' => $owner->id,
+        'display_name' => 'Maessun',
+        'message_settings' => [
+            'one_liner' => 'Before',
+            'background_color' => '#000000',
+        ],
+    ]);
+
+    $this->actingAs($owner)
+        ->put(route('links.update', $link), [
+            'display_name' => $link->display_name,
+            'message_one_liner' => 'After',
+            'message_background_color' => '#1E3A8A',
+        ])
+        ->assertRedirect();
+
+    expect($link->fresh()->message_settings)
+        ->toMatchArray([
+            'one_liner' => 'After',
+            'background_color' => '#1E3A8A',
+        ]);
 });
 
 test('link toolbar exposes media upload controls', function () {
@@ -884,29 +1031,21 @@ test('link widgets show play buttons and brand tinted backgrounds for services',
         ->toContain("'bg-[#effaf3]'");
 });
 
-test('github link widgets show commit glass instead of og images', function () {
+test('github link widgets use the normal og image area', function () {
     $content = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
+    $services = file_get_contents(resource_path('js/lib/linkServices.ts'));
+
+    expect($services)
+        ->toContain("'github.com':");
 
     expect($content)
-        ->toContain("host !== 'github.com'")
-        ->toContain('const githubProfile = computed(() => {')
-        ->toContain('handle: `@${username}`')
-        ->toContain("const githubCommitCellCount = computed(() => (shape.value === '2x2' ? 48 : 30))")
-        ->toContain("shape.value === '2x2'")
-        ->toContain("'grid grid-cols-8 gap-1.5'")
-        ->toContain("'grid grid-cols-6 gap-1.5'")
-        ->toContain('const githubCommitCells = computed(() => {')
-        ->toContain('githubCommitCellCount.value')
-        ->toContain('const githubCommitCellClasses = (level: number) => [')
-        ->toContain('const githubCommitGlassClasses = computed(() => [')
-        ->toContain('v-else-if="githubProfile"')
-        ->toContain('v-for="(level, index) in githubCommitCells"')
-        ->toContain(':class="githubCommitCellClasses(level)"')
-        ->toContain(':class="githubCommitGlassClasses"')
-        ->toContain('bg-[#F7F7F8]')
-        ->toContain('bg-[#216E39]')
-        ->not->toContain('{{ githubProfile.handle }}')
-        ->not->toContain('<Github class="size-6" />');
+        ->toContain('<button')
+        ->toContain('v-else-if="isEditing"')
+        ->toContain('chooseOgpImage')
+        ->toContain('v-else-if="image"')
+        ->not->toContain('githubProfile')
+        ->not->toContain('githubCommitCells')
+        ->not->toContain('githubCommitGlassClasses');
 });
 
 test('link widgets show purchase and install actions for commerce and app stores', function () {

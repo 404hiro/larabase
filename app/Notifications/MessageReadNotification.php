@@ -41,7 +41,7 @@ class MessageReadNotification extends Notification
             'type' => 'message_read',
             'title' => 'メッセージが開封されました',
             'body' => "あなたが{$this->message->link->display_name}宛に送ったメッセージが開封されました",
-            'url' => "/dashboard/messages/sent?message={$this->message->id}",
+            'url' => "/dashboard/messages?mailbox=sent&message={$this->message->id}",
         ];
     }
 }

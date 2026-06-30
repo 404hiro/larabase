@@ -45,7 +45,7 @@ class MessageReceivedNotification extends Notification
             'type' => 'message_received',
             'title' => '新しいメッセージ',
             'body' => "{$this->message->link->display_name}宛に{$senderName}からメッセージが届きました",
-            'url' => "/dashboard/messages/inbox?message={$this->message->id}",
+            'url' => "/dashboard/messages?message={$this->message->id}",
         ];
     }
 }

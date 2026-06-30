@@ -16,7 +16,10 @@ class NotificationController extends Controller
     {
         $user = $request->user();
 
-        $notifications = $user->notifications()->paginate(20);
+        $notifications = $user->notifications()
+            ->latest()
+            ->paginate(10)
+            ->withQueryString();
 
         return Inertia::render('dashboard/Notifications', [
             'notifications' => $notifications,

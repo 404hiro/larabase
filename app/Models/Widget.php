@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 
 class Widget extends Model
 {
@@ -50,5 +51,32 @@ class Widget extends Model
         return [
             'settings' => 'array',
         ];
+    }
+
+    /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (Widget $widget) {
+            $filesToDelete = [];
+
+            if ($widget->type === 'image' && ! empty($widget->content)) {
+                $filesToDelete[] = $widget->content;
+            }
+
+            if (! empty($widget->thumbnail_url)) {
+                $filesToDelete[] = $widget->thumbnail_url;
+            }
+
+            foreach ($filesToDelete as $fileUrl) {
+                $path = parse_url($fileUrl, PHP_URL_PATH);
+                $storagePrefix = '/storage/';
+
+                if (is_string($path) && str_starts_with($path, $storagePrefix)) {
+                    Storage::disk('public')->delete(substr($path, strlen($storagePrefix)));
+                }
+            }
+        });
     }
 }

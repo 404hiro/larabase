@@ -24,7 +24,11 @@ class StoreMessageRequest extends FormRequest
         return [
             'body' => ['required', 'string', 'max:1000'],
             'sender_mode' => ['required', 'in:anonymous,named'],
-            'amount' => ['sometimes', 'integer', 'min:0'],
+            'sender_display_name' => ['nullable', 'string', 'max:50'],
+
+            'has_gift' => ['required', 'boolean'],
+            'gift_amount' => ['nullable', 'integer', 'min:500', 'max:50000'],
+            'gift_label' => ['nullable', 'string', 'max:50'],
             'is_public' => ['sometimes', 'boolean'],
         ];
     }

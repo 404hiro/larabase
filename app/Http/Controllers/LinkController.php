@@ -161,28 +161,9 @@ class LinkController extends Controller
      */
     public function message(Request $request, Link $link): Response
     {
-        $isOwner = $request->user()?->id === $link->user_id;
-
-        $query = $link->messages()->with('reply')->latest();
-
-        if ($isOwner) {
-            $link->messages()
-                ->where('is_read', false)
-                ->update([
-                    'is_read' => true,
-                    'read_at' => now(),
-                ]);
-        }
-
-        $query
-            ->where('is_public', true)
-            ->where('is_read', true);
-
-        $messages = $query->get();
-
         return Inertia::render('links/Message', [
             'link' => $link,
-            'messages' => \App\Http\Resources\MessageResource::collection($messages),
+            'can_receive_payments' => $link->user->canReceivePayments(),
         ]);
     }
 
@@ -232,6 +213,12 @@ class LinkController extends Controller
         if ($request->has('message_one_liner')) {
             $settings = $link->message_settings ?? [];
             $settings['one_liner'] = $request->input('message_one_liner');
+            $linkData['message_settings'] = $settings;
+        }
+
+        if ($request->has('message_background_color')) {
+            $settings = $linkData['message_settings'] ?? $link->message_settings ?? [];
+            $settings['background_color'] = strtoupper((string) $request->input('message_background_color'));
             $linkData['message_settings'] = $settings;
         }
 

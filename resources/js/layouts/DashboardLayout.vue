@@ -6,6 +6,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import UserMenuContent from '@/components/UserMenuContent.vue';
+import DashboardBottomNav from '@/components/DashboardBottomNav.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import {
     Bell,
@@ -13,9 +14,6 @@ import {
     Inbox,
     LayoutDashboard,
     Link as LinkIcon,
-    PanelLeft,
-    Search,
-    Send,
     Settings,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
@@ -38,20 +36,15 @@ type DashboardLink = {
 };
 
 const page = usePage();
-const auth = computed(() => page.props.auth);
+const auth = computed(() => page.props.auth || { user: { name: '', avatar_url: '' } });
 const unreadMessagesCount = computed(() => (page.props.unreadMessagesCount ?? 0) as number);
 const unreadNotificationsCount = computed(() => (page.props.unreadNotificationsCount ?? 0) as number);
 const recentNotifications = computed(() => (page.props.recentNotifications ?? []) as any[]);
-const currentPath = computed(() => page.url.split('?')[0]);
-const currentSearchParams = computed(() => {
-    return new URLSearchParams(page.url.split('?')[1] ?? '');
-});
+const currentPath = computed(() => page.url?.split('?')[0] || '');
 const dashboardLinks = computed(() => {
     return (page.props.dashboardLinks ?? []) as DashboardLink[];
 });
 const isLinksOpen = ref(false);
-const isMessagesOpen = ref(false);
-const isMobileSidebarOpen = ref(false);
 
 const navigationItems = [
     {
@@ -61,22 +54,6 @@ const navigationItems = [
         isActive: () => currentPath.value === '/dashboard',
     },
 ];
-
-const messageMailbox = computed(() => {
-    return currentPath.value === '/dashboard/messages/sent' ? 'sent' : 'inbox';
-});
-
-const isActiveMessagesSection = () => {
-    return currentPath.value.startsWith('/dashboard/messages');
-};
-
-const isActiveMessageInbox = () => {
-    return isActiveMessagesSection() && messageMailbox.value === 'inbox';
-};
-
-const isActiveMessageSent = () => {
-    return isActiveMessagesSection() && messageMailbox.value === 'sent';
-};
 
 const isActiveLinksSection = () => {
     return currentPath.value.startsWith('/dashboard/links');
@@ -91,36 +68,17 @@ watch(
     (path) => {
         if (path === '/dashboard') {
             isLinksOpen.value = false;
-            isMessagesOpen.value = false;
         } else {
             if (path.startsWith('/dashboard/links')) {
                 isLinksOpen.value = true;
             }
-
-            if (path.startsWith('/dashboard/messages')) {
-                isMessagesOpen.value = true;
-            }
         }
-
-        isMobileSidebarOpen.value = false;
     },
     { immediate: true },
 );
 
-const toggleMessagesSection = () => {
-    isMessagesOpen.value = !isMessagesOpen.value;
-};
-
 const toggleLinksSection = () => {
     isLinksOpen.value = !isLinksOpen.value;
-};
-
-const openMobileSidebar = () => {
-    isMobileSidebarOpen.value = true;
-};
-
-const closeMobileSidebar = () => {
-    isMobileSidebarOpen.value = false;
 };
 
 const isActiveLink = (linkId: string) => {
@@ -134,22 +92,9 @@ const isActiveMessages = (linkId: string) => {
 
 <template>
     <div class="flex h-screen overflow-hidden bg-gray-50 dark:bg-neutral-950">
-        <button
-            v-if="isMobileSidebarOpen"
-            type="button"
-            aria-label="サイドバーを閉じる"
-            class="fixed inset-0 z-40 bg-black/40 lg:hidden"
-            @click="closeMobileSidebar"
-        ></button>
-
         <!-- Sidebar -->
         <aside
-            class="fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-black text-white transition-transform duration-200 ease-out lg:static lg:z-auto lg:translate-x-0"
-            :class="
-                isMobileSidebarOpen
-                    ? 'translate-x-0'
-                    : '-translate-x-full lg:translate-x-0'
-            "
+            class="fixed inset-y-0 left-0 z-50 flex w-64 -translate-x-full flex-col bg-black text-white transition-transform duration-200 ease-out min-[1025px]:static min-[1025px]:z-auto min-[1025px]:translate-x-0"
         >
             <div
                 class="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-6"
@@ -177,85 +122,31 @@ const isActiveMessages = (linkId: string) => {
                                 ? 'bg-white text-black'
                                 : 'text-white/65 hover:bg-white/10 hover:text-white'
                         "
-                        @click="closeMobileSidebar"
                     >
                         <component :is="item.icon" class="size-4" />
                         {{ item.label }}
                     </Link>
 
-                    <div class="pt-2">
-                        <button
-                            type="button"
-                            id="dashboard-messages-accordion"
-                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm font-medium transition"
-                            :class="
-                                isActiveMessagesSection()
-                                    ? 'bg-white text-black'
-                                    : 'text-white/65 hover:bg-white/10 hover:text-white'
-                            "
-                            :aria-expanded="isMessagesOpen"
-                            aria-controls="dashboard-messages-accordion-sub"
-                            @click="toggleMessagesSection"
-                        >
-                            <div class="flex flex-1 items-center gap-3">
-                                <Inbox class="size-4" />
-                                <span>メッセージ</span>
-                            </div>
-                            <div
-                                v-if="unreadMessagesCount > 0"
-                                class="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white"
-                            >
-                                {{ unreadMessagesCount }}
-                            </div>
-                            <ChevronDown
-                                class="ms-auto size-4 transition-transform duration-200"
-                                :class="isMessagesOpen ? 'rotate-180' : ''"
-                            />
-                        </button>
-
-                        <div
-                            v-show="isMessagesOpen"
-                            id="dashboard-messages-accordion-sub"
-                            class="mt-1 space-y-1 pr-2 pl-7"
-                            role="region"
-                            aria-labelledby="dashboard-messages-accordion"
-                        >
-                            <Link
-                                href="/dashboard/messages/inbox"
-                                class="flex w-full items-center justify-between truncate rounded-lg px-3 py-1.5 text-sm font-medium transition"
-                                :class="
-                                    isActiveMessageInbox()
-                                        ? 'bg-white text-black'
-                                        : 'text-white/55 hover:bg-white/10 hover:text-white'
-                                "
-                                @click="closeMobileSidebar"
-                            >
-                                <div class="flex items-center gap-2">
-                                    <Inbox class="size-3.5" />
-                                    受信箱
-                                </div>
-                                <div
-                                    v-if="unreadMessagesCount > 0"
-                                    class="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white"
-                                >
-                                    {{ unreadMessagesCount }}
-                                </div>
-                            </Link>
-                            <Link
-                                href="/dashboard/messages/sent"
-                                class="flex w-full items-center gap-2 truncate rounded-lg px-3 py-1.5 text-sm font-medium transition"
-                                :class="
-                                    isActiveMessageSent()
-                                        ? 'bg-white text-black'
-                                        : 'text-white/55 hover:bg-white/10 hover:text-white'
-                                "
-                                @click="closeMobileSidebar"
-                            >
-                                <Send class="size-3.5" />
-                                送信箱
-                            </Link>
+                    <Link
+                        href="/dashboard/messages"
+                        class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition"
+                        :class="
+                            currentPath === '/dashboard/messages'
+                                ? 'bg-white text-black'
+                                : 'text-white/65 hover:bg-white/10 hover:text-white'
+                        "
+                    >
+                        <div class="flex items-center gap-3">
+                            <Inbox class="size-4" />
+                            メッセージ
                         </div>
-                    </div>
+                        <div
+                            v-if="unreadMessagesCount > 0"
+                            class="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white"
+                        >
+                            {{ unreadMessagesCount }}
+                        </div>
+                    </Link>
 
                     <div class="pt-2">
                         <button
@@ -294,7 +185,6 @@ const isActiveMessages = (linkId: string) => {
                                         ? 'bg-white text-black'
                                         : 'text-white/55 hover:bg-white/10 hover:text-white'
                                 "
-                                @click="closeMobileSidebar"
                             >
                                 Overview
                             </Link>
@@ -309,7 +199,6 @@ const isActiveMessages = (linkId: string) => {
                                         ? 'bg-white text-black'
                                         : 'text-white/55 hover:bg-white/10 hover:text-white'
                                 "
-                                @click="closeMobileSidebar"
                             >
                                 {{ link.display_name }}
                             </Link>
@@ -326,7 +215,6 @@ const isActiveMessages = (linkId: string) => {
                                 ? 'bg-white text-black'
                                 : 'text-white/65 hover:bg-white/10 hover:text-white'
                         "
-                        @click="closeMobileSidebar"
                     >
                         <div class="flex items-center gap-3">
                             <Bell class="size-4" />
@@ -348,7 +236,6 @@ const isActiveMessages = (linkId: string) => {
                                 ? 'bg-white text-black'
                                 : 'text-white/65 hover:bg-white/10 hover:text-white'
                         "
-                        @click="closeMobileSidebar"
                     >
                         <Settings class="size-4" />
                         アカウント設定
@@ -358,25 +245,29 @@ const isActiveMessages = (linkId: string) => {
         </aside>
 
         <!-- Main Content -->
-        <div class="flex flex-1 flex-col overflow-hidden">
+        <div class="flex flex-1 flex-col overflow-hidden pb-16 min-[1025px]:pb-0">
             <header
                 class="flex h-16 shrink-0 items-center justify-between border-b border-gray-200 bg-white/95 px-4 backdrop-blur md:px-6 dark:border-neutral-800 dark:bg-neutral-900/95"
             >
                 <div class="flex items-center gap-3">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        class="lg:hidden"
-                        aria-label="サイドバーを開く"
-                        @click="openMobileSidebar"
-                    >
-                        <PanelLeft class="size-4" />
-                    </Button>
                     <div
-                        class="hidden min-w-80 items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 md:flex dark:border-neutral-800 dark:bg-neutral-950"
+                        class="flex items-center gap-3 min-[1025px]:hidden"
                     >
-                        <Search class="size-4 text-gray-400" />
-                        <span class="text-sm text-gray-400"> 検索... </span>
+                        <div
+                            class="flex size-9 items-center justify-center rounded-lg bg-black text-sm font-bold text-white dark:bg-white dark:text-black"
+                        >
+                            G
+                        </div>
+                        <div>
+                            <p
+                                class="text-sm font-semibold text-gray-950 dark:text-white"
+                            >
+                                grid.link
+                            </p>
+                            <p class="text-xs text-gray-500 dark:text-neutral-400">
+                                クリエイター管理
+                            </p>
+                        </div>
                     </div>
                 </div>
 
@@ -393,7 +284,7 @@ const isActiveMessages = (linkId: string) => {
                                 <p class="text-sm font-semibold text-gray-900 dark:text-white">お知らせ</p>
                             </div>
                             <div class="py-2 max-h-80 overflow-y-auto">
-                                <template v-if="recentNotifications.length > 0">
+                                <template v-if="recentNotifications && recentNotifications.length > 0">
                                     <div v-for="notification in recentNotifications" :key="notification.id" class="px-4 py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 border-b border-gray-50 last:border-0 dark:border-neutral-800/50">
                                         <Link :href="notification.data.url" class="block">
                                             <p class="text-sm text-gray-800 dark:text-neutral-200" :class="{ 'font-bold': !notification.read_at }">{{ notification.data.title }}</p>
@@ -453,5 +344,7 @@ const isActiveMessages = (linkId: string) => {
                 </div>
             </main>
         </div>
+
+        <DashboardBottomNav />
     </div>
 </template>

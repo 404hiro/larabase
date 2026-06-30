@@ -3,9 +3,10 @@ import {
     destroy as messageDestroy,
     update as messageUpdate,
 } from '@/actions/App/Http/Controllers/MessageController';
+import { messages as dashboardMessages } from '@/actions/App/Http/Controllers/DashboardController';
 import { Button } from '@/components/ui/button';
 import DashboardLayout from '@/layouts/DashboardLayout.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
     ArrowLeft,
     ExternalLink,
@@ -16,15 +17,25 @@ import {
     MessageCircle,
     Reply,
     Trash2,
-    User,
 } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import type { DashboardMessage } from './types';
 
 const props = defineProps<{
-    mailbox: 'inbox' | 'sent';
-    messages: DashboardMessage[];
+    initialMailbox: 'inbox' | 'sent';
+    inboxLimit: number;
+    sentLimit: number;
+    hasMoreInboxMessages: boolean;
+    hasMoreSentMessages: boolean;
+    inboxMessages: DashboardMessage[];
+    sentMessages: DashboardMessage[];
 }>();
+
+const mailbox = ref<'inbox' | 'sent'>(props.initialMailbox);
+
+const messages = computed(() => {
+    return mailbox.value === 'inbox' ? props.inboxMessages : props.sentMessages;
+});
 
 const getInitialSelectedMessageId = (): string | null => {
     if (typeof window === 'undefined') {
@@ -39,9 +50,10 @@ const getInitialSelectedMessageId = (): string | null => {
 const replyingToId = ref<string | null>(null);
 const selectedMessageId = ref<string | null>(getInitialSelectedMessageId());
 const isDetailOpen = ref(
-    props.messages.some((message) => message.id === selectedMessageId.value),
+    messages.value.some((message) => message.id === selectedMessageId.value),
 );
 const sortDirection = ref<'desc' | 'asc'>('desc');
+const isLoadingMoreMessages = ref(false);
 
 const replyForm = useForm({
     reply_body: '',
@@ -55,24 +67,8 @@ const getSenderName = (message: DashboardMessage) => {
     return message.sender_display_name || 'ユーザー';
 };
 
-const getSenderInitial = (message: DashboardMessage) => {
-    return getSenderName(message).charAt(0);
-};
-
 const getListName = (message: DashboardMessage) => {
     return isInbox.value ? getSenderName(message) : message.link.display_name;
-};
-
-const getListInitial = (message: DashboardMessage) => {
-    return getListName(message).charAt(0);
-};
-
-const getListAvatarUrl = (message: DashboardMessage) => {
-    return isInbox.value ? message.sender.avatar_url : message.link.avatar_url;
-};
-
-const isAnonymousInboxMessage = (message: DashboardMessage) => {
-    return isInbox.value && message.sender_mode === 'anonymous';
 };
 
 const messageListButtonClass = (message: DashboardMessage) => {
@@ -87,12 +83,8 @@ const messageListButtonClass = (message: DashboardMessage) => {
     return 'bg-white hover:bg-gray-50';
 };
 
-const unreadCount = computed(() => {
-    return props.messages.filter((message) => !message.is_read).length;
-});
-
 const sortedMessages = computed(() => {
-    return [...props.messages].sort((messageA, messageB) => {
+    return [...messages.value].sort((messageA, messageB) => {
         const timestampA = new Date(messageA.created_at).getTime();
         const timestampB = new Date(messageB.created_at).getTime();
 
@@ -104,20 +96,22 @@ const sortedMessages = computed(() => {
 
 const selectedMessage = computed(() => {
     return (
-        props.messages.find(
+        messages.value.find(
             (message) => message.id === selectedMessageId.value,
         ) ?? null
     );
 });
 
-const isInbox = computed(() => props.mailbox === 'inbox');
-
-const mailboxTitle = computed(() => {
-    return isInbox.value ? '受信箱' : '送信箱';
-});
+const isInbox = computed(() => mailbox.value === 'inbox');
 
 const sortLabel = computed(() => {
     return sortDirection.value === 'desc' ? '新しい順' : '古い順';
+});
+
+const hasMoreMessages = computed(() => {
+    return isInbox.value
+        ? props.hasMoreInboxMessages
+        : props.hasMoreSentMessages;
 });
 
 const formatDate = (dateString: string) => {
@@ -145,6 +139,11 @@ const selectMessage = (message: DashboardMessage) => {
     replyingToId.value = null;
 
     const url = new URL(window.location.href);
+    if (mailbox.value === 'sent') {
+        url.searchParams.set('mailbox', 'sent');
+    } else {
+        url.searchParams.delete('mailbox');
+    }
     url.searchParams.set('message', String(message.id));
     window.history.pushState({}, '', `${url.pathname}${url.search}`);
 
@@ -167,6 +166,45 @@ const returnToMessageList = () => {
 
 const toggleSortDirection = () => {
     sortDirection.value = sortDirection.value === 'desc' ? 'asc' : 'desc';
+};
+
+const switchMailbox = (nextMailbox: 'inbox' | 'sent') => {
+    mailbox.value = nextMailbox;
+};
+
+const loadMoreMessages = () => {
+    isLoadingMoreMessages.value = true;
+
+    router.get(
+        dashboardMessages.url({
+            mergeQuery: {
+                inboxLimit: isInbox.value
+                    ? props.inboxLimit + 20
+                    : props.inboxLimit,
+                sentLimit: isInbox.value
+                    ? props.sentLimit
+                    : props.sentLimit + 20,
+                mailbox: isInbox.value ? null : 'sent',
+            },
+        }),
+        {},
+        {
+            only: [
+                'initialMailbox',
+                'inboxLimit',
+                'sentLimit',
+                'hasMoreInboxMessages',
+                'hasMoreSentMessages',
+                'inboxMessages',
+                'sentMessages',
+            ],
+            preserveScroll: true,
+            preserveState: true,
+            onFinish: () => {
+                isLoadingMoreMessages.value = false;
+            },
+        },
+    );
 };
 
 const togglePublish = (message: DashboardMessage) => {
@@ -209,15 +247,15 @@ const deleteMessage = (message: DashboardMessage) => {
 };
 
 watch(
-    () => props.messages,
-    (messages) => {
-        if (!messages.length) {
+    () => messages.value,
+    (msgs) => {
+        if (!msgs || !msgs.length) {
             selectedMessageId.value = null;
 
             return;
         }
 
-        if (!messages.some((message) => message.id === selectedMessageId.value)) {
+        if (!msgs.some((message) => message.id === selectedMessageId.value)) {
             selectedMessageId.value = null;
             isDetailOpen.value = false;
         }
@@ -225,19 +263,26 @@ watch(
 );
 
 watch(
-    () => props.mailbox,
-    () => {
-        selectedMessageId.value = getInitialSelectedMessageId();
-        isDetailOpen.value = props.messages.some(
-            (message) => message.id === selectedMessageId.value,
-        );
+    () => mailbox.value,
+    (nextMailbox) => {
+        selectedMessageId.value = null;
+        isDetailOpen.value = false;
         replyingToId.value = null;
+
+        const url = new URL(window.location.href);
+        url.searchParams.delete('message');
+        if (nextMailbox === 'sent') {
+            url.searchParams.set('mailbox', 'sent');
+        } else {
+            url.searchParams.delete('mailbox');
+        }
+        window.history.pushState({}, '', `${url.pathname}${url.search}`);
     },
 );
 
 onMounted(() => {
     if (selectedMessageId.value && isInbox.value) {
-        const message = props.messages.find(m => m.id === selectedMessageId.value);
+        const message = props.inboxMessages.find(m => m.id === selectedMessageId.value);
         if (message && !message.is_read) {
             useForm({ is_read: true }).patch(messageUpdate.url(message.id), {
                 preserveScroll: true,
@@ -255,23 +300,31 @@ onMounted(() => {
         <div class="h-full">
             <section class="h-full overflow-hidden bg-white">
                 <div
-                    class="relative grid h-full min-h-0 min-[1025px]:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]">
+                    class="relative grid h-full min-h-0 md:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]">
                     <div
-                        class="flex h-full min-h-0 flex-col border-b border-gray-200 min-[1025px]:border-r min-[1025px]:border-b-0">
-                        <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4">
-                            <div>
-                                <p class="text-sm font-bold text-gray-900">
-                                    {{ mailboxTitle }}
-                                </p>
-                                <p class="mt-0.5 text-xs font-medium text-gray-400" v-if="unreadCount > 0">
-                                    {{ unreadCount }} 件の未読メッセージ
-                                </p>
+                        class="flex h-full min-h-0 flex-col border-b border-gray-200 md:border-r md:border-b-0">
+                        <div class="border-b border-gray-200 px-5 py-4">
+                            <div class="flex items-center justify-between gap-3">
+                                <div class="flex min-w-0 max-w-[250px] flex-1 gap-1 rounded-xl bg-gray-100 p-1 dark:bg-neutral-800">
+                                    <button type="button"
+                                        class="min-w-0 flex-1 rounded-lg px-3 py-1.5 text-sm font-bold transition-all"
+                                        :class="mailbox === 'inbox' ? 'bg-white text-black shadow-sm dark:bg-neutral-700 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-neutral-400 dark:hover:text-neutral-200'"
+                                        @click="switchMailbox('inbox')">
+                                        受信箱
+                                    </button>
+                                    <button type="button"
+                                        class="min-w-0 flex-1 rounded-lg px-3 py-1.5 text-sm font-bold transition-all"
+                                        :class="mailbox === 'sent' ? 'bg-white text-black shadow-sm dark:bg-neutral-700 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-neutral-400 dark:hover:text-neutral-200'"
+                                        @click="switchMailbox('sent')">
+                                        送信箱
+                                    </button>
+                                </div>
+                                <button type="button"
+                                    class="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white px-3 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-50"
+                                    @click="toggleSortDirection">
+                                    {{ sortLabel }}
+                                </button>
                             </div>
-                            <button type="button"
-                                class="inline-flex h-9 items-center justify-center rounded-full border border-gray-200 bg-white px-3 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-50"
-                                @click="toggleSortDirection">
-                                {{ sortLabel }}
-                            </button>
                         </div>
 
                         <div v-if="messages.length === 0" class="px-5 py-16 text-center">
@@ -316,18 +369,33 @@ onMounted(() => {
                                     </div>
                                 </div>
                             </button>
+                            <div v-if="hasMoreMessages" class="px-5 py-4">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    class="w-full"
+                                    :disabled="isLoadingMoreMessages"
+                                    @click="loadMoreMessages"
+                                >
+                                    {{
+                                        isLoadingMoreMessages
+                                            ? '読み込み中...'
+                                            : 'さらに表示'
+                                    }}
+                                </Button>
+                            </div>
                         </div>
                     </div>
 
                     <article v-if="selectedMessage"
-                        class="absolute inset-0 z-10 flex h-full min-h-0 flex-col bg-white transition-transform duration-300 ease-out min-[1025px]:static min-[1025px]:z-auto min-[1025px]:translate-x-0 min-[1025px]:transition-none"
+                        class="absolute inset-0 z-10 flex h-full min-h-0 flex-col bg-white transition-transform duration-300 ease-out md:static md:z-auto md:translate-x-0 md:transition-none"
                         :class="isDetailOpen
                             ? 'translate-x-0'
-                            : 'pointer-events-none translate-x-full min-[1025px]:pointer-events-auto'
+                            : 'pointer-events-none translate-x-full md:pointer-events-auto'
                             ">
-                        <header class="border-b border-gray-200 px-5 py-4 min-[1025px]:px-8 min-[1025px]:py-5">
+                        <header class="border-b border-gray-200 px-5 py-4 md:px-8 md:py-5">
                             <button type="button" aria-label="メッセージ一覧に戻る"
-                                class="mb-4 inline-flex size-10 items-center justify-center rounded-full border border-gray-200 text-gray-700 transition-colors hover:bg-gray-50 min-[1025px]:hidden"
+                                class="mb-4 inline-flex size-10 items-center justify-center rounded-full border border-gray-200 text-gray-700 transition-colors hover:bg-gray-50 md:hidden"
                                 @click="returnToMessageList">
                                 <ArrowLeft class="size-5" />
                             </button>
@@ -403,7 +471,7 @@ onMounted(() => {
                             </div>
                         </header>
 
-                        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-6 min-[1025px]:px-8 min-[1025px]:py-8">
+                        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-6 md:px-8 md:py-8">
                             <p class="max-w-3xl text-lg leading-9 whitespace-pre-wrap text-gray-900">
                                 {{ selectedMessage.body }}
                             </p>
@@ -437,7 +505,7 @@ onMounted(() => {
                                 </p>
                             </div>
 
-                            <div v-else class="mt-8">
+                            <div v-else-if="isInbox" class="mt-8">
                                 <Button type="button" variant="outline" @click="startReply(selectedMessage)">
                                     <Reply class="size-4" />
                                     このメッセージに返信
@@ -446,7 +514,7 @@ onMounted(() => {
                         </div>
                     </article>
 
-                    <div v-else class="hidden bg-white min-[1025px]:block"></div>
+                    <div v-else class="hidden bg-white md:block"></div>
                 </div>
             </section>
         </div>

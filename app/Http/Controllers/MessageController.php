@@ -8,6 +8,7 @@ use App\Models\Link;
 use App\Models\Message;
 use App\Notifications\MessageReadNotification;
 use App\Notifications\MessageReceivedNotification;
+use App\Services\Stripe\CreateMessageCheckoutSession;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -21,24 +22,48 @@ class MessageController extends Controller
         $validated = $request->validated();
         $user = $request->user();
 
+        $hasGift = $validated['has_gift'];
+
+        if ($hasGift && empty($validated['gift_amount'])) {
+            abort(422, '差し入れ金額を選択してください。');
+        }
+
+        $creator = $link->user()->with('stripeAccount')->firstOrFail();
+
+        if ($hasGift && ! $creator->canReceivePayments()) {
+            abort(422, 'このユーザーはまだ差し入れを受け取れません。');
+        }
+
+        $amount = $hasGift ? $validated['gift_amount'] : 0;
+
         $message = $link->messages()->create([
             'sender_user_id' => $user->id,
             'body' => $validated['body'],
-            'amount' => $validated['amount'] ?? 0,
+            'amount' => $amount,
             'sender_mode' => $validated['sender_mode'],
-            'sender_display_name' => $validated['sender_mode'] === 'named' ? $user->name : null,
-            'status' => 'safe', // Defaulting to safe for MVP
-            'is_public' => $request->boolean('is_public'),
-            'published_at' => $request->boolean('is_public') ? now() : null,
+            'sender_display_name' => $validated['sender_display_name'] ?? ($validated['sender_mode'] === 'named' ? $user->name : null),
+            'status' => $hasGift ? 'pending_payment' : 'safe',
+            'is_public' => false, // Always private by default for new system
+            'is_read' => false,
             'metadata' => [
                 'ip_hash' => hash('sha256', $request->ip()),
                 'user_agent' => $request->userAgent(),
+                'gift_label' => $validated['gift_label'] ?? null,
             ],
         ]);
 
-        $link->user->notify(new MessageReceivedNotification($message));
+        if (! $hasGift) {
+            $link->user->notify(new MessageReceivedNotification($message));
 
-        return back()->with('success', 'メッセージを送りました');
+            return back()->with('success', 'メッセージを送りました');
+        }
+
+        return app(CreateMessageCheckoutSession::class)->handle(
+            message: $message,
+            link: $link,
+            creator: $creator,
+            payer: $user
+        );
     }
 
     /**

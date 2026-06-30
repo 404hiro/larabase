@@ -325,17 +325,6 @@ const updateLayoutsFromWidgets = () => {
     }));
 };
 
-const scrollToWidgetBottom = () => {
-    nextTick(() => {
-        requestAnimationFrame(() => {
-            window.scrollTo({
-                top: document.documentElement.scrollHeight,
-                behavior: 'smooth',
-            });
-        });
-    });
-};
-
 const syncWidgetsFromDesktop = () => {
     desktopLayout.value.forEach((item) => {
         const widget = localWidgets.value.find((w) => String(w.id) === item.i);
@@ -1308,7 +1297,6 @@ const addSectionWidget = () => {
     addLocalWidget(newWidget);
     updateLayoutsFromWidgets();
     markDirty();
-    scrollToWidgetBottom();
     pendingWidgetSize.value = null;
 };
 
@@ -1615,7 +1603,6 @@ const commitMobileAddedWidget = (widget: any) => {
     updateLayoutsFromWidgets();
     markDirty();
     activeWidgetId.value = widget.id;
-    nextTick(scrollToWidgetBottom);
 
     return true;
 };
@@ -1838,7 +1825,6 @@ const { width: windowWidth } = useWindowSize();
 const mobileGridDimensions = computed(() => {
     // Mobile grid settings (matching the GridLayout component)
     const colNum = 2;
-    const rowHeight = 84.5;
     const margin = 12;
 
     // Calculate content width
@@ -1849,6 +1835,9 @@ const mobileGridDimensions = computed(() => {
     const gridWidth = contentWidth + 24; // w-[calc(100%+24px)]
 
     const colWidth = (gridWidth - (colNum + 1) * margin) / colNum;
+
+    // Proportional row height to maintain aspect ratio (84.5 / 181 ratio)
+    const rowHeight = colWidth * (84.5 / 181);
 
     return { colWidth, rowHeight, margin };
 });
@@ -2466,7 +2455,6 @@ const addMediaWidget = async (
 
         updateLayoutsFromWidgets();
         markDirty();
-        scrollToWidgetBottom();
         pendingWidgetSize.value = null;
     } catch (error) {
         console.error('Failed to upload media:', error);
@@ -2528,7 +2516,6 @@ const addTextWidget = (position: WidgetPosition | null = null) => {
     addLocalWidget(newWidget);
     updateLayoutsFromWidgets();
     markDirty();
-    scrollToWidgetBottom();
     pendingWidgetSize.value = null;
 };
 
@@ -2580,7 +2567,6 @@ const addMapWidget = (position: WidgetPosition | null = null) => {
     addLocalWidget(newWidget);
     updateLayoutsFromWidgets();
     markDirty();
-    scrollToWidgetBottom();
     pendingWidgetSize.value = null;
 };
 
@@ -2660,7 +2646,6 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
 
         updateLayoutsFromWidgets();
         markDirty();
-        scrollToWidgetBottom();
     } catch (e) {
         console.error('Failed to fetch OGP', e);
         const xMatch = limitedUrl.match(
@@ -2709,7 +2694,6 @@ const addLinkWidget = async (url: string, isSensitive = false) => {
 
         updateLayoutsFromWidgets();
         markDirty();
-        scrollToWidgetBottom();
     } finally {
         pendingWidgetPosition.value = null;
         pendingWidgetSize.value = null;
@@ -3824,7 +3808,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                         :key="`mobile-${isSmallViewport}-${previewMode}`"
                         v-model:layout="mobileLayout"
                         :col-num="2"
-                        :row-height="84.5"
+                        :row-height="mobileGridDimensions.rowHeight"
                         :margin="[12, 12]"
                         :is-draggable="
                             isEditing &&

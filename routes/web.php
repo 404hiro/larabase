@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\TitleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\LinkController;
+use App\Http\Controllers\StripeWebhookController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -30,12 +31,8 @@ Route::post('walkthrough', [\App\Http\Controllers\WalkthroughController::class, 
     ->middleware(['auth'])
     ->name('walkthrough.store');
 
-Route::redirect('dashboard/messages', '/dashboard/messages/inbox')
-    ->middleware(['auth']);
-
-Route::get('dashboard/messages/{mailbox}', [\App\Http\Controllers\DashboardController::class, 'messages'])
+Route::get('dashboard/messages', [\App\Http\Controllers\DashboardController::class, 'messages'])
     ->middleware(['auth'])
-    ->whereIn('mailbox', ['inbox', 'sent'])
     ->name('dashboard.messages');
 
 Route::get('dashboard/notifications', [\App\Http\Controllers\NotificationController::class, 'index'])
@@ -122,6 +119,12 @@ Route::patch('/messages/{message}', [\App\Http\Controllers\MessageController::cl
 Route::delete('/messages/{message}', [\App\Http\Controllers\MessageController::class, 'destroy'])
     ->middleware(['auth'])
     ->name('messages.destroy');
+
+Route::get('stripe/checkout/cancel', [StripeWebhookController::class, 'cancel'])
+    ->name('stripe.checkout.cancel');
+
+Route::post(config('services.stripe.webhook_path'), [StripeWebhookController::class, 'handle'])
+    ->name('stripe.webhook');
 
 Route::get('/@{link:slug}/widgets/{widget}/click', [\App\Http\Controllers\WidgetClickController::class, 'click'])
     ->name('widgets.click');

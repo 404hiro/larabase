@@ -41,4 +41,11 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI'),
     ],
 
+    'stripe' => [
+        'secret' => env('STRIPE_SECRET'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        'webhook_path' => env('STRIPE_WEBHOOK_PATH', 'stripe/webhook'),
+        'connect_country' => env('STRIPE_CONNECT_COUNTRY', 'JP'),
+    ],
+
 ];

@@ -53,4 +53,19 @@ class Message extends Model
     {
         return $this->hasOne(MessageReply::class);
     }
+
+    public function payment(): HasOne
+    {
+        return $this->hasOne(MessagePayment::class);
+    }
+
+    public function getPaymentStatusLabelAttribute(): string
+    {
+        return match ($this->status) {
+            'pending_payment' => '支払い待ち',
+            'payment_cancelled' => '支払いキャンセル',
+            'safe' => '支払い済み',
+            default => '通常メッセージ',
+        };
+    }
 }

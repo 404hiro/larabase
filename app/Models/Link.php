@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class Link extends Model
 {
@@ -122,5 +123,29 @@ class Link extends Model
             'is_accepting_messages' => 'boolean',
             'message_settings' => 'array',
         ];
+    }
+
+    /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (Link $link) {
+            // Delete link avatar file
+            if ($link->avatar_url) {
+                $path = parse_url($link->avatar_url, PHP_URL_PATH);
+                $storagePrefix = Storage::disk('public')->url('');
+                $storagePrefix = parse_url($storagePrefix, PHP_URL_PATH);
+
+                if (is_string($path) && str_starts_with($path, (string) $storagePrefix)) {
+                    Storage::disk('public')->delete(substr($path, strlen((string) $storagePrefix)));
+                }
+            }
+
+            // Delete widgets one by one to trigger their deleting events (for file cleanup)
+            $link->widgets()->each(function (Widget $widget) {
+                $widget->delete();
+            });
+        });
     }
 }

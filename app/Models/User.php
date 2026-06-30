@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
@@ -68,7 +69,25 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the attributes that should be cast.
+     * Get the user's Stripe Connect account.
+     */
+    public function stripeAccount(): HasOne
+    {
+        return $this->hasOne(UserStripeAccount::class);
+    }
+
+    /**
+     * Determine if the user can receive payments via Stripe Connect.
+     */
+    public function canReceivePayments(): bool
+    {
+        return (bool) ($this->stripeAccount?->details_submitted &&
+            $this->stripeAccount?->charges_enabled &&
+            $this->stripeAccount?->payouts_enabled);
+    }
+
+    /**
+     * The attributes that should be cast.
      *
      * @return array<string, string>
      */
@@ -76,5 +95,26 @@ class User extends Authenticatable
     {
         return [
         ];
+    }
+
+    /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (User $user) {
+            // Clean up notifications
+            $user->notifications()->delete();
+
+            // Delete avatar file
+            if ($user->avatar) {
+                Storage::disk('public')->delete($user->avatar);
+            }
+
+            // Delete links one by one to trigger their deleting events (for file cleanup)
+            $user->links()->each(function (Link $link) {
+                $link->delete();
+            });
+        });
     }
 }
