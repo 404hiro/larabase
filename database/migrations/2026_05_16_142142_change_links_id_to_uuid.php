@@ -13,6 +13,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         // 1. Add UUID column to links
         Schema::table('links', function (Blueprint $table) {
             $table->uuid('uuid')->nullable()->unique()->after('id');
