@@ -40,22 +40,27 @@ return new class extends Migration
                 $table->uuid('link_uuid')->nullable()->after($column);
             });
 
-            // Update with loop for PostgreSQL compatibility
             DB::table('links')->get()->each(function ($link) use ($tableName, $column) {
                 DB::table($tableName)
                     ->where($column, $link->id)
                     ->update(['link_uuid' => $link->uuid]);
             });
 
-            Schema::table($tableName, function (Blueprint $table) use ($tableName, $column) {
-                // Determine the correct foreign key name
-                $foreignKey = "{$tableName}_{$column}_foreign";
-                $table->dropForeign($foreignKey);
-                $table->dropColumn($column);
-                $table->renameColumn('link_uuid', $column);
-            });
+            if (DB::getDriverName() === 'sqlite') {
+                Schema::table($tableName, function (Blueprint $table) use ($column) {
+                    $table->dropColumn($column);
+                });
 
-            // Re-add foreign key constraint
+                DB::statement("ALTER TABLE \"{$tableName}\" RENAME COLUMN \"link_uuid\" TO \"{$column}\"");
+            } else {
+                Schema::table($tableName, function (Blueprint $table) use ($tableName, $column) {
+                    $foreignKey = "{$tableName}_{$column}_foreign";
+                    $table->dropForeign($foreignKey);
+                    $table->dropColumn($column);
+                    $table->renameColumn('link_uuid', $column);
+                });
+            }
+
             Schema::table($tableName, function (Blueprint $table) use ($column) {
                 $table->foreign($column)->references('uuid')->on('links')->onDelete('cascade');
             });
