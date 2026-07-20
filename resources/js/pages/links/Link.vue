@@ -123,12 +123,17 @@ const props = defineProps<{
     is_editing?: boolean;
 }>();
 
+const isPersistedWidgetId = (id: unknown) => {
+    return typeof id === 'number' || (typeof id === 'string' && /^\d+$/.test(id));
+};
+
 const getWidgetHref = (widget: any) => {
     if (
         !widget.content ||
         widget.type === 'section' ||
         widget.type === 'map' ||
-        isEditing.value
+        isEditing.value ||
+        !isPersistedWidgetId(widget.id)
     ) {
         return undefined;
     }
@@ -5236,7 +5241,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                 <p
                     class="mt-3 text-sm leading-6 text-gray-600 dark:text-zinc-400"
                 >
-                    このリンクはセンシティブなコンテンツを含む可能性があります。内容を確認したうえでリンクを開いてください。
+                    このリンクはセンシティブなコンテンツを含む可能性があります。内容を確認した上でリンクを開いてください。
                 </p>
                 <div class="mt-6 flex gap-3">
                     <button

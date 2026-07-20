@@ -64,6 +64,11 @@ it('increments widget click count and redirects', function () {
     expect(WidgetClickDailyStat::first()->click_count)->toBe(2);
 });
 
+it('returns not found for temporary widget click ids', function () {
+    $this->get('/@testlink/widgets/temp_1783833439092/click')
+        ->assertNotFound();
+});
+
 it('does not increment widget click count for owner access', function () {
     $this->actingAs($this->user)
         ->get("/@testlink/widgets/{$this->widget->id}/click")

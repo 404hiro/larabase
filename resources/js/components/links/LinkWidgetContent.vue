@@ -8,6 +8,7 @@ import {
     ArrowRight,
     Image,
     Link as LinkIcon,
+    MoveUpRight,
     Trash2,
 } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
@@ -186,6 +187,9 @@ const title = computed(() => {
 const hasTitle = computed(() => String(title.value).trim().length > 0);
 
 const href = computed(() => props.widget.content || '');
+const hasImageLink = computed(
+    () => props.widget.type === 'image' && String(href.value).trim().length > 0,
+);
 const image = computed(() => props.widget.thumbnail_url || '');
 const bgColor = computed(() => settings.value.bgColor || '#FFFFFF');
 const textAlign = computed(() => settings.value.textAlign || 'left');
@@ -1121,6 +1125,12 @@ onUnmounted(() => {
                 :class="widgetCornerClass"
                 draggable="false"
             />
+            <div
+                v-if="hasImageLink && !isCropping"
+                class="pointer-events-none absolute top-2 right-2 z-20 flex size-6 items-center justify-center rounded-full bg-gray-700/75 text-white shadow-sm backdrop-blur-sm"
+            >
+                <MoveUpRight class="size-3.5" />
+            </div>
             <div
                 v-if="isCropping"
                 class="pointer-events-none absolute inset-0 z-20"

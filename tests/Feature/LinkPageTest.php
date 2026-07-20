@@ -1157,6 +1157,19 @@ test('image widgets expose link and crop controls', function () {
         ->toContain('item.widget');
 });
 
+test('linked image widgets show an external move indicator', function () {
+    $content = file_get_contents(resource_path('js/components/links/LinkWidgetContent.vue'));
+
+    expect($content)
+        ->toContain('MoveUpRight')
+        ->toContain('const hasImageLink')
+        ->toContain("props.widget.type === 'image'")
+        ->toContain('String(href.value).trim().length > 0')
+        ->toContain('v-if="hasImageLink && !isCropping"')
+        ->toContain('rounded-full bg-gray-700/75')
+        ->toContain('<MoveUpRight class="size-3.5" />');
+});
+
 test('grid resize handles are hidden because resizing is controlled by the widget toolbar', function () {
     $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
 
@@ -1438,6 +1451,15 @@ test('widget sync rejects invalid widget limits', function () {
         ->post(route('widgets.sync', $link), ['widgets' => $widgets])
         ->assertRedirect(route('links.show', $link))
         ->assertSessionHasErrors('widgets');
+});
+
+test('temporary widgets do not receive click tracking links', function () {
+    $linkPage = file_get_contents(resource_path('js/pages/links/Link.vue'));
+
+    expect($linkPage)
+        ->toContain('const isPersistedWidgetId')
+        ->toContain('!isPersistedWidgetId(widget.id)')
+        ->toContain('widgetClick.url');
 });
 
 test('mobile toolbar link add uses a bottom sheet instead of the modal', function () {

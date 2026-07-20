@@ -127,6 +127,7 @@ Route::post(config('services.stripe.webhook_path'), [StripeWebhookController::cl
     ->name('stripe.webhook');
 
 Route::get('/@{link:slug}/widgets/{widget}/click', [\App\Http\Controllers\WidgetClickController::class, 'click'])
+    ->whereNumber('widget')
     ->name('widgets.click');
 
 Route::get('/@{link:slug}', [LinkController::class, 'show'])->name('links.show');

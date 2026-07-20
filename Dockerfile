@@ -14,6 +14,7 @@ RUN apt-get update \
         libjpeg-dev \
         libfreetype6-dev \
         libssl-dev \
+        postgresql-client \
         git \
         unzip \
         curl \
@@ -33,14 +34,14 @@ RUN apt-get update \
 
 WORKDIR /var/www/html
 
+ENV CACHE_STORE=file
+
 COPY . .
 
 RUN composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader \
     && npm ci \
     && npm run build \
-    && php artisan config:clear \
     && php artisan optimize:clear \
-    && php artisan config:cache \
     && php artisan route:cache \
     && php artisan view:cache \
     && (php artisan storage:link || true)
