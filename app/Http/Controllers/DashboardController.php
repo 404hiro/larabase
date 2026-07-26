@@ -57,8 +57,19 @@ class DashboardController extends Controller
             ->values();
         $totalClicksLast30Days = (int) $dailyClicks->sum();
 
+        $linksCount = $user->links()->count();
+        $primaryLink = $user->links()
+            ->latest()
+            ->first(['id', 'slug', 'display_name', 'is_published']);
+
         return Inertia::render('dashboard/Index', [
-            'linksCount' => $user->links()->count(),
+            'linksCount' => $linksCount,
+            'primaryLink' => $primaryLink ? [
+                'id' => $primaryLink->id,
+                'slug' => $primaryLink->slug,
+                'display_name' => $primaryLink->display_name,
+                'is_published' => $primaryLink->is_published,
+            ] : null,
             'titleOptions' => Title::query()
                 ->where('is_active', true)
                 ->orderBy('sort_order')

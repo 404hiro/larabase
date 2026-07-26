@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DashboardBottomNav from '@/components/DashboardBottomNav.vue';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -6,7 +7,6 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import UserMenuContent from '@/components/UserMenuContent.vue';
-import DashboardBottomNav from '@/components/DashboardBottomNav.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import {
     Bell,
@@ -36,10 +36,18 @@ type DashboardLink = {
 };
 
 const page = usePage();
-const auth = computed(() => page.props.auth || { user: { name: '', avatar_url: '' } });
-const unreadMessagesCount = computed(() => (page.props.unreadMessagesCount ?? 0) as number);
-const unreadNotificationsCount = computed(() => (page.props.unreadNotificationsCount ?? 0) as number);
-const recentNotifications = computed(() => (page.props.recentNotifications ?? []) as any[]);
+const auth = computed(
+    () => page.props.auth || { user: { name: '', avatar_url: '' } },
+);
+const unreadMessagesCount = computed(
+    () => (page.props.unreadMessagesCount ?? 0) as number,
+);
+const unreadNotificationsCount = computed(
+    () => (page.props.unreadNotificationsCount ?? 0) as number,
+);
+const recentNotifications = computed(
+    () => (page.props.recentNotifications ?? []) as any[],
+);
 const currentPath = computed(() => page.url?.split('?')[0] || '');
 const dashboardLinks = computed(() => {
     return (page.props.dashboardLinks ?? []) as DashboardLink[];
@@ -106,7 +114,7 @@ const isActiveMessages = (linkId: string) => {
                 </div>
                 <div>
                     <p class="text-sm font-semibold text-white">grid.link</p>
-                    <p class="text-xs text-white/50">クリエイター管理</p>
+                    <p class="text-xs text-white/50">マイページ編集</p>
                 </div>
             </div>
 
@@ -186,7 +194,7 @@ const isActiveMessages = (linkId: string) => {
                                         : 'text-white/55 hover:bg-white/10 hover:text-white'
                                 "
                             >
-                                Overview
+                                すべてのリンク
                             </Link>
                             <Link
                                 v-for="link in dashboardLinks"
@@ -245,14 +253,14 @@ const isActiveMessages = (linkId: string) => {
         </aside>
 
         <!-- Main Content -->
-        <div class="flex flex-1 flex-col overflow-hidden pb-16 min-[1025px]:pb-0">
+        <div
+            class="flex flex-1 flex-col overflow-hidden pb-16 min-[1025px]:pb-0"
+        >
             <header
                 class="flex h-16 shrink-0 items-center justify-between border-b border-gray-200 bg-white/95 px-4 backdrop-blur md:px-6 dark:border-neutral-800 dark:bg-neutral-900/95"
             >
                 <div class="flex items-center gap-3">
-                    <div
-                        class="flex items-center gap-3 min-[1025px]:hidden"
-                    >
+                    <div class="flex items-center gap-3 min-[1025px]:hidden">
                         <div
                             class="flex size-9 items-center justify-center rounded-lg bg-black text-sm font-bold text-white dark:bg-white dark:text-black"
                         >
@@ -264,8 +272,10 @@ const isActiveMessages = (linkId: string) => {
                             >
                                 grid.link
                             </p>
-                            <p class="text-xs text-gray-500 dark:text-neutral-400">
-                                クリエイター管理
+                            <p
+                                class="text-xs text-gray-500 dark:text-neutral-400"
+                            >
+                                マイページ編集
                             </p>
                         </div>
                     </div>
@@ -274,30 +284,75 @@ const isActiveMessages = (linkId: string) => {
                 <div class="flex items-center gap-2">
                     <DropdownMenu>
                         <DropdownMenuTrigger as-child>
-                            <Button variant="outline" size="icon" class="relative">
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                class="relative"
+                            >
                                 <Bell class="size-4" />
-                                <span v-if="unreadNotificationsCount > 0" class="absolute top-1 right-1 flex size-2.5 rounded-full bg-red-500"></span>
+                                <span
+                                    v-if="unreadNotificationsCount > 0"
+                                    class="absolute top-1 right-1 flex size-2.5 rounded-full bg-red-500"
+                                ></span>
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" class="w-80 p-0">
-                            <div class="px-4 py-3 border-b border-gray-100 dark:border-neutral-800">
-                                <p class="text-sm font-semibold text-gray-900 dark:text-white">お知らせ</p>
+                            <div
+                                class="border-b border-gray-100 px-4 py-3 dark:border-neutral-800"
+                            >
+                                <p
+                                    class="text-sm font-semibold text-gray-900 dark:text-white"
+                                >
+                                    お知らせ
+                                </p>
                             </div>
-                            <div class="py-2 max-h-80 overflow-y-auto">
-                                <template v-if="recentNotifications && recentNotifications.length > 0">
-                                    <div v-for="notification in recentNotifications" :key="notification.id" class="px-4 py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 border-b border-gray-50 last:border-0 dark:border-neutral-800/50">
-                                        <Link :href="notification.data.url" class="block">
-                                            <p class="text-sm text-gray-800 dark:text-neutral-200" :class="{ 'font-bold': !notification.read_at }">{{ notification.data.title }}</p>
-                                            <p class="text-xs text-gray-500 dark:text-neutral-400 mt-1">{{ notification.data.body }}</p>
+                            <div class="max-h-80 overflow-y-auto py-2">
+                                <template
+                                    v-if="
+                                        recentNotifications &&
+                                        recentNotifications.length > 0
+                                    "
+                                >
+                                    <div
+                                        v-for="notification in recentNotifications"
+                                        :key="notification.id"
+                                        class="border-b border-gray-50 px-4 py-3 last:border-0 hover:bg-gray-50 dark:border-neutral-800/50 dark:hover:bg-neutral-800"
+                                    >
+                                        <Link
+                                            :href="notification.data.url"
+                                            class="block"
+                                        >
+                                            <p
+                                                class="text-sm text-gray-800 dark:text-neutral-200"
+                                                :class="{
+                                                    'font-bold':
+                                                        !notification.read_at,
+                                                }"
+                                            >
+                                                {{ notification.data.title }}
+                                            </p>
+                                            <p
+                                                class="mt-1 text-xs text-gray-500 dark:text-neutral-400"
+                                            >
+                                                {{ notification.data.body }}
+                                            </p>
                                         </Link>
                                     </div>
                                 </template>
-                                <div v-else class="px-4 py-6 text-center text-sm text-gray-500">
+                                <div
+                                    v-else
+                                    class="px-4 py-6 text-center text-sm text-gray-500"
+                                >
                                     お知らせはありません
                                 </div>
                             </div>
-                            <div class="border-t border-gray-100 px-4 py-3 dark:border-neutral-800 text-center">
-                                <Link href="/dashboard/notifications" class="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                            <div
+                                class="border-t border-gray-100 px-4 py-3 text-center dark:border-neutral-800"
+                            >
+                                <Link
+                                    href="/dashboard/notifications"
+                                    class="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                                >
                                     すべてのお知らせ
                                 </Link>
                             </div>

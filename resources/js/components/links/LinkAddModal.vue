@@ -49,7 +49,10 @@ const isValidUrl = (string: string) => {
     try {
         const parsed = new URL(string);
         // プロトコルが http または https であり、ホスト名にドットが含まれていることを確認（ドメイン形式）
-        return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.hostname.includes('.');
+        return (
+            (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
+            parsed.hostname.includes('.')
+        );
     } catch (_) {
         return false;
     }
@@ -111,12 +114,32 @@ const handleAdd = () => {
                                 ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
                                 : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500 dark:border-zinc-700 dark:focus:border-blue-500'
                         "
-                        :aria-describedby="errorMessage ? 'url-error' : undefined"
+                        :aria-describedby="
+                            errorMessage ? 'url-error' : undefined
+                        "
                         @keyup.enter="handleAdd"
                         @input="errorMessage = ''"
                     />
-                    <div v-if="errorMessage" class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                        <svg class="size-4 shrink-0 text-red-500" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+                    <div
+                        v-if="errorMessage"
+                        class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3"
+                    >
+                        <svg
+                            class="size-4 shrink-0 text-red-500"
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" x2="12" y1="8" y2="12" />
+                            <line x1="12" x2="12.01" y1="16" y2="16" />
+                        </svg>
                     </div>
                     <button
                         v-else-if="url"
@@ -129,23 +152,33 @@ const handleAdd = () => {
                         <X class="size-4" />
                     </button>
                 </div>
-                <p v-if="errorMessage" class="mt-2 text-sm text-red-600" id="url-error">
+                <p
+                    v-if="errorMessage"
+                    class="mt-2 text-sm text-red-600"
+                    id="url-error"
+                >
                     {{ errorMessage }}
                 </p>
             </div>
             <label
                 class="mb-6 flex cursor-pointer items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 transition-colors dark:border-zinc-800 dark:bg-zinc-900/70"
             >
-                <span class="text-sm font-semibold text-gray-800 dark:text-zinc-200">
-                    センシティブ
+                <span
+                    class="text-sm font-semibold text-gray-800 dark:text-zinc-200"
+                >
+                    開く前に確認を表示
                 </span>
                 <button
                     type="button"
                     role="switch"
                     :aria-checked="isSensitive"
-                    aria-label="センシティブ"
+                    aria-label="開く前に確認を表示"
                     class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:outline-none"
-                    :class="isSensitive ? 'bg-blue-600' : 'bg-gray-300 dark:bg-zinc-700'"
+                    :class="
+                        isSensitive
+                            ? 'bg-blue-600'
+                            : 'bg-gray-300 dark:bg-zinc-700'
+                    "
                     @click.prevent.stop="isSensitive = !isSensitive"
                 >
                     <span

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onClickOutside } from '@vueuse/core';
 import {
     AlignCenter,
     AlignLeft,
@@ -20,7 +21,6 @@ import {
 } from 'lucide-vue-next';
 import { HSStaticMethods } from 'preline';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { onClickOutside } from '@vueuse/core';
 
 const props = defineProps<{
     widget: any;
@@ -85,13 +85,7 @@ onClickOutside(controlsRef, () => {
     showMapSearch.value = false;
 });
 
-const colorSwatches = [
-    '#FFFFFF',
-    '#FBCFE8',
-    '#BFDBFE',
-    '#BBF7D0',
-    '#1F2937',
-];
+const colorSwatches = ['#FFFFFF', '#FBCFE8', '#BFDBFE', '#BBF7D0', '#1F2937'];
 
 const backgroundColor = computed(
     () => props.widget.settings?.bgColor || '#FFFFFF',
@@ -134,7 +128,7 @@ const isMusicUrl = (value: string | null | undefined) => {
         const url = new URL(value);
         const host = url.hostname.toLowerCase().replace(/^www\./, '');
         const pathParts = url.pathname.split('/').filter(Boolean);
-        
+
         return (
             host === 'music.youtube.com' ||
             host === 'vimeo.com' ||
@@ -150,14 +144,21 @@ const isEmbeddableWidget = computed(() => {
         props.mode === 'desktop' ? props.widget.w : props.widget.w_mobile;
     const height =
         props.mode === 'desktop' ? props.widget.h : props.widget.h_mobile;
-    
+
     // 0.5x1 (inline) size is width 2, height 1
     const isInline = Number(width) === 2 && Number(height) === 1;
 
-    return props.widget.type === 'link' && !isInline && (isYouTubeVideoUrl(props.widget.content) || isMusicUrl(props.widget.content));
+    return (
+        props.widget.type === 'link' &&
+        !isInline &&
+        (isYouTubeVideoUrl(props.widget.content) ||
+            isMusicUrl(props.widget.content))
+    );
 });
 
-const youtubeMode = computed(() => props.widget.settings?.youtubeMode || 'link');
+const youtubeMode = computed(
+    () => props.widget.settings?.youtubeMode || 'link',
+);
 
 const isWidgetSize = (size: { w: number; h: number }) => {
     const width =
@@ -441,22 +442,27 @@ onUnmounted(() => {
         <div
             v-if="widget.type === 'text' && showColorPicker"
             class="pointer-events-auto absolute right-1/2 z-[150] flex h-11 translate-x-1/2 items-center gap-1.5 rounded-2xl bg-black/80 p-1.5 shadow-xl ring-1 ring-white/10 backdrop-blur-md"
-            :class="
-                mode === 'desktop' ? 'bottom-1' : 'bottom-[-4.25rem]'
-            "
+            :class="mode === 'desktop' ? 'bottom-1' : 'bottom-[-4.25rem]'"
             @click.stop
             @pointerdown.stop
             @mousedown.stop
             @touchstart.stop
         >
-            <div v-for="color in colorSwatches" :key="color" class="hs-tooltip inline-block">
+            <div
+                v-for="color in colorSwatches"
+                :key="color"
+                class="hs-tooltip inline-block"
+            >
                 <button
                     :aria-label="`背景色 ${color}`"
                     :style="{ backgroundColor: color }"
                     :class="[...colorButtonClass(color), 'hs-tooltip-toggle']"
                     @click.prevent.stop="setBackgroundColor(color)"
                 >
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                    <span
+                        class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                        role="tooltip"
+                    >
                         {{ color }}
                     </span>
                 </button>
@@ -494,18 +500,29 @@ onUnmounted(() => {
                     :aria-label="option.label"
                     @click.prevent.stop="resizeWidget(option.size)"
                     :disabled="isCropping"
-                    :class="[...sizeButtonClass(option.size), isCropping ? 'opacity-50 !cursor-not-allowed' : '', 'hs-tooltip-toggle']"
+                    :class="[
+                        ...sizeButtonClass(option.size),
+                        isCropping ? '!cursor-not-allowed opacity-50' : '',
+                        'hs-tooltip-toggle',
+                    ]"
                 >
                     <span
-                        v-if="widget.type !== 'section' && option.key !== 'inline'"
-                        :class="sizeIconClass(option.key, isWidgetSize(option.size))"
+                        v-if="
+                            widget.type !== 'section' && option.key !== 'inline'
+                        "
+                        :class="
+                            sizeIconClass(option.key, isWidgetSize(option.size))
+                        "
                     ></span>
                     <component
                         v-else
                         :is="option.icon"
                         :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
                     />
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                    <span
+                        class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                        role="tooltip"
+                    >
                         {{ option.label }}
                     </span>
                 </button>
@@ -517,14 +534,17 @@ onUnmounted(() => {
                     <button
                         aria-label="ロケーションを検索"
                         @click.prevent.stop="toggleMapSearch"
-                        :class="[...toolButtonClass(showMapSearch), 'hs-tooltip-toggle']"
+                        :class="[
+                            ...toolButtonClass(showMapSearch),
+                            'hs-tooltip-toggle',
+                        ]"
                     >
                         <Search
                             :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
                         />
 
                         <span
-                            class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap"
+                            class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
                             role="tooltip"
                         >
                             ロケーションを検索
@@ -535,14 +555,17 @@ onUnmounted(() => {
                     <button
                         aria-label="マップを移動"
                         @click.prevent.stop="toggleMapMove"
-                        :class="[...toolButtonClass(Boolean(isMapMoving)), 'hs-tooltip-toggle']"
+                        :class="[
+                            ...toolButtonClass(Boolean(isMapMoving)),
+                            'hs-tooltip-toggle',
+                        ]"
                     >
                         <Move
                             :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
                         />
 
                         <span
-                            class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap"
+                            class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
                             role="tooltip"
                         >
                             マップを移動
@@ -630,67 +653,100 @@ onUnmounted(() => {
             <template v-if="widget.type === 'image'">
                 <div class="mx-1 h-7 w-px bg-gray-600"></div>
                 <div class="hs-tooltip inline-block">
-                <button aria-label="リンクを設定"
-                    
-                    @click.prevent.stop="emit('editLink')"
-                    :class="[...toolButtonClass(Boolean(widget.content)), 'hs-tooltip-toggle']"
-                >
-                    <Link :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-                
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
-                        リンクを設定
-                    </span>
-                </button>
-            </div>
+                    <button
+                        aria-label="リンクを設定"
+                        @click.prevent.stop="emit('editLink')"
+                        :class="[
+                            ...toolButtonClass(Boolean(widget.content)),
+                            'hs-tooltip-toggle',
+                        ]"
+                    >
+                        <Link
+                            :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                        />
+
+                        <span
+                            class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                            role="tooltip"
+                        >
+                            リンクを設定
+                        </span>
+                    </button>
+                </div>
                 <div class="hs-tooltip inline-block">
-                <button aria-label="コンテンツ設定"
-                    v-if="shouldShowContentLabelsButton"
-                    
-                    @click.prevent.stop="toggleContentLabels"
-                    :class="[...toolButtonClass(showContentLabels || isSensitive), 'hs-tooltip-toggle']"
-                >
-                    <LockKeyhole
-                        :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
-                    />
-                
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
-                        コンテンツ設定
-                    </span>
-                </button>
-            </div>
+                    <button
+                        aria-label="リンクの確認設定"
+                        v-if="shouldShowContentLabelsButton"
+                        @click.prevent.stop="toggleContentLabels"
+                        :class="[
+                            ...toolButtonClass(
+                                showContentLabels || isSensitive,
+                            ),
+                            'hs-tooltip-toggle',
+                        ]"
+                    >
+                        <LockKeyhole
+                            :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                        />
+
+                        <span
+                            class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                            role="tooltip"
+                        >
+                            リンクの確認設定
+                        </span>
+                    </button>
+                </div>
                 <div class="hs-tooltip inline-block">
-                <button :aria-label="isCropping ? '完了' : 'トリミング'"
-                    
-                    @click.prevent.stop="emit('toggleCrop')"
-                    :class="[...toolButtonClass(isCropping), 'hs-tooltip-toggle', isCropping ? '!bg-white !text-gray-950' : '']"
-                >
-                    <Crop :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-                
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
-                        {{ isCropping ? '完了' : 'トリミング' }}
-                    </span>
-                </button>
-            </div>
+                    <button
+                        :aria-label="isCropping ? '完了' : 'トリミング'"
+                        @click.prevent.stop="emit('toggleCrop')"
+                        :class="[
+                            ...toolButtonClass(isCropping),
+                            'hs-tooltip-toggle',
+                            isCropping ? '!bg-white !text-gray-950' : '',
+                        ]"
+                    >
+                        <Crop
+                            :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                        />
+
+                        <span
+                            class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                            role="tooltip"
+                        >
+                            {{ isCropping ? '完了' : 'トリミング' }}
+                        </span>
+                    </button>
+                </div>
             </template>
 
             <template v-if="widget.type === 'link'">
                 <div class="mx-1 h-7 w-px bg-gray-600"></div>
                 <div class="hs-tooltip inline-block">
-                <button aria-label="コンテンツ設定"
-                    v-if="shouldShowContentLabelsButton"
-                    
-                    @click.prevent.stop="toggleContentLabels"
-                    :class="[...toolButtonClass(showContentLabels || isSensitive), 'hs-tooltip-toggle']"
-                >
-                    <LockKeyhole
-                        :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
-                    />
-                
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
-                        コンテンツ設定
-                    </span>
-                </button>
-            </div>
+                    <button
+                        aria-label="リンクの確認設定"
+                        v-if="shouldShowContentLabelsButton"
+                        @click.prevent.stop="toggleContentLabels"
+                        :class="[
+                            ...toolButtonClass(
+                                showContentLabels || isSensitive,
+                            ),
+                            'hs-tooltip-toggle',
+                        ]"
+                    >
+                        <LockKeyhole
+                            :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                        />
+
+                        <span
+                            class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                            role="tooltip"
+                        >
+                            リンクの確認設定
+                        </span>
+                    </button>
+                </div>
             </template>
 
             <!-- Content Settings Popup -->
@@ -702,29 +758,33 @@ onUnmounted(() => {
                 @mousedown.stop
                 @touchstart.stop
             >
-                <div class="flex items-center gap-2 px-1 pb-3 text-base font-bold">
+                <div
+                    class="flex items-center gap-2 px-1 pb-3 text-base font-bold"
+                >
                     <LockKeyhole class="size-5 text-white/70" />
-                    <span>コンテンツ設定</span>
+                    <span>リンクの確認設定</span>
                 </div>
                 <div class="h-px bg-white/15"></div>
                 <label
                     class="mt-3 flex cursor-pointer items-center justify-between rounded-xl border border-white/15 bg-white/10 p-3"
                 >
                     <span class="text-sm font-bold text-white/80">
-                        センシティブ
+                        開く前に確認を表示
                     </span>
                     <button
                         type="button"
                         role="switch"
                         :aria-checked="isSensitive"
-                        aria-label="センシティブ"
+                        aria-label="開く前に確認を表示"
                         class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:outline-none"
                         :class="isSensitive ? 'bg-blue-600' : 'bg-white/20'"
                         @click.prevent.stop="toggleSensitive"
                     >
                         <span
                             class="pointer-events-none inline-block size-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                            :class="isSensitive ? 'translate-x-5' : 'translate-x-0'"
+                            :class="
+                                isSensitive ? 'translate-x-5' : 'translate-x-0'
+                            "
                         ></span>
                     </button>
                 </label>
@@ -733,50 +793,72 @@ onUnmounted(() => {
             <template v-if="widget.type === 'text'">
                 <div class="mx-1 h-7 w-px bg-gray-600"></div>
                 <div class="hs-tooltip inline-block">
-                <button aria-label="背景色を変更"
-                    
-                    @click.prevent.stop="toggleColorPicker"
-                    :class="[...toolButtonClass(showColorPicker), 'hs-tooltip-toggle']"
-                >
-                    <Circle
-                        :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
-                        :fill="backgroundColor"
-                    />
-                
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
-                        背景色を変更
-                    </span>
-                </button>
-            </div>
+                    <button
+                        aria-label="背景色を変更"
+                        @click.prevent.stop="toggleColorPicker"
+                        :class="[
+                            ...toolButtonClass(showColorPicker),
+                            'hs-tooltip-toggle',
+                        ]"
+                    >
+                        <Circle
+                            :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                            :fill="backgroundColor"
+                        />
+
+                        <span
+                            class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                            role="tooltip"
+                        >
+                            背景色を変更
+                        </span>
+                    </button>
+                </div>
                 <div class="hs-tooltip inline-block">
-                <button aria-label="リンクを設定"
-                    
-                    @click.prevent.stop="openLinkSettings"
-                    :class="[...toolButtonClass(Boolean(widget.content)), 'hs-tooltip-toggle']"
-                >
-                    <Link :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-                
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
-                        リンクを設定
-                    </span>
-                </button>
-            </div>
+                    <button
+                        aria-label="リンクを設定"
+                        @click.prevent.stop="openLinkSettings"
+                        :class="[
+                            ...toolButtonClass(Boolean(widget.content)),
+                            'hs-tooltip-toggle',
+                        ]"
+                    >
+                        <Link
+                            :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                        />
+
+                        <span
+                            class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                            role="tooltip"
+                        >
+                            リンクを設定
+                        </span>
+                    </button>
+                </div>
                 <div class="hs-tooltip inline-block">
-                <button aria-label="コンテンツ設定"
-                    v-if="shouldShowContentLabelsButton"
-                    
-                    @click.prevent.stop="toggleContentLabels"
-                    :class="[...toolButtonClass(showContentLabels || isSensitive), 'hs-tooltip-toggle']"
-                >
-                    <LockKeyhole
-                        :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
-                    />
-                
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
-                        コンテンツ設定
-                    </span>
-                </button>
-            </div>
+                    <button
+                        aria-label="リンクの確認設定"
+                        v-if="shouldShowContentLabelsButton"
+                        @click.prevent.stop="toggleContentLabels"
+                        :class="[
+                            ...toolButtonClass(
+                                showContentLabels || isSensitive,
+                            ),
+                            'hs-tooltip-toggle',
+                        ]"
+                    >
+                        <LockKeyhole
+                            :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                        />
+
+                        <span
+                            class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                            role="tooltip"
+                        >
+                            リンクの確認設定
+                        </span>
+                    </button>
+                </div>
             </template>
         </div>
 
@@ -786,8 +868,12 @@ onUnmounted(() => {
             class="pointer-events-auto absolute right-1/2 z-[3200] flex translate-x-1/2 items-center gap-1.5 rounded-2xl bg-black/80 p-1.5 text-white shadow-xl ring-1 ring-white/10 backdrop-blur-md"
             :class="
                 mode === 'desktop'
-                    ? (sizeOptions && sizeOptions.length > 0 ? '-bottom-[5rem]' : '-bottom-10')
-                    : (sizeOptions && sizeOptions.length > 0 ? '-bottom-[4.5rem]' : '-bottom-8')
+                    ? sizeOptions && sizeOptions.length > 0
+                        ? '-bottom-[5rem]'
+                        : '-bottom-10'
+                    : sizeOptions && sizeOptions.length > 0
+                      ? '-bottom-[4.5rem]'
+                      : '-bottom-8'
             "
             @click.stop
             @pointerdown.prevent.stop
@@ -795,40 +881,64 @@ onUnmounted(() => {
             @touchstart.prevent.stop
         >
             <div class="hs-tooltip inline-block">
-                <button aria-label="通常リンク"
-                
-                @click.prevent.stop="emit('updateYoutubeMode', 'link')"
-                :class="[...toolButtonClass(youtubeMode === 'link'), 'hs-tooltip-toggle']"
-            >
-                <Link :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-            
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                <button
+                    aria-label="通常リンク"
+                    @click.prevent.stop="emit('updateYoutubeMode', 'link')"
+                    :class="[
+                        ...toolButtonClass(youtubeMode === 'link'),
+                        'hs-tooltip-toggle',
+                    ]"
+                >
+                    <Link :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
+
+                    <span
+                        class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                        role="tooltip"
+                    >
                         通常リンク
                     </span>
                 </button>
             </div>
             <div class="hs-tooltip inline-block">
-                <button aria-label="リンク＋埋め込み"
-                
-                @click.prevent.stop="emit('updateYoutubeMode', 'link_embed')"
-                :class="[...toolButtonClass(youtubeMode === 'link_embed'), 'hs-tooltip-toggle']"
-            >
-                <ListVideo :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-            
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                <button
+                    aria-label="リンク＋埋め込み"
+                    @click.prevent.stop="
+                        emit('updateYoutubeMode', 'link_embed')
+                    "
+                    :class="[
+                        ...toolButtonClass(youtubeMode === 'link_embed'),
+                        'hs-tooltip-toggle',
+                    ]"
+                >
+                    <ListVideo
+                        :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                    />
+
+                    <span
+                        class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                        role="tooltip"
+                    >
                         リンク＋埋め込み
                     </span>
                 </button>
             </div>
             <div class="hs-tooltip inline-block">
-                <button aria-label="埋め込みプレイヤー"
-                
-                @click.prevent.stop="emit('updateYoutubeMode', 'embed')"
-                :class="[...toolButtonClass(youtubeMode === 'embed'), 'hs-tooltip-toggle']"
-            >
-                <CirclePlay :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-            
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                <button
+                    aria-label="埋め込みプレイヤー"
+                    @click.prevent.stop="emit('updateYoutubeMode', 'embed')"
+                    :class="[
+                        ...toolButtonClass(youtubeMode === 'embed'),
+                        'hs-tooltip-toggle',
+                    ]"
+                >
+                    <CirclePlay
+                        :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                    />
+
+                    <span
+                        class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                        role="tooltip"
+                    >
                         埋め込みプレイヤー
                     </span>
                 </button>
@@ -845,40 +955,64 @@ onUnmounted(() => {
             @touchstart.prevent.stop
         >
             <div class="hs-tooltip inline-block">
-                <button aria-label="左寄せ"
-                
-                @click.prevent.stop="emit('updateTextAlign', 'left')"
-                :class="[...toolButtonClass(textAlign === 'left'), 'hs-tooltip-toggle']"
-            >
-                <AlignLeft :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-            
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                <button
+                    aria-label="左寄せ"
+                    @click.prevent.stop="emit('updateTextAlign', 'left')"
+                    :class="[
+                        ...toolButtonClass(textAlign === 'left'),
+                        'hs-tooltip-toggle',
+                    ]"
+                >
+                    <AlignLeft
+                        :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                    />
+
+                    <span
+                        class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                        role="tooltip"
+                    >
                         左寄せ
                     </span>
                 </button>
             </div>
             <div class="hs-tooltip inline-block">
-                <button aria-label="中央寄せ"
-                
-                @click.prevent.stop="emit('updateTextAlign', 'center')"
-                :class="[...toolButtonClass(textAlign === 'center'), 'hs-tooltip-toggle']"
-            >
-                <AlignCenter :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-            
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                <button
+                    aria-label="中央寄せ"
+                    @click.prevent.stop="emit('updateTextAlign', 'center')"
+                    :class="[
+                        ...toolButtonClass(textAlign === 'center'),
+                        'hs-tooltip-toggle',
+                    ]"
+                >
+                    <AlignCenter
+                        :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                    />
+
+                    <span
+                        class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                        role="tooltip"
+                    >
                         中央寄せ
                     </span>
                 </button>
             </div>
             <div class="hs-tooltip inline-block">
-                <button aria-label="右寄せ"
-                
-                @click.prevent.stop="emit('updateTextAlign', 'right')"
-                :class="[...toolButtonClass(textAlign === 'right'), 'hs-tooltip-toggle']"
-            >
-                <AlignRight :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-            
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                <button
+                    aria-label="右寄せ"
+                    @click.prevent.stop="emit('updateTextAlign', 'right')"
+                    :class="[
+                        ...toolButtonClass(textAlign === 'right'),
+                        'hs-tooltip-toggle',
+                    ]"
+                >
+                    <AlignRight
+                        :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                    />
+
+                    <span
+                        class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                        role="tooltip"
+                    >
                         右寄せ
                     </span>
                 </button>
@@ -887,40 +1021,64 @@ onUnmounted(() => {
             <div class="mx-1 h-7 w-px bg-gray-600"></div>
 
             <div class="hs-tooltip inline-block">
-                <button aria-label="上寄せ"
-                
-                @click.prevent.stop="emit('updateVerticalAlign', 'start')"
-                :class="[...toolButtonClass(verticalAlign === 'start'), 'hs-tooltip-toggle']"
-            >
-                <AlignVerticalJustifyStart :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-            
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                <button
+                    aria-label="上寄せ"
+                    @click.prevent.stop="emit('updateVerticalAlign', 'start')"
+                    :class="[
+                        ...toolButtonClass(verticalAlign === 'start'),
+                        'hs-tooltip-toggle',
+                    ]"
+                >
+                    <AlignVerticalJustifyStart
+                        :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                    />
+
+                    <span
+                        class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                        role="tooltip"
+                    >
                         上寄せ
                     </span>
                 </button>
             </div>
             <div class="hs-tooltip inline-block">
-                <button aria-label="上下中央"
-                
-                @click.prevent.stop="emit('updateVerticalAlign', 'center')"
-                :class="[...toolButtonClass(verticalAlign === 'center'), 'hs-tooltip-toggle']"
-            >
-                <AlignVerticalJustifyCenter :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-            
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                <button
+                    aria-label="上下中央"
+                    @click.prevent.stop="emit('updateVerticalAlign', 'center')"
+                    :class="[
+                        ...toolButtonClass(verticalAlign === 'center'),
+                        'hs-tooltip-toggle',
+                    ]"
+                >
+                    <AlignVerticalJustifyCenter
+                        :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                    />
+
+                    <span
+                        class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                        role="tooltip"
+                    >
                         上下中央
                     </span>
                 </button>
             </div>
             <div class="hs-tooltip inline-block">
-                <button aria-label="下寄せ"
-                
-                @click.prevent.stop="emit('updateVerticalAlign', 'end')"
-                :class="[...toolButtonClass(verticalAlign === 'end'), 'hs-tooltip-toggle']"
-            >
-                <AlignVerticalJustifyEnd :class="mode === 'desktop' ? 'size-4' : 'size-3.5'" />
-            
-                    <span class="hs-tooltip-content hs-tooltip-shown:opacity-100 hs-tooltip-shown:visible opacity-0 transition-opacity inline-block absolute invisible z-10 py-1 px-2 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap" role="tooltip">
+                <button
+                    aria-label="下寄せ"
+                    @click.prevent.stop="emit('updateVerticalAlign', 'end')"
+                    :class="[
+                        ...toolButtonClass(verticalAlign === 'end'),
+                        'hs-tooltip-toggle',
+                    ]"
+                >
+                    <AlignVerticalJustifyEnd
+                        :class="mode === 'desktop' ? 'size-4' : 'size-3.5'"
+                    />
+
+                    <span
+                        class="hs-tooltip-content invisible absolute z-10 inline-block rounded-md bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity hs-tooltip-shown:visible hs-tooltip-shown:opacity-100"
+                        role="tooltip"
+                    >
                         下寄せ
                     </span>
                 </button>

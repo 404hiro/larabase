@@ -124,7 +124,9 @@ const props = defineProps<{
 }>();
 
 const isPersistedWidgetId = (id: unknown) => {
-    return typeof id === 'number' || (typeof id === 'string' && /^\d+$/.test(id));
+    return (
+        typeof id === 'number' || (typeof id === 'string' && /^\d+$/.test(id))
+    );
 };
 
 const getWidgetHref = (widget: any) => {
@@ -861,10 +863,7 @@ watch([activePreviewMode, isSmallViewport], () => {
 
 const toggleEdit = () => {
     if (isEditing.value) {
-        editForm.value.display_name = editForm.value.display_name.replace(
-            /\s+/g,
-            '',
-        );
+        editForm.value.display_name = editForm.value.display_name.trim();
         isSavingChanges.value = true;
         // Save link data
         router.post(
@@ -3653,7 +3652,6 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                         item.widget.content &&
                                         item.widget.type !== 'section' &&
                                         item.widget.type !== 'map' &&
-                                        !isYouTubeEmbedMode(item.widget) &&
                                         !isEditing
                                             ? 'cursor-pointer'
                                             : '',
@@ -4251,13 +4249,13 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                         <span
                             class="text-sm font-bold text-gray-800 dark:text-zinc-200"
                         >
-                            センシティブ
+                            開く前に確認を表示
                         </span>
                         <button
                             type="button"
                             role="switch"
                             :aria-checked="mobileAddLinkSensitive"
-                            aria-label="センシティブ"
+                            aria-label="開く前に確認を表示"
                             class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:outline-none"
                             :class="
                                 mobileAddLinkSensitive
@@ -4389,7 +4387,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                         <span
                             class="text-sm font-bold text-gray-800 dark:text-zinc-200"
                         >
-                            センシティブ
+                            開く前に確認を表示
                         </span>
                         <button
                             type="button"
@@ -4399,7 +4397,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                     mobileLinkEditorWidget.settings?.sensitive,
                                 )
                             "
-                            aria-label="センシティブ"
+                            aria-label="開く前に確認を表示"
                             class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:outline-none"
                             :class="
                                 mobileLinkEditorWidget.settings?.sensitive
@@ -4579,7 +4577,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                         <span
                             class="text-sm font-bold text-gray-800 dark:text-zinc-200"
                         >
-                            センシティブ
+                            開く前に確認を表示
                         </span>
                         <button
                             type="button"
@@ -4591,7 +4589,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                     mobileImageEditorWidget.settings?.sensitive,
                                 )
                             "
-                            aria-label="センシティブ"
+                            aria-label="開く前に確認を表示"
                             class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed"
                             :class="
                                 mobileImageEditorWidget.content &&
@@ -5090,7 +5088,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                         <span
                             class="text-sm font-bold text-gray-800 dark:text-zinc-200"
                         >
-                            センシティブ
+                            開く前に確認を表示
                         </span>
                         <button
                             type="button"
@@ -5102,7 +5100,7 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                                     mobileTextEditorWidget.settings?.sensitive,
                                 )
                             "
-                            aria-label="センシティブ"
+                            aria-label="開く前に確認を表示"
                             class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed"
                             :class="
                                 mobileTextEditorWidget.content &&
@@ -5236,12 +5234,12 @@ body.is-dragging .vgl-item:not(.vgl-item--dragging) {
                 class="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl dark:border dark:border-zinc-800 dark:bg-zinc-950"
             >
                 <h3 class="text-xl font-bold text-gray-950 dark:text-white">
-                    センシティブなコンテンツ
+                    確認が必要なリンク
                 </h3>
                 <p
                     class="mt-3 text-sm leading-6 text-gray-600 dark:text-zinc-400"
                 >
-                    このリンクはセンシティブなコンテンツを含む可能性があります。内容を確認した上でリンクを開いてください。
+                    このリンクを開く前に確認画面を表示しています。内容を確認した上でリンクを開いてください。
                 </p>
                 <div class="mt-6 flex gap-3">
                     <button

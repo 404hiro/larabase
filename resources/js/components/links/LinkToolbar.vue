@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
+import { dashboard } from '@/routes';
 import { compressImage } from '@/utils/imageCompression';
+import { Link as InertiaLink } from '@inertiajs/vue3';
 import {
     Check,
     Copy,
     Image,
+    LayoutDashboard,
     Link as LinkIcon,
     MapPinned,
     Monitor,
@@ -278,6 +281,16 @@ const mobileSizeIconClass = (option: any) => {
                 }}</span>
             </Button>
 
+            <InertiaLink :href="dashboard().url">
+                <Button
+                    variant="ghost"
+                    class="h-8 cursor-pointer gap-2 rounded-xl px-4 text-sm text-gray-900"
+                >
+                    <LayoutDashboard class="size-4" />
+                    <span class="font-semibold">管理画面</span>
+                </Button>
+            </InertiaLink>
+
             <div class="mx-1 h-6 w-px bg-gray-200"></div>
 
             <div class="flex h-full items-center rounded-xl bg-gray-100/80 p-1">
@@ -439,6 +452,16 @@ const mobileSizeIconClass = (option: any) => {
                 <span v-if="!isEditing">編集</span>
                 <span v-if="isEditing">保存</span>
             </button>
+
+            <InertiaLink
+                :href="dashboard().url"
+                class="ml-1 flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-bold transition-colors hover:bg-slate-100 hover:text-slate-800"
+                aria-label="管理画面"
+                title="管理画面"
+            >
+                <LayoutDashboard class="size-4" stroke-width="2.2" />
+                <span class="hidden min-[420px]:inline">管理画面</span>
+            </InertiaLink>
 
             <template v-if="isEditing">
                 <div class="mx-3 h-7 w-px bg-gray-200"></div>
