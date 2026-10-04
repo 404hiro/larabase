@@ -1,0 +1,47 @@
+@import 'tailwindcss';
+@import 'leaflet/dist/leaflet.css';
+
+:root {
+  color-scheme: light;
+  font-family:
+    Instrument Sans, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+  background: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+.bg-dot-pattern {
+  background-image: radial-gradient(#d4d4d4 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.grid-link-google-map .leaflet-tile {
+  filter: saturate(0.86) contrast(0.94) brightness(1.08) hue-rotate(342deg);
+}
+
+.grid-link-google-map .leaflet-container {
+  background: #f8f6f0;
+  font-family: Roboto, Arial, Helvetica, sans-serif;
+}
